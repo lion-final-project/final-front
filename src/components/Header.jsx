@@ -26,14 +26,13 @@ const Header = ({
           <nav className="header-nav">
             <a href="#" className={activeTab === 'home' ? 'active' : ''} onClick={(e) => { e.preventDefault(); onTabChange?.('home'); }}>우리 동네</a>
             <a href="#" className={activeTab === 'special' ? 'active' : ''} onClick={(e) => { e.preventDefault(); onTabChange?.('special'); }}>기획전</a>
-            <a href="#" className={activeTab === 'subscription' ? 'active' : ''} onClick={(e) => { e.preventDefault(); onTabChange?.('subscription'); }}>구독 서비스</a>
             <a href="#" className={activeTab === 'support' ? 'active' : ''} onClick={(e) => { e.preventDefault(); onTabChange?.('support'); }}>고객지원</a>
             <a href="#" 
                className={activeTab === 'partner' ? 'active' : ''} 
                onClick={(e) => { e.preventDefault(); onTabChange?.('partner'); }}
                style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
             >
-              라이더 모집
+              파트너 모집
               <span style={{ 
                 backgroundColor: '#ef4444', 
                 color: 'white', 

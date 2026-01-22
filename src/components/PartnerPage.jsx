@@ -80,7 +80,7 @@ const PartnerPage = ({ onBack, onRegister }) => {
               ))}
             </ul>
             <button 
-              onClick={() => onRegister?.('CUSTOMER')}
+              onClick={() => onRegister?.('RESIDENT')}
               style={{ width: '100%', padding: '16px', borderRadius: '12px', backgroundColor: '#38bdf8', color: 'white', border: 'none', fontWeight: '800', fontSize: '14px', cursor: 'pointer' }}
             >
               주민 라이더 시작하기

@@ -11,22 +11,49 @@ import SupportView from './SupportView';
 import PartnerPage from './PartnerPage';
 import Footer from './Footer';
 import { orders, subscriptions, reviews, stores, addresses, paymentMethods, faqs, categories, coupons, inquiries, loyaltyPoints } from '../data/mockData';
+import CartModal from './CartModal';
+import StoreDetailView from './StoreDetailView';
 
-const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth, setSelectedStore, isResidentRider, setIsResidentRider, isDeliveryMode, setIsDeliveryMode, notificationCount }) => {
+// Import Swiper React components
+import { Swiper, SwiperSlide } from 'swiper/react';
+// Import Swiper styles
+import 'swiper/css';
+import 'swiper/css/effect-coverflow';
+import 'swiper/css/pagination';
+import 'swiper/css/navigation';
+// import required modules
+import { EffectCoverflow, Pagination, Navigation } from 'swiper/modules';
+
+const TrackingModal = ({ isOpen, onClose, orderId }) => {
+  if (!isOpen) return null;
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1100, backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center'
+    }} onClick={onClose}>
+      <div style={{ 
+        width: '100%', maxWidth: '500px', height: '80vh', backgroundColor: 'white', borderRadius: '24px', overflow: 'hidden', display: 'flex', flexDirection: 'column'
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '16px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: '800' }}>배송 현황</h3>
+          <button onClick={onClose} style={{ border: 'none', background: 'transparent', fontSize: '24px', color: '#94a3b8', cursor: 'pointer' }}>✕</button>
+        </div>
+        <div style={{ flexGrow: 1, overflowY: 'auto' }}>
+          <OrderTrackingView orderId={orderId} onBack={onClose} isModal={true} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth, isResidentRider, setIsResidentRider, isDeliveryMode, setIsDeliveryMode, notificationCount }) => {
   const [activeTab, setActiveTab] = useState('home');
-  const [selectedCategory, setSelectedCategory] = useState('fruit');
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  // const [debouncedSearch, setDebouncedSearch] = useState(''); // Removed to satisfy lint
+  const [selectedStore, setSelectedStore] = useState(null); // Local state for full page view
 
   const [cartItems, setCartItems] = useState([]);
   const [toast, setToast] = useState(null);
-
-  /* useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-    }, 300);
-    return () => clearTimeout(handler);
-  }, [searchQuery]); */
 
   // Show toast feedback for interactions
   const showToast = (message) => {
@@ -41,11 +68,50 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
   const [reviewForm, setReviewForm] = useState({ rate: 5, content: '' });
   const [verifyStep, setVerifyStep] = useState(0); // 0: intro, 1: location, 2: id, 3: success
 
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isTrackingOpen, setIsTrackingOpen] = useState(false);
+
+  /* Address Management State */
+  const [addressList, setAddressList] = useState(addresses);
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [newAddress, setNewAddress] = useState({ label: '', contact: '', address: '', detail: '', isDefault: false });
+
+  const handleSaveAddress = () => {
+    if (!newAddress.label || !newAddress.contact || !newAddress.address || !newAddress.detail) {
+      alert('모든 항목을 입력해주세요.');
+      return;
+    }
+
+    const newId = Date.now();
+    let updatedList = [...addressList];
+
+    // If new address is default, unset previous default
+    if (newAddress.isDefault) {
+      updatedList = updatedList.map(addr => ({ ...addr, isDefault: false }));
+    }
+
+    // If it's the first address, make it default automatically
+    const isFirst = updatedList.length === 0;
+
+    updatedList.push({
+      id: newId,
+      ...newAddress,
+      isDefault: isFirst || newAddress.isDefault
+    });
+
+    setAddressList(updatedList);
+    setIsAddressModalOpen(false);
+    setNewAddress({ label: '', contact: '', address: '', detail: '', isDefault: false });
+    showToast('새 배송지가 추가되었습니다.');
+  };
+
   const handleOpenReviewModal = (order) => {
     setSelectedOrderForReview(order);
     setReviewForm({ rate: 5, content: '' });
     setIsReviewModalOpen(true);
   };
+/* ... existing code ... */
+
 
   const handleSaveReview = (e) => {
     e.preventDefault();
@@ -83,6 +149,20 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
 
   const renderActiveView = () => {
     if (isDeliveryMode) return <ResidentDeliveryView />;
+    
+    // If a store is selected, show the detail view regardless of tab (or handle as a pseudo-tab)
+    if (selectedStore) {
+      return (
+        <StoreDetailView 
+          store={selectedStore} 
+          onBack={() => {
+            setSelectedStore(null);
+            window.scrollTo(0, 0);
+          }}
+          onAddToCart={onAddToCart}
+        />
+      );
+    }
 
     switch (activeTab) {
       case 'special':
@@ -137,74 +217,16 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
             <div style={{ padding: '100px 0', textAlign: 'center', maxWidth: '400px', margin: '0 auto' }}>
               <div style={{ fontSize: '64px', marginBottom: '24px' }}>🛒</div>
               <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '16px' }}>장바구니 확인을 위해 <br /> 로그인이 필요합니다</h2>
-              <p style={{ color: 'var(--text-muted)', marginBottom: '32px', lineHeight: '1.6' }}>회원가입 후 동네마켓의 신선한 상품들과 <br /> 다양한 혜택을 만나보세요!</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <button onClick={onOpenAuth} className="btn-primary" style={{ padding: '16px', fontSize: '16px' }}>간편 로그인 / 회원가입</button>
-                <button onClick={() => setActiveTab('home')} style={{ padding: '16px', borderRadius: '12px', background: '#f1f5f9', color: '#475569', border: 'none', fontWeight: '700', cursor: 'pointer', fontSize: '16px' }}>홈으로 돌아가기</button>
-              </div>
+              <button onClick={() => { setActiveTab('home'); onOpenAuth(); }} className="btn-primary" style={{ padding: '12px 24px' }}>로그인하기</button>
             </div>
           );
         }
-        const totalPrice = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-        return (
-          <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '24px' }}>장바구니 ({cartItems.length})</h2>
-            {cartItems.length === 0 ? (
-              <div style={{ background: 'white', padding: '60px 24px', borderRadius: '16px', border: '1px solid var(--border)', textAlign: 'center' }}>
-                <div style={{ fontSize: '64px', marginBottom: '24px' }}>🛒</div>
-                <p style={{ color: 'var(--text-muted)', fontSize: '18px', marginBottom: '32px' }}>장바구니가 비어있습니다.</p>
-                <button 
-                  onClick={() => setActiveTab('home')}
-                  style={{ padding: '16px 32px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer', fontSize: '16px' }}
-                >쇼핑하러 가기</button>
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '24px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {cartItems.map((item) => (
-                    <div key={item.id} style={{ background: 'white', padding: '20px', borderRadius: '16px', border: '1px solid var(--border)', display: 'flex', gap: '16px', alignItems: 'center' }}>
-                      <img src={item.img} alt={item.name} style={{ width: '80px', height: '80px', borderRadius: '12px', objectFit: 'cover' }} />
-                      <div style={{ flexGrow: 1 }}>
-                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>{item.storeName}</div>
-                        <div style={{ fontWeight: '700', fontSize: '16px', marginBottom: '4px' }}>{item.name}</div>
-                        <div style={{ fontWeight: '800', color: 'var(--primary)' }}>{item.price.toLocaleString()}원</div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#f1f5f9', padding: '6px 12px', borderRadius: '24px' }}>
-                        <button onClick={() => onUpdateQuantity(item.id, -1)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontWeight: '800' }}>-</button>
-                        <span style={{ fontWeight: '700', width: '20px', textAlign: 'center' }}>{item.quantity}</span>
-                        <button onClick={() => onUpdateQuantity(item.id, 1)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontWeight: '800' }}>+</button>
-                      </div>
-                      <button onClick={() => onRemoveFromCart(item.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ height: 'fit-content', position: 'sticky', top: '100px' }}>
-                  <div style={{ background: 'white', padding: '24px', borderRadius: '20px', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
-                    <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px' }}>결제 금액</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px', borderBottom: '1px solid #f1f5f9', paddingBottom: '20px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-                        <span>상품 금액</span>
-                        <span>{totalPrice.toLocaleString()}원</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-                        <span>배송비</span>
-                        <span>3,000원</span>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
-                      <span style={{ fontWeight: '700', fontSize: '18px' }}>총 결제금액</span>
-                      <span style={{ fontWeight: '800', fontSize: '20px', color: 'var(--primary)' }}>{(totalPrice + 3000).toLocaleString()}원</span>
-                    </div>
-                    <button 
-                      onClick={() => setActiveTab('checkout')}
-                      style={{ width: '100%', padding: '16px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', fontSize: '16px', cursor: 'pointer', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)' }}
-                    >주문하기</button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        );
+        // Redirect to modal if cart tab is somehow active, or just show empty div as it's handled by modal
+        setTimeout(() => {
+          setActiveTab('home');
+          setIsCartOpen(true);
+        }, 0);
+        return null;
       }
       case 'checkout':
         return <CheckoutView cartItems={cartItems} onComplete={() => { 
@@ -213,7 +235,12 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
           setActiveTab('home'); 
         }} />;
       case 'tracking':
-        return <OrderTrackingView orderId={trackingOrderId} onBack={() => setActiveTab('home')} />;
+        // Redirect to modal if tracking tab is somehow active
+        setTimeout(() => {
+          setActiveTab('home');
+          setIsTrackingOpen(true);
+        }, 0);
+        return null;
       case 'support':
         return <SupportView userRole={userRole} onOpenAuth={onOpenAuth} />;
       case 'partner':
@@ -221,9 +248,15 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
           <PartnerPage 
             onBack={() => setActiveTab('home')} 
             onRegister={(role) => {
+              if (role === 'RESIDENT') {
+                setActiveTab('mypage');
+                setMyPageTab('resident');
+                window.scrollTo(0, 0);
+                return;
+              }
               setUserRole(role);
               setActiveTab('home');
-              window.scrollTo(0,0);
+              window.scrollTo(0, 0);
             }} 
           />
         );
@@ -268,10 +301,11 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
                     { id: 'profile', label: '주문/리뷰 관리', icon: '📝' },
+                    { id: 'subscription', label: '구독 관리', icon: '📅' },
                     { id: 'address', label: '배송지 관리', icon: '📍' },
                     { id: 'payment', label: '결제 수단 관리', icon: '💳' },
                     { id: 'coupon', label: '쿠폰함', icon: '🎫' },
-                    { id: 'help', label: '고객센터', icon: '📞' },
+                    { id: 'help', label: '고객지원', icon: '📞' },
                     { id: 'resident', label: '동네 라이더 신청', icon: '🛵' }
                   ].map(tab => (
                     <button 
@@ -383,6 +417,28 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                   </>
                 )}
 
+                {myPageTab === 'subscription' && (
+                  <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)' }}>
+                    <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '24px' }}>나의 구독 관리</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px' }}>
+                      {subscriptions.map((sub) => (
+                        <div key={sub.id} style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                            <div style={{ fontSize: '32px' }}>{sub.img}</div>
+                            <div style={{ backgroundColor: sub.status === '이용 중' ? '#f0fdf4' : '#f1f5f9', color: sub.status === '이용 중' ? 'var(--primary)' : 'var(--text-muted)', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '700' }}>{sub.status}</div>
+                          </div>
+                          <div style={{ fontWeight: '700', fontSize: '18px', marginBottom: '8px' }}>{sub.name}</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '20px' }}>{sub.period} | <span style={{ color: 'var(--primary)', fontWeight: '600' }}>{sub.price}</span></div>
+                          <div style={{ display: 'flex', gap: '10px' }}>
+                            <button onClick={() => showToast('구독 구성 변경 모달을 준비 중입니다.')} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'white', fontWeight: '600', cursor: 'pointer' }}>구성 변경</button>
+                            <button onClick={() => showToast('이번 주 배송을 건너뛰었습니다.')} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'white', fontWeight: '600', cursor: 'pointer' }}>건너뛰기</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {myPageTab === 'coupon' && (
                   <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)' }}>
                     <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px' }}>나의 쿠폰함</h3>
@@ -405,16 +461,18 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                   </div>
                 )}
 
+
+
                 {myPageTab === 'address' && (
                   <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                       <h3 style={{ fontSize: '18px', fontWeight: '700' }}>배송지 관리</h3>
                       <button 
-                        onClick={() => showToast('새 배송지 추가 양식을 준비 중입니다.')}
+                        onClick={() => setIsAddressModalOpen(true)}
                         style={{ padding: '8px 16px', borderRadius: '8px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>+ 새 배송지 추가</button>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      {addresses.map(addr => (
+                      {addressList.map(addr => (
                         <div key={addr.id} style={{ padding: '20px', borderRadius: '16px', border: '1px solid #f1f5f9', backgroundColor: addr.isDefault ? 'rgba(46, 204, 113, 0.02)' : 'white' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -423,13 +481,96 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                             </div>
                             <div style={{ display: 'flex', gap: '12px', fontSize: '13px', color: '#94a3b8' }}>
                               <span onClick={() => showToast('배송 정보 수정 기능을 준비 중입니다.')} style={{ cursor: 'pointer' }}>수정</span>
-                              <span onClick={() => showToast('배송 정보를 삭제하시겠습니까?')} style={{ cursor: 'pointer' }}>삭제</span>
+                              <span onClick={() => {
+                                if (window.confirm('정말 삭제하시겠습니까?')) {
+                                  setAddressList(prev => prev.filter(a => a.id !== addr.id));
+                                  showToast('배송지가 삭제되었습니다.');
+                                }
+                              }} style={{ cursor: 'pointer' }}>삭제</span>
                             </div>
                           </div>
                           <div style={{ fontSize: '15px', color: '#1e293b', marginBottom: '4px' }}>{addr.address}</div>
-                          <div style={{ fontSize: '14px', color: '#64748b' }}>{addr.detail}</div>
+                          <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '4px' }}>{addr.detail}</div>
+                          <div style={{ fontSize: '13px', color: '#94a3b8' }}>{addr.contact}</div>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Address Modal */}
+                {isAddressModalOpen && (
+                  <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }} onClick={() => setIsAddressModalOpen(false)}>
+                    <div style={{ background: 'white', width: '100%', maxWidth: '500px', borderRadius: '24px', padding: '32px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                        <h3 style={{ fontSize: '20px', fontWeight: '800' }}>새 배송지 추가</h3>
+                        <button onClick={() => setIsAddressModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '24px', color: '#94a3b8', cursor: 'pointer' }}>✕</button>
+                      </div>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>배송지 별칭</label>
+                          <input 
+                            type="text" 
+                            placeholder="예: 회사, 본가, 친구집"
+                            value={newAddress.label}
+                            onChange={(e) => setNewAddress({ ...newAddress, label: e.target.value })}
+                            style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>연락처</label>
+                          <input 
+                            type="text" 
+                            placeholder="010-0000-0000"
+                            value={newAddress.contact}
+                            onChange={(e) => setNewAddress({ ...newAddress, contact: e.target.value })}
+                            style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>주소</label>
+                          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                            <input 
+                              type="text" 
+                              placeholder="주소 검색"
+                              value={newAddress.address}
+                              readOnly
+                              style={{ flexGrow: 1, padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc', color: '#64748b' }}
+                            />
+                            <button 
+                              onClick={() => {
+                                setNewAddress({ ...newAddress, address: '서울시 강남구 테헤란로 123 (역삼동)' }); // Mock address search
+                                showToast('주소가 검색되었습니다.');
+                              }}
+                              style={{ padding: '0 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontWeight: '600', cursor: 'pointer', fontSize: '13px' }}
+                            >검색</button>
+                          </div>
+                          <input 
+                            type="text" 
+                            placeholder="상세 주소를 입력해주세요"
+                            value={newAddress.detail}
+                            onChange={(e) => setNewAddress({ ...newAddress, detail: e.target.value })}
+                            style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                          />
+                        </div>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                          <input 
+                            type="checkbox" 
+                            id="def-addr" 
+                            checked={newAddress.isDefault}
+                            onChange={(e) => setNewAddress({ ...newAddress, isDefault: e.target.checked })}
+                            style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }} 
+                          />
+                          <label htmlFor="def-addr" style={{ fontSize: '14px', color: '#475569', cursor: 'pointer' }}>기본 배송지로 설정</label>
+                        </div>
+
+                        <button 
+                          onClick={handleSaveAddress}
+                          style={{ width: '100%', padding: '16px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '800', fontSize: '16px', cursor: 'pointer', marginTop: '12px' }}
+                        >저장하기</button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -442,95 +583,91 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                         onClick={() => showToast('새 결제 수단 등록 페이지로 이동합니다.')}
                         style={{ padding: '8px 16px', borderRadius: '8px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>+ 결제 수단 추가</button>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px' }}>
-                      {paymentMethods.map(pm => (
-                        <div key={pm.id} style={{ padding: '20px', borderRadius: '16px', border: '1px solid #f1f5f9', position: 'relative' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                            <div style={{ width: '40px', height: '24px', backgroundColor: pm.color, borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '8px', fontWeight: '900' }}>
-                              {pm.type === 'card' ? 'CARD' : 'PAY'}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <Swiper
+                        effect={'coverflow'}
+                        grabCursor={true}
+                        centeredSlides={true}
+                        slidesPerView={'auto'}
+                        coverflowEffect={{
+                          rotate: 50,
+                          stretch: 0,
+                          depth: 100,
+                          modifier: 1,
+                          slideShadows: true,
+                        }}
+                        pagination={true}
+                        navigation={true}
+                        initialSlide={paymentMethods.findIndex(pm => pm.isDefault) !== -1 ? paymentMethods.findIndex(pm => pm.isDefault) : 0}
+                        slideToClickedSlide={true}
+                        modules={[EffectCoverflow, Pagination, Navigation]}
+                        className="mySwiper"
+                      >
+                        {paymentMethods.map(pm => (
+                          <SwiperSlide key={pm.id} style={{ background: pm.color || 'var(--primary)' }}>
+                             <div style={{ width: '100%', height: '100%', padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxSizing: 'border-box' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontSize: '20px', fontWeight: '800', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>{pm.name}</span>
+                                        <span style={{ fontSize: '12px', opacity: 0.9 }}>{pm.type === 'card' ? 'Credit Card' : 'Payment Method'}</span>
+                                    </div>
+                                     <span style={{ fontSize: '28px' }}>{pm.type === 'card' ? '💳' : '💰'}</span>
+                                </div>
+                                
+                                <div style={{ fontSize: '20px', letterSpacing: '3px', fontWeight: '600', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                                    {pm.number ? pm.number : '**** **** **** ****'}
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                     <div>
+                                        <div style={{ fontSize: '10px', opacity: 0.7, textTransform: 'uppercase' }}>Card Holder</div>
+                                        <div style={{ fontSize: '14px', fontWeight: '700', letterSpacing: '1px' }}>MEMBER</div>
+                                     </div>
+                                     {pm.isDefault && (
+                                         <div style={{ 
+                                             backgroundColor: 'rgba(255,255,255,0.9)', 
+                                             color: pm.color || 'black', 
+                                             padding: '6px 12px', 
+                                             borderRadius: '20px', 
+                                             fontSize: '11px', 
+                                             fontWeight: '800',
+                                             boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                                         }}>
+                                             기본 결제
+                                         </div>
+                                     )}
+                                     {!pm.isDefault && (
+                                         <button 
+                                            onClick={() => showToast('기본 결제 수단으로 변경되었습니다.')}
+                                            style={{ 
+                                                backgroundColor: 'rgba(0,0,0,0.2)', 
+                                                color: 'white', 
+                                                border: '1px solid rgba(255,255,255,0.4)',
+                                                padding: '6px 12px', 
+                                                borderRadius: '20px', 
+                                                fontSize: '11px', 
+                                                fontWeight: '600',
+                                                cursor: 'pointer'
+                                            }}
+                                         >
+                                             기본 설정
+                                         </button>
+                                     )}
+                                </div>
                             </div>
-                            <span style={{ fontWeight: '700' }}>{pm.name}</span>
-                          </div>
-                          {pm.number && <div style={{ fontSize: '14px', color: '#64748b' }}>{pm.number}</div>}
-                          <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            {pm.isDefault ? <span style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: '700' }}>기본 결제수단</span> : <span onClick={() => showToast('기본 결제 수단으로 변경되었습니다.')} style={{ fontSize: '12px', color: '#94a3b8', cursor: 'pointer' }}>기본으로 설정</span>}
-                            <span onClick={() => showToast('결제 수단이 삭제되었습니다.')} style={{ fontSize: '12px', color: '#ef4444', cursor: 'pointer' }}>삭제</span>
-                          </div>
-                        </div>
-                      ))}
+                          </SwiperSlide>
+                        ))}
+                      </Swiper>
+                      <p style={{ marginTop: '24px', color: '#94a3b8', fontSize: '14px', textAlign: 'center' }}>
+                        카드를 스와이프하여 관리할 수 있습니다.<br />
+                        <span style={{ fontSize: '12px', color: '#cbd5e1' }}>(삭제하려면 카드를 길게 누르세요)</span>
+                      </p>
                     </div>
                   </div>
                 )}
 
                 {myPageTab === 'help' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                    <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)' }}>
-                      <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px' }}>자주 묻는 질문 (FAQ)</h3>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {faqs.map(faq => (
-                          <details key={faq.id} style={{ border: '1px solid #f1f5f9', borderRadius: '12px', overflow: 'hidden' }}>
-                            <summary style={{ padding: '16px', background: '#fafafa', cursor: 'pointer', fontWeight: '600', fontSize: '14px', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span><span style={{ color: 'var(--primary)', marginRight: '8px' }}>[{faq.category}]</span> {faq.question}</span>
-                              <span style={{ fontSize: '10px' }}>▼</span>
-                            </summary>
-                            <div style={{ padding: '16px', fontSize: '14px', color: '#475569', lineHeight: '1.6', borderTop: '1px solid #f1f5f9' }}>
-                              {faq.answer}
-                            </div>
-                          </details>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)' }}>
-                      <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px' }}>1:1 문의하기</h3>
-                      <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '20px' }}>해결되지 않은 문제는 1:1 문의를 남겨주세요. 최대한 빠르게 답변해 드립니다.</p>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        <select style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                          <option>문의 유형 선택</option>
-                          <option>주문/취소</option>
-                          <option>배송</option>
-                          <option>결제</option>
-                          <option>시스템 오류</option>
-                          <option>기타</option>
-                        </select>
-                        <textarea 
-                          placeholder="문의 내용을 상세히 적어주세요."
-                          style={{ width: '100%', height: '120px', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', resize: 'none' }}
-                        ></textarea>
-                        <button 
-                          onClick={() => alert('문의가 성공적으로 접수되었습니다.')}
-                          style={{ padding: '14px', borderRadius: '8px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
-                        >문의 등록하기</button>
-                      </div>
-                    </div>
-
-                    <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)' }}>
-                      <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px' }}>나의 문의 내역</h3>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        {inquiries.map(inquiry => (
-                          <div key={inquiry.id} style={{ padding: '16px', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                              <span style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: '700' }}>[{inquiry.type}]</span>
-                              <span style={{ fontSize: '12px', color: '#94a3b8' }}>{inquiry.date}</span>
-                            </div>
-                            <div style={{ fontWeight: '700', marginBottom: '8px' }}>{inquiry.title}</div>
-                            <div style={{ fontSize: '14px', color: '#475569', marginBottom: inquiry.answer ? '12px' : '0' }}>{inquiry.content}</div>
-                            {inquiry.answer && (
-                              <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', fontSize: '13px', color: '#334155', borderLeft: '4px solid var(--primary)' }}>
-                                <div style={{ fontWeight: '800', marginBottom: '4px', color: 'var(--primary)' }}>답변</div>
-                                {inquiry.answer}
-                              </div>
-                            )}
-                            <div style={{ marginTop: '12px', textAlign: 'right' }}>
-                              <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '4px', backgroundColor: inquiry.status === '답변 완료' ? '#f0fdf4' : '#f1f5f9', color: inquiry.status === '답변 완료' ? '#16a34a' : '#64748b', fontWeight: '700' }}>
-                                {inquiry.status}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                  <SupportView userRole={userRole} isLoggedIn={isLoggedIn} onOpenAuth={onOpenAuth} isEmbedded={true} />
                 )}
 
                 {myPageTab === 'resident' && (
@@ -680,8 +817,11 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
               <SearchResultsView 
                 query={searchQuery} 
                 stores={stores} 
-                categories={categories.slice(1)}
-                onStoreClick={setSelectedStore}
+                categories={categories}
+                onStoreClick={(store) => {
+                  setSelectedStore(store);
+                  window.scrollTo(0, 0);
+                }}
               />
             ) : (
               <div id="store-grid-section" style={{ margin: '40px 0' }}>
@@ -701,122 +841,15 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                     selectedCategory={selectedCategory} 
                     setSelectedCategory={setSelectedCategory} 
                   />
-                  <StoreGrid selectedCategory={selectedCategory} searchQuery={searchQuery} onAddToCart={onAddToCart} onStoreClick={setSelectedStore} />
+                  <StoreGrid selectedCategory={selectedCategory} searchQuery={searchQuery} onAddToCart={onAddToCart} onStoreClick={(store) => {
+                    setSelectedStore(store);
+                    window.scrollTo(0, 0);
+                  }} />
                 </div>
               </div>
             )}
 
-            <div className="dashboard-widgets" style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-              gap: '24px',
-              marginTop: '60px'
-            }}>
-              {/* Delivery Tracking Widget */}
-              <div className="widget-card" style={{
-                background: 'var(--bg-card)',
-                borderRadius: '16px',
-                padding: '24px',
-                border: '1px solid var(--border)',
-                boxShadow: 'var(--shadow)'
-              }}>
-                <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '16px' }}>현재 배송 현황</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div style={{ fontSize: '14px' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>주문번호: </span>
-                    <span style={{ fontWeight: '600' }}>ORD202601210001</span>
-                  </div>
-                  <div 
-                    onClick={() => setActiveTab('tracking')}
-                    style={{ 
-                    padding: '12px', 
-                    backgroundColor: 'rgba(46, 204, 113, 0.1)', 
-                    borderRadius: '8px',
-                    color: 'var(--primary)',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    cursor: 'pointer'
-                  }}>
-                    🚲 배송 중 (예상 도착 8분 전)
-                  </div>
-                  <div style={{
-                    height: '150px',
-                    background: '#f1f5f9',
-                    borderRadius: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'var(--text-muted)',
-                    fontSize: '14px'
-                  }}>
-                    지도 위치 표시 영역
-                  </div>
-                </div>
-              </div>
-
-              {/* Subscription Widget */}
-              <div className="widget-card" style={{
-                background: 'var(--bg-card)',
-                borderRadius: '16px',
-                padding: '24px',
-                border: '1px solid var(--border)',
-                boxShadow: 'var(--shadow)'
-              }}>
-                <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '16px' }}>나의 구독 관리</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
-                    <div style={{ fontWeight: '600', marginBottom: '4px' }}>우리집 필수품 구독</div>
-                    <div style={{ fontSize: '14px', color: 'var(--text-muted)' }}>매주 수요일 / 18:00-20:00</div>
-                  </div>
-                  <div style={{ color: '#e67e22', fontSize: '14px', fontWeight: '600' }}>
-                    📅 다음 배송 예정: 1월 28일
-                  </div>
-                  <button 
-                    onClick={() => setActiveTab('subscription')}
-                    style={{
-                    marginTop: '10px',
-                    padding: '12px',
-                    borderRadius: '8px',
-                    background: 'var(--primary)',
-                    color: 'white',
-                    border: 'none',
-                    fontWeight: '600',
-                    cursor: 'pointer'
-                  }}>
-                    구독 목록 전체보기
-                  </button>
-                </div>
-              </div>
-
-              {/* Order History Widget */}
-              <div className="widget-card" style={{
-                background: 'var(--bg-card)',
-                borderRadius: '16px',
-                padding: '24px',
-                border: '1px solid var(--border)',
-                boxShadow: 'var(--shadow)'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <h3 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>주문 내역</h3>
-                  <span 
-                    onClick={() => { setActiveTab('mypage'); setMyPageTab('profile'); window.scrollTo(0,0); }}
-                    style={{ fontSize: '12px', color: 'var(--primary)', cursor: 'pointer' }}>더보기 &gt;</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {orders.slice(0, 3).map((order) => (
-                      <div key={order.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px' }}>
-                        <div>
-                          <div style={{ fontWeight: '600' }}>{order.store}</div>
-                          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{order.date} • {order.price}</div>
-                        </div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', backgroundColor: '#f1f5f9', padding: '4px 8px', borderRadius: '4px' }}>
-                          {order.status}
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            </div>
+            {/* Dashboard widgets removed as per request */}
           </div>
         );
     }
@@ -932,6 +965,68 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
           transform: translateY(-5px);
         }
       `}</style>
+      {/* Floating Action Buttons */}
+      <div style={{ position: 'fixed', bottom: '30px', right: '120px', display: 'flex', flexDirection: 'column', gap: '16px', zIndex: 1000 }}>
+        <button 
+          onClick={() => setIsTrackingOpen(true)}
+          style={{
+            width: '60px', height: '60px', borderRadius: '50%', border: 'none',
+            backgroundColor: 'white', color: 'var(--primary)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.15)', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px',
+            position: 'relative'
+          }}
+          title="배송 조회"
+        >
+          🚲
+        </button>
+        <button 
+          onClick={() => setIsCartOpen(true)}
+          style={{
+            width: '60px', height: '60px', borderRadius: '50%', border: 'none',
+            backgroundColor: 'var(--primary)', color: 'white',
+            boxShadow: '0 4px 20px rgba(16, 185, 129, 0.4)', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px',
+            position: 'relative'
+          }}
+          title="장바구니"
+        >
+          🛒
+          {cartItems.length > 0 && (
+            <span style={{
+              position: 'absolute', top: '-4px', right: '-4px',
+              backgroundColor: '#ef4444', color: 'white',
+              fontSize: '12px', fontWeight: '800',
+              width: '24px', height: '24px', borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: '2px solid white'
+            }}>
+              {cartItems.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      <CartModal 
+        isOpen={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
+        cartItems={cartItems}
+        onUpdateQuantity={onUpdateQuantity}
+        onRemoveFromCart={onRemoveFromCart}
+        onCheckout={() => {
+          setIsCartOpen(false);
+          setActiveTab('checkout');
+        }}
+        isLoggedIn={isLoggedIn}
+        onOpenAuth={onOpenAuth}
+      />
+
+      <TrackingModal 
+        isOpen={isTrackingOpen}
+        onClose={() => setIsTrackingOpen(false)}
+        orderId={trackingOrderId}
+      />
+
     </div>
   );
 };

@@ -1,12 +1,13 @@
 export const categories = [
-  { id: 'veggie', name: '채소', icon: '🥬' },
-  { id: 'fruit', name: '과일', icon: '🍎' },
-  { id: 'meat', name: '정육', icon: '🥩' },
-  { id: 'fish', name: '수산', icon: '🐟' },
-  { id: 'mealkit', name: '밀키트', icon: '🍱' },
+  { id: 'all', name: '전체', icon: '🏠' },
+  { id: 'mart', name: '마트/슈퍼', icon: '🛒' },
+  { id: 'fruit', name: '청과물', icon: '🍎' },
+  { id: 'butcher', name: '정육점', icon: '🥩' },
+  { id: 'fish', name: '수산시장', icon: '🐟' },
   { id: 'bakery', name: '베이커리', icon: '🥐' },
-  { id: 'dairy', name: '유제품', icon: '🥛' },
-  { id: 'snack', name: '간식', icon: '🍿' }
+  { id: 'banchan', name: '반찬가게', icon: '🍱' },
+  { id: 'hardware', name: '철물/생활', icon: '🔧' },
+  { id: 'snack', name: '간식/분식', icon: '🍡' }
 ];
 
 const generateProducts = (storeName) => {
@@ -21,20 +22,15 @@ const generateProducts = (storeName) => {
 };
 
 export const stores = [
-  { id: 1, name: '성수동 햇살 청과', category: 'fruit', rate: 4.8, reviews: 128, time: '15분 내 도착', img: 'https://images.unsplash.com/photo-1488459711615-de61859233bd?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('햇살 청과', 'fruit') },
-  { id: 2, name: '망원시장 싱싱 정육', category: 'meat', rate: 4.9, reviews: 256, time: '20분 내 도착', img: 'https://images.unsplash.com/photo-1607623273573-599d75b03519?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('싱싱 정육', 'meat') },
-  { id: 3, name: '연남동 바다 수산', category: 'fish', rate: 4.7, reviews: 89, time: '25분 내 도착', img: 'https://images.unsplash.com/photo-1615141982883-c7ad0e69fd62?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('바다 수산', 'fish') },
-  { id: 4, name: '합정동 소문난 마트', category: 'veggie', rate: 4.6, reviews: 154, time: '12분 내 도착', img: 'https://images.unsplash.com/photo-1578916171728-46686eac8d1f?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('소문난 마트', 'veggie') },
-  { id: 5, name: '베러 밀키트 샵', category: 'mealkit', rate: 5.0, reviews: 312, time: '30분 내 도착', img: 'https://images.unsplash.com/photo-1542838132-92c53300491e?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('베러 밀키트', 'mealkit') },
-  { id: 6, name: '서교동 로컬 팜', category: 'veggie', rate: 4.8, reviews: 75, time: '18분 내 도착', img: 'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('로컬 팜', 'veggie') },
-  { id: 13, name: '성심당 마포점', category: 'bakery', rate: 4.9, reviews: 1024, time: '40분 내 도착', img: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=400&q=80', products: generateProducts('성심당', 'bakery') },
-  { id: 14, name: '파리상점', category: 'bakery', rate: 4.5, reviews: 220, time: '15분 내 도착', img: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=400&q=80', products: generateProducts('파리상점', 'bakery') },
-  { id: 15, name: '건강 유기농 베이커리', category: 'bakery', rate: 4.7, reviews: 110, time: '30분 내 도착', img: 'https://images.unsplash.com/photo-1517433670267-08bbd4be890f?auto=format&fit=crop&w=400&q=80', products: generateProducts('유기농 베이커리', 'bakery') },
-  { id: 16, name: '우유마을', category: 'dairy', rate: 4.6, reviews: 85, time: '12분 내 도착', img: 'https://images.unsplash.com/photo-1550583724-125581f77833?auto=format&fit=crop&w=400&q=80', products: generateProducts('우유마을', 'dairy') },
-  { id: 17, name: '치즈 아틀리에', category: 'dairy', rate: 4.9, reviews: 340, time: '20분 내 도착', img: 'https://images.unsplash.com/photo-1486297678162-ad2a19b058da?auto=format&fit=crop&w=400&q=80', products: generateProducts('치즈 아틀리에', 'dairy') },
-  { id: 18, name: '달콤한 과자점', category: 'snack', rate: 4.8, reviews: 120, time: '10분 내 도착', img: 'https://images.unsplash.com/photo-1559181567-c3190ca9959b?auto=format&fit=crop&w=400&q=80', products: generateProducts('달콤한 과자점', 'snack') },
-  { id: 19, name: '고릴라 젤리 샵', category: 'snack', rate: 4.4, reviews: 95, time: '25분 내 도착', img: 'https://images.unsplash.com/photo-1582050048266-3d711ca9a5a3?auto=format&fit=crop&w=400&q=80', products: generateProducts('고릴라 젤리', 'snack') },
-  { id: 20, name: '바삭이네 튀김', category: 'snack', rate: 4.7, reviews: 450, time: '30분 내 도착', img: 'https://images.unsplash.com/photo-1585117822944-77e87aed24fe?auto=format&fit=crop&w=400&q=80', products: generateProducts('바삭이네', 'snack') }
+  { id: 1, name: '성수동 햇살 청과', category: 'fruit', rate: 4.8, reviews: 128, time: '15분 내 도착', img: 'https://images.unsplash.com/photo-1488459711615-de61859233bd?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('햇살 청과') },
+  { id: 2, name: '망원시장 싱싱 정육', category: 'butcher', rate: 4.9, reviews: 256, time: '20분 내 도착', img: 'https://images.unsplash.com/photo-1607623273573-599d75b03519?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('싱싱 정육') },
+  { id: 3, name: '연남동 바다 수산', category: 'fish', rate: 4.7, reviews: 89, time: '25분 내 도착', img: 'https://images.unsplash.com/photo-1615141982883-c7ad0e69fd62?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('바다 수산') },
+  { id: 4, name: '합정동 소문난 마트', category: 'mart', rate: 4.6, reviews: 154, time: '12분 내 도착', img: 'https://images.unsplash.com/photo-1578916171728-46686eac8d1f?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('소문난 마트') },
+  { id: 13, name: '성심당 마포점', category: 'bakery', rate: 4.9, reviews: 1024, time: '40분 내 도착', img: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=400&q=80', products: generateProducts('성심당') },
+  { id: 6, name: '서교동 로컬 반찬', category: 'banchan', rate: 4.8, reviews: 75, time: '18분 내 도착', img: 'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('로컬 반찬') },
+  { id: 7, name: '우리동네 철물점', category: 'hardware', rate: 4.5, reviews: 42, time: '30분 내 도착', img: 'https://images.unsplash.com/photo-1581235720704-06d3acfcb36f?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('철물점') },
+  { id: 16, name: '행복한 수퍼마켓', category: 'mart', rate: 4.6, reviews: 85, time: '12분 내 도착', img: 'https://images.unsplash.com/photo-1550583724-125581f77833?auto=format&fit=crop&w=400&q=80', products: generateProducts('행복한 수퍼') },
+  { id: 20, name: '바삭이네 분식', category: 'snack', rate: 4.7, reviews: 450, time: '30분 내 도착', img: 'https://images.unsplash.com/photo-1585117822944-77e87aed24fe?auto=format&fit=crop&w=400&q=80', products: generateProducts('바삭이네') }
 ];
 
 export const orders = [
@@ -63,8 +59,8 @@ export const reviews = [
 ];
 
 export const addresses = [
-  { id: 1, label: '우리집', address: '서울특별시 강남구 역삼동 123-45', detail: '푸르지오 아파트 102동 1504호', isDefault: true },
-  { id: 2, label: '회사', address: '서울특별시 서초구 서초동 998-1', detail: '강남빌딩 12층 테헤란로 411', isDefault: false }
+  { id: 1, label: '우리집', address: '서울특별시 강남구 역삼동 123-45', detail: '푸르지오 아파트 102동 1504호', contact: '010-1234-5678', isDefault: true },
+  { id: 2, label: '회사', address: '서울특별시 서초구 서초동 998-1', detail: '강남빌딩 12층 테헤란로 411', contact: '010-9876-5432', isDefault: false }
 ];
 
 export const paymentMethods = [

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { faqs, notices, inquiries } from '../data/mockData';
 
-const SupportView = ({ isLoggedIn, onOpenAuth }) => {
+const SupportView = ({ isLoggedIn, onOpenAuth, isEmbedded = false }) => {
   const [activeTab, setActiveTab] = useState('notice'); // notice, faq, inquiry
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedFaq, setExpandedFaq] = useState(null);
@@ -163,11 +163,19 @@ const SupportView = ({ isLoggedIn, onOpenAuth }) => {
   };
 
   return (
-    <div style={{ padding: '40px 20px', maxWidth: '800px', margin: '0 auto' }}>
-      <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-        <h2 style={{ fontSize: '32px', fontWeight: '800', marginBottom: '12px' }}>고객지원 센터</h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '16px' }}>궁금한 점이 있으신가요? 빠르고 친절하게 도와드리겠습니다.</p>
-      </div>
+    <div style={{ padding: isEmbedded ? '0' : '40px 20px', maxWidth: isEmbedded ? '100%' : '800px', margin: isEmbedded ? '0' : '0 auto' }}>
+      {!isEmbedded && (
+        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '32px', fontWeight: '800', marginBottom: '12px' }}>고객지원 센터</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '16px' }}>궁금한 점이 있으신가요? 빠르고 친절하게 도와드리겠습니다.</p>
+        </div>
+      )}
+      {isEmbedded && (
+         <div style={{ marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px' }}>고객지원</h3>
+            <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>궁금한 점이 있으신가요? 빠르고 친절하게 도와드리겠습니다.</p>
+         </div>
+      )}
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '32px', padding: '4px', background: '#f1f5f9', borderRadius: '12px' }}>
         {[

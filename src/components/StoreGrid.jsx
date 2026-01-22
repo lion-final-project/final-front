@@ -5,7 +5,7 @@ import { stores } from '../data/mockData';
 
 const StoreGrid = ({ selectedCategory, searchQuery, onStoreClick }) => {
   const filteredStores = stores.filter(store => {
-    const matchesCategory = store.category === selectedCategory;
+    const matchesCategory = selectedCategory === 'all' || store.category === selectedCategory;
     const matchesSearch = store.name.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });

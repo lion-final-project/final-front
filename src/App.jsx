@@ -6,17 +6,13 @@ import StoreDashboard from './components/StoreDashboard';
 import RiderDashboard from './components/RiderDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import NotificationPanel from './components/NotificationPanel';
-import StoreDetailModal from './components/StoreDetailModal';
 import AuthModal from './components/AuthModal';
-import {} from './data/mockData';
 
 function App() {
   const [userRole, setUserRole] = useState('CUSTOMER'); // CUSTOMER, STORE, RIDER, ADMIN
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  // Removed unused category and search state state
 
-  const [selectedStore, setSelectedStore] = useState(null);
   const [isResidentRider, setIsResidentRider] = useState(false);
   const [isDeliveryMode, setIsDeliveryMode] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -39,7 +35,6 @@ function App() {
   const handleLogout = () => {
     setIsLoggedIn(false);
     setUserRole('CUSTOMER'); // Default back to customer view as guest
-    setSelectedStore(null);
   };
 
   const handleLoginSuccess = () => {
@@ -56,7 +51,6 @@ function App() {
         setIsLoggedIn={setIsLoggedIn}
         onLogout={handleLogout}
         onOpenAuth={() => setIsAuthModalOpen(true)}
-        setSelectedStore={setSelectedStore}
         isResidentRider={isResidentRider} 
         setIsResidentRider={setIsResidentRider}
         isDeliveryMode={isDeliveryMode}
@@ -74,7 +68,7 @@ function App() {
       <div style={{
         position: 'fixed',
         bottom: '20px',
-        right: '20px',
+        left: '20px',
         background: 'rgba(0,0,0,0.8)',
         padding: '12px',
         borderRadius: '16px',
@@ -138,13 +132,6 @@ function App() {
 
       {renderContent()}
       
-      {selectedStore && (
-        <StoreDetailModal 
-          store={selectedStore} 
-          onClose={() => setSelectedStore(null)} 
-        />
-      )}
-
       <NotificationPanel 
         isOpen={isNotificationOpen} 
         onClose={() => setIsNotificationOpen(false)} 
