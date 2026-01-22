@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>동네마켓 - 와이어프레임 갤러리</title>
+    <link rel="stylesheet" href="common.css">
+    <style>
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+        .gallery-card {
+            text-decoration: none;
+            color: inherit;
+        }
+        .preview-box {
+            height: 200px;
+            background: #252525;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">동네마켓 <span style="font-size:16px; font-weight:normal; color:#888;">Wireframe Gallery</span></div>
+        </header>
+
+        <section style="text-align: center; margin-bottom: 60px;">
+            <h1 style="font-size: 36px; margin-bottom: 15px;">사용자 유형별 와이어프레임</h1>
+            <p style="color: var(--text-muted); font-size: 18px;">SRS 명세서를 바탕으로 제작된 고충실도 프로토타입입니다.</p>
+        </section>
+
+        <div class="gallery-grid">
+            <a href="customer_wireframe.html" class="gallery-card">
+                <div class="card">
+                    <div class="preview-box">🛒</div>
+                    <h3>고객 (Customer)</h3>
+                    <p style="color: var(--text-muted); font-size: 14px; margin-top:10px;">상품 검색, 구독 관리, 실시간 배송 추적 기능이 포함된 메인 서비스 화면입니다.</p>
+                </div>
+            </a>
+            <a href="store_owner_wireframe.html" class="gallery-card">
+                <div class="card">
+                    <div class="preview-box">🏪</div>
+                    <h3>마트 사장님 (Owner)</h3>
+                    <p style="color: var(--text-muted); font-size: 14px; margin-top:10px;">매출 현황, 신규 주문 접수 및 재고 관리를 위한 관리자 화면입니다.</p>
+                </div>
+            </a>
+            <a href="rider_wireframe.html" class="gallery-card">
+                <div class="card">
+                    <div class="preview-box">🚲</div>
+                    <h3>배달원 (Rider)</h3>
+                    <p style="color: var(--text-muted); font-size: 14px; margin-top:10px;">배달 요청 수락, 목적지 경로 확인 및 수익 관리를 위한 모바일 최적화 화면입니다.</p>
+                </div>
+            </a>
+            <a href="admin_wireframe.html" class="gallery-card">
+                <div class="card">
+                    <div class="preview-box">📊</div>
+                    <h3>관리자 (Admin)</h3>
+                    <p style="color: var(--text-muted); font-size: 14px; margin-top:10px;">전체 거래 지표 모니터링 및 마트/배달원 승인 프로세스를 관리합니다.</p>
+                </div>
+            </a>
+        </div>
+    </div>
+</body>
+</html>

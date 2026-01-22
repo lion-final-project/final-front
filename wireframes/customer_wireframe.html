@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>동네마켓 - 고객 와이어프레임</title>
+    <link rel="stylesheet" href="common.css">
+    <style>
+        .search-bar {
+            width: 100%;
+            max-width: 600px;
+            padding: 12px 20px;
+            border-radius: 50px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            margin-bottom: 30px;
+        }
+        .hero {
+            background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=1000');
+            height: 300px;
+            background-size: cover;
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 40px;
+            margin-bottom: 40px;
+        }
+        .map-placeholder {
+            background: #2a2a2a;
+            height: 300px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            margin-top: 20px;
+        }
+        .rider-icon {
+            color: var(--primary-color);
+            font-size: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">동네마켓</div>
+            <div style="display:flex; gap: 20px; align-items:center;">
+                <span>서울시 강남구 역삼동 ▼</span>
+                <button class="btn-primary">로그아웃</button>
+            </div>
+        </header>
+
+        <section style="text-align: center;">
+            <input type="text" class="search-bar" placeholder="동네 마트의 싱싱한 상품을 검색해보세요!">
+        </section>
+
+        <section class="hero">
+            <h1 style="font-size: 40px; margin-bottom: 10px;">신선한 동네 마켓을 한눈에</h1>
+            <p style="font-size: 18px; color: #ddd;">지금 주문하면 30분 내외로 도착합니다!</p>
+        </section>
+
+        <h2>오늘의 추천 상품</h2>
+        <div class="grid" style="margin-top: 20px; margin-bottom: 60px;">
+            <div class="card">
+                <div style="background:#444; height:150px; border-radius:8px; margin-bottom:15px;"></div>
+                <h3>유기농 대추토마토 500g</h3>
+                <p style="color:var(--primary-color); font-weight:700; font-size:18px;">4,900원</p>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+                    <span class="badge badge-subscription">구독가능</span>
+                    <button class="btn-secondary">담기</button>
+                </div>
+            </div>
+            <div class="card">
+                <div style="background:#444; height:150px; border-radius:8px; margin-bottom:15px;"></div>
+                <h3>신선 등심 300g</h3>
+                <p style="color:var(--primary-color); font-weight:700; font-size:18px;">12,900원</p>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+                    <span class="badge badge-subscription">구독가능</span>
+                    <button class="btn-secondary">담기</button>
+                </div>
+            </div>
+            <div class="card">
+                <div style="background:#444; height:150px; border-radius:8px; margin-bottom:15px;"></div>
+                <h3>무림 정육점 실속세트</h3>
+                <p style="color:var(--primary-color); font-weight:700; font-size:18px;">18,000원</p>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+                    <span class="badge badge-subscription" style="opacity:0;">히든</span>
+                    <button class="btn-secondary">담기</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h2>현재 배송 현황</h2>
+                <div style="margin-top:15px;">
+                    <p><strong>주문번호:</strong> ORD202601210001</p>
+                    <p><strong>상태:</strong> 배송 중 (예상 도착 8분 전)</p>
+                </div>
+                <div class="map-placeholder">
+                    <div>
+                        <div style="text-align: center;">📍 배달원 '광속라이더'님</div>
+                        <div class="rider-icon" style="text-align: center; margin-top:10px;">🚲</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>나의 구독 관리</h2>
+                <div style="margin-top:15px;">
+                    <div style="border-bottom:1px solid #333; padding-bottom:10px; margin-bottom:10px;">
+                        <p><strong>우리집 필수품 구독</strong></p>
+                        <p style="font-size:14px; color:var(--text-muted);">매주 수요일 / 18:00-20:00</p>
+                        <p style="margin-top:5px; color:var(--accent-color);">다음 배송 예정: 1월 28일</p>
+                    </div>
+                    <button class="btn-primary" style="width:100%;">구독 목록 보기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

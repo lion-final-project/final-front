@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>동네마켓 - 관리자 와이어프레임</title>
+    <link rel="stylesheet" href="common.css">
+    <style>
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-card);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .admin-table th, .admin-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .admin-table th {
+            background: #252525;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+        .chart-placeholder {
+            background: #2a2a2a;
+            height: 200px;
+            border-radius: 12px;
+            display: flex;
+            align-items: flex-end;
+            padding: 20px;
+            gap: 10px;
+        }
+        .bar {
+            flex: 1;
+            background: var(--primary-color);
+            border-radius: 4px 4px 0 0;
+            transition: var(--transition);
+        }
+        .bar:hover {
+            filter: brightness(1.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="logo" style="margin-bottom: 40px;">동네마켓 <span style="font-size:12px; font-weight:normal; color:#888;">Admin</span></div>
+        <a href="#" class="nav-item active">📊 전체 현황</a>
+        <a href="#" class="nav-item">🏢 마트 관리 <span class="badge" style="background:#f1c40f; color:#000; margin-left:auto;">2</span></a>
+        <a href="#" class="nav-item">🛵 배달원 관리 <span class="badge" style="background:#f1c40f; color:#000; margin-left:auto;">5</span></a>
+        <a href="#" class="nav-item">💳 결제/정산</a>
+        <a href="#" class="nav-item">📢 알림 발송</a>
+        <a href="#" class="nav-item">🚨 신고/문의</a>
+    </div>
+
+    <div class="main-content">
+        <header style="margin-bottom:40px;">
+            <h1>플랫폼 전체 현황</h1>
+            <p style="color:var(--text-muted);">2026년 1월 21일 22:45 기준</p>
+        </header>
+
+        <div class="grid" style="margin-bottom:40px;">
+            <div class="card">
+                <h3>주간 주문 거래액</h3>
+                <div class="chart-placeholder" style="margin-top:20px;">
+                    <div class="bar" style="height: 40%;"></div>
+                    <div class="bar" style="height: 65%;"></div>
+                    <div class="bar" style="height: 50%;"></div>
+                    <div class="bar" style="height: 85%;"></div>
+                    <div class="bar" style="height: 70%;"></div>
+                    <div class="bar" style="height: 95%;"></div>
+                    <div class="bar" style="height: 60%;"></div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>활성 사용자 지표</h3>
+                <div style="margin-top:20px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
+                        <span>전체 고객</span>
+                        <span style="font-weight:700;">12,504명</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
+                        <span>등록 마트</span>
+                        <span style="font-weight:700;">458개</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between;">
+                        <span>활동 배달원</span>
+                        <span style="font-weight:700;">892명</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <section>
+            <h2 style="margin-bottom:20px;">승인 대기 목록 (마트/배달원)</h2>
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>유형</th>
+                        <th>이름/상호명</th>
+                        <th>신청일</th>
+                        <th>상태</th>
+                        <th>관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="badge" style="background:var(--secondary-color);">마트</span></td>
+                        <td>싱싱 야채 센터 (강북점)</td>
+                        <td>2026-01-21</td>
+                        <td><span class="status-indicator status-pending"></span> 검토 중</td>
+                        <td><button class="btn-primary" style="padding:5px 10px; font-size:12px;">승인</button></td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge" style="background:var(--primary-color);">배달원</span></td>
+                        <td>김철수 (오토바이)</td>
+                        <td>2026-01-20</td>
+                        <td><span class="status-indicator status-pending"></span> 서류 확인</td>
+                        <td><button class="btn-primary" style="padding:5px 10px; font-size:12px;">승인</button></td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+    </div>
+</body>
+</html>
