@@ -56,7 +56,7 @@ const PartnerPage = ({ onBack, onRegister }) => {
               ))}
             </ul>
             <button 
-              onClick={() => onRegister?.('STORE')}
+              onClick={() => onRegister?.('STORE_APPLICATION')}
               style={{ width: '100%', padding: '16px', borderRadius: '12px', backgroundColor: 'var(--primary)', color: 'white', border: 'none', fontWeight: '800', fontSize: '14px', cursor: 'pointer' }}
             >
               상점 입점 신청하기

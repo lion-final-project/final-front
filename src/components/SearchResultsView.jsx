@@ -70,18 +70,16 @@ const SearchResultsView = ({ query, stores, categories, onStoreClick }) => {
             {filteredStores.length > 0 ? (
               filteredStores.map(store => (
                 <div key={store.id} onClick={() => onStoreClick(store)} style={{ background: 'white', borderRadius: '20px', overflow: 'hidden', border: '1px solid #f1f5f9', cursor: 'pointer', transition: 'transform 0.2s' }}>
-                  <div style={{ height: '160px', background: 'linear-gradient(45deg, #f1f5f9, #e2e8f0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>
-                    {store.img}
+                  <div style={{ height: '160px', background: `url(${store.img}) center/cover no-repeat` }}>
                   </div>
                   <div style={{ padding: '20px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                       <h4 style={{ fontSize: '18px', fontWeight: '800', margin: 0 }}>{store.name}</h4>
-                      <div style={{ fontSize: '14px', fontWeight: '700' }}>⭐ {store.rating}</div>
+                      <div style={{ fontSize: '14px', fontWeight: '700', color: '#f59e0b' }}>⭐ {store.rate}</div>
                     </div>
-                    <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '12px' }}>{store.description}</div>
                     <div style={{ fontSize: '12px', color: '#94a3b8', display: 'flex', gap: '12px' }}>
-                      <span>🛵 {store.deliveryTime}</span>
-                      <span>💰 배달팁 {store.deliveryFee}</span>
+                      <span style={{ color: 'var(--primary)', fontWeight: '600' }}>🛵 {store.time}</span>
+                      <span>💰 배달팁 3,000원</span>
                     </div>
                   </div>
                 </div>

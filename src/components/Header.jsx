@@ -13,7 +13,8 @@ const Header = ({
   isResidentRider,
   isDeliveryMode,
   onToggleDeliveryMode,
-  onLogout
+  onLogout,
+  onLocationClick
 }) => {
   return (
     <header className="header-glass" style={{ borderBottom: isDeliveryMode ? '2px solid #38bdf8' : '1px solid var(--border)' }}>
@@ -44,7 +45,7 @@ const Header = ({
               }}>HOT</span>
             </a>
           </nav>
-          <div className="location-selector" style={{ 
+          <div className="location-selector" onClick={onLocationClick} style={{ 
             display: 'flex', 
             alignItems: 'center', 
             gap: '6px', 

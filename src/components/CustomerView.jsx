@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from './Header';
 import Hero from './Hero';
 import StoreGrid from './StoreGrid';
@@ -13,6 +13,9 @@ import Footer from './Footer';
 import { orders, subscriptions, reviews, stores, addresses, paymentMethods, faqs, categories, coupons, inquiries, loyaltyPoints } from '../data/mockData';
 import CartModal from './CartModal';
 import StoreDetailView from './StoreDetailView';
+import StoreRegistrationView from './StoreRegistrationView';
+import OrderManagementView from './OrderManagementView';
+import LocationModal from './LocationModal';
 
 // Import Swiper React components
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -46,7 +49,7 @@ const TrackingModal = ({ isOpen, onClose, orderId }) => {
   );
 };
 
-const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth, isResidentRider, setIsResidentRider, isDeliveryMode, setIsDeliveryMode, notificationCount }) => {
+const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth, isResidentRider, setIsResidentRider, isDeliveryMode, setIsDeliveryMode, notificationCount, storeRegistrationStatus, setStoreRegistrationStatus }) => {
   const [activeTab, setActiveTab] = useState('home');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,6 +57,20 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
 
   const [cartItems, setCartItems] = useState([]);
   const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      setCartItems([
+        { id: 101, storeName: '성수동 햇살 청과', name: '꿀사과 5kg', price: 23400, quantity: 1, img: 'https://images.unsplash.com/photo-1488459711615-de61859233bd?w=100&q=80' },
+        { id: 102, storeName: '성수동 햇살 청과', name: '흙당근 1kg', price: 4500, quantity: 1, img: 'https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?w=100&q=80' },
+        { id: 201, storeName: '망원시장 싱싱 정육', name: '1++ 한우 국거리 300g', price: 18000, quantity: 2, img: 'https://images.unsplash.com/photo-1607623273573-599d75b03519?w=100&q=80' }
+      ]);
+    } else {
+      setCartItems([]);
+    }
+  }, [isLoggedIn]);
+
+
 
   // Show toast feedback for interactions
   const showToast = (message) => {
@@ -75,6 +92,8 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
   const [addressList, setAddressList] = useState(addresses);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [newAddress, setNewAddress] = useState({ label: '', contact: '', address: '', detail: '', isDefault: false });
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+  const [viewingReview, setViewingReview] = useState(null);
 
   const handleSaveAddress = () => {
     if (!newAddress.label || !newAddress.contact || !newAddress.address || !newAddress.detail) {
@@ -241,6 +260,15 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
           setIsTrackingOpen(true);
         }, 0);
         return null;
+
+      case 'store_registration':
+        return (
+          <StoreRegistrationView 
+            onBack={() => setActiveTab('partner')}
+            status={storeRegistrationStatus}
+            setStatus={setStoreRegistrationStatus}
+          />
+        );
       case 'support':
         return <SupportView userRole={userRole} onOpenAuth={onOpenAuth} />;
       case 'partner':
@@ -251,6 +279,11 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
               if (role === 'RESIDENT') {
                 setActiveTab('mypage');
                 setMyPageTab('resident');
+                window.scrollTo(0, 0);
+                return;
+              }
+              if (role === 'STORE_APPLICATION') {
+                setActiveTab('store_registration');
                 window.scrollTo(0, 0);
                 return;
               }
@@ -357,64 +390,27 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 {myPageTab === 'profile' && (
-                  <>
-                    <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)' }}>
-                      <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px' }}>최근 주문 내역</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                        {orders.length > 0 ? (
-                          orders.slice(0, 5).map((order, i) => (
-                            <div key={order.id} style={{ display: 'flex', gap: '16px', paddingBottom: '20px', borderBottom: i === Math.min(orders.length - 1, 4) ? 'none' : '1px solid #f1f5f9' }}>
-                              <img src={order.img} alt={order.store} style={{ width: '60px', height: '60px', borderRadius: '12px', objectFit: 'cover' }} />
-                              <div style={{ flexGrow: 1 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                  <span style={{ fontWeight: '700' }}>{order.store}</span>
-                                  <span style={{ fontSize: '14px', color: 'var(--primary)', fontWeight: '600' }}>{order.status}</span>
-                                </div>
-                                <div style={{ fontSize: '14px', color: '#475569' }}>{order.items} | {order.price}</div>
-                                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>{order.date} | 주문번호 {order.id}</div>
-                              </div>
-                              {order.status === '배송 중' && (
-                                <button onClick={() => setActiveTab('tracking')} className="btn-secondary" style={{ height: 'fit-content', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--primary)', background: 'transparent', color: 'var(--primary)', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>배송추적</button>
-                              )}
-                              {(order.status === '배송 완료' || order.status === '완료') && (
-                                <button onClick={() => handleOpenReviewModal(order)} style={{ height: 'fit-content', padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', color: '#475569', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>리뷰 쓰기</button>
-                              )}
-                            </div>
-                          ))
-                        ) : (
-                          <div style={{ textAlign: 'center', padding: '40px 0' }}>
-                            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📦</div>
-                            <p style={{ color: 'var(--text-muted)' }}>최근 주문 내역이 없습니다.</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)' }}>
-                      <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px' }}>나의 리뷰</h3>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                        {reviews.length > 0 ? (
-                          reviews.map((review, i) => (
-                            <div key={review.id} style={{ paddingBottom: '20px', borderBottom: i === reviews.length - 1 ? 'none' : '1px solid #f1f5f9' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                <span style={{ fontWeight: '700', fontSize: '15px' }}>{review.store}</span>
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                  <span style={{ color: '#f59e0b', fontSize: '14px' }}>{'★'.repeat(review.rate)}</span>
-                                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{review.date}</span>
-                                </div>
-                              </div>
-                              <p style={{ fontSize: '14px', color: '#475569', lineHeight: '1.6', margin: 0 }}>{review.content}</p>
-                            </div>
-                          ))
-                        ) : (
-                          <div style={{ textAlign: 'center', padding: '40px 0' }}>
-                            <div style={{ fontSize: '48px', marginBottom: '16px' }}>✍️</div>
-                            <p style={{ color: 'var(--text-muted)' }}>작성한 리뷰가 없습니다.</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </>
+                  <OrderManagementView 
+                    orders={orders}
+                    onTracking={(order) => {
+                      setIsTrackingOpen(true);
+                    }}
+                    onWriteReview={(order) => {
+                      setViewingReview(null);
+                      handleOpenReviewModal(order);
+                    }}
+                    onViewReview={(order) => {
+                      const review = reviews.find(r => r.store === order.store) || { 
+                        rate: 5, 
+                        content: '정말 신선하고 배송도 빨라요! 재구매 의사 있습니다.', 
+                        store: order.store 
+                      };
+                      setViewingReview(review);
+                      setSelectedOrderForReview(order);
+                      setIsReviewModalOpen(true);
+                    }}
+                    onBack={() => setActiveTab('home')}
+                  />
                 )}
 
                 {myPageTab === 'subscription' && (
@@ -898,6 +894,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
           setIsDeliveryMode(!isDeliveryMode);
           setActiveTab('home');
         }}
+        onLocationClick={() => setIsLocationModalOpen(true)}
       />
       
       {renderActiveView()}
@@ -911,48 +908,75 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
       {isReviewModalOpen && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
           <div style={{ background: 'white', width: '100%', maxWidth: '450px', borderRadius: '24px', padding: '32px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '8px' }}>리뷰 작성하기</h2>
-            <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '24px' }}>{selectedOrderForReview?.store}에서의 주문은 어떠셨나요?</p>
             
-            <form onSubmit={handleSaveReview} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '32px', display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
-                  {[1, 2, 3, 4, 5].map(star => (
-                    <span 
-                      key={star} 
-                      onClick={() => setReviewForm({ ...reviewForm, rate: star })}
-                      style={{ cursor: 'pointer', color: star <= reviewForm.rate ? '#f59e0b' : '#e2e8f0' }}
-                    >★</span>
-                  ))}
-                </div>
-                <div style={{ fontSize: '14px', fontWeight: '700', color: '#f59e0b' }}>
-                  {['매우 아쉬워요', '아쉬워요', '보통이에요', '만족해요', '최고예요'][reviewForm.rate - 1]}
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>리뷰 내용</label>
-                <textarea 
-                  required
-                  value={reviewForm.content}
-                  onChange={e => setReviewForm({ ...reviewForm, content: e.target.value })}
-                  placeholder="다른 고객들에게 도움이 될 수 있도록 솔직한 리뷰를 남겨주세요."
-                  style={{ width: '100%', height: '120px', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1', resize: 'none', fontSize: '14px' }}
-                ></textarea>
-              </div>
-
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <button 
-                  type="button" 
+            {viewingReview ? (
+               // Read-only View
+               <>
+                 <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '8px' }}>내가 쓴 리뷰</h2>
+                 <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '24px' }}>{selectedOrderForReview?.store}</p>
+                 <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                    <div style={{ fontSize: '32px', color: '#f59e0b', marginBottom: '8px' }}>
+                       {'★'.repeat(viewingReview.rate)}{'☆'.repeat(5-viewingReview.rate)}
+                    </div>
+                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#f59e0b' }}>
+                       {['매우 아쉬워요', '아쉬워요', '보통이에요', '만족해요', '최고예요'][viewingReview.rate - 1]}
+                    </div>
+                 </div>
+                 <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', fontSize: '15px', color: '#334155', lineHeight: '1.6', marginBottom: '24px' }}>
+                    {viewingReview.content}
+                 </div>
+                 <button 
                   onClick={() => setIsReviewModalOpen(false)}
-                  style={{ flex: 1, padding: '14px', borderRadius: '12px', background: '#f1f5f9', border: 'none', fontWeight: '700', cursor: 'pointer' }}
-                >취소</button>
-                <button 
-                  type="submit"
-                  style={{ flex: 2, padding: '14px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
-                >리뷰 등록</button>
-              </div>
-            </form>
+                  style={{ width: '100%', padding: '14px', borderRadius: '12px', background: '#f1f5f9', border: 'none', fontWeight: '700', cursor: 'pointer', color: '#64748b' }}
+                >닫기</button>
+               </>
+            ) : (
+               // Write View
+               <>
+                <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '8px' }}>리뷰 작성하기</h2>
+                <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '24px' }}>{selectedOrderForReview?.store}에서의 주문은 어떠셨나요?</p>
+                
+                <form onSubmit={handleSaveReview} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '32px', display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
+                      {[1, 2, 3, 4, 5].map(star => (
+                        <span 
+                          key={star} 
+                          onClick={() => setReviewForm({ ...reviewForm, rate: star })}
+                          style={{ cursor: 'pointer', color: star <= reviewForm.rate ? '#f59e0b' : '#e2e8f0' }}
+                        >★</span>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#f59e0b' }}>
+                      {['매우 아쉬워요', '아쉬워요', '보통이에요', '만족해요', '최고예요'][reviewForm.rate - 1]}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>리뷰 내용</label>
+                    <textarea 
+                      required
+                      value={reviewForm.content}
+                      onChange={e => setReviewForm({ ...reviewForm, content: e.target.value })}
+                      placeholder="다른 고객들에게 도움이 될 수 있도록 솔직한 리뷰를 남겨주세요."
+                      style={{ width: '100%', height: '120px', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1', resize: 'none', fontSize: '14px' }}
+                    ></textarea>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <button 
+                      type="button" 
+                      onClick={() => setIsReviewModalOpen(false)}
+                      style={{ flex: 1, padding: '14px', borderRadius: '12px', background: '#f1f5f9', border: 'none', fontWeight: '700', cursor: 'pointer' }}
+                    >취소</button>
+                    <button 
+                      type="submit"
+                      style={{ flex: 2, padding: '14px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
+                    >리뷰 등록</button>
+                  </div>
+                </form>
+               </>
+            )}
           </div>
         </div>
       )}
@@ -965,6 +989,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
           transform: translateY(-5px);
         }
       `}</style>
+      
       {/* Floating Action Buttons */}
       <div style={{ position: 'fixed', bottom: '30px', right: '120px', display: 'flex', flexDirection: 'column', gap: '16px', zIndex: 1000 }}>
         <button 
@@ -1025,6 +1050,13 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
         isOpen={isTrackingOpen}
         onClose={() => setIsTrackingOpen(false)}
         orderId={trackingOrderId}
+      />
+
+      <LocationModal 
+        isOpen={isLocationModalOpen}
+        onClose={() => setIsLocationModalOpen(false)}
+        currentLocation="역삼동 123-45"
+        onSetLocation={(loc) => showToast(`주소가 '${loc}'으로 설정되었습니다.`)}
       />
 
     </div>

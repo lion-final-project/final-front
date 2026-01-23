@@ -34,10 +34,10 @@ export const stores = [
 ];
 
 export const orders = [
-  { id: '20240122-001', date: '2024.01.22', store: '성수동 햇살 청과', items: '사과 외 3건', price: '23,400원', status: '배송 완료', img: 'https://images.unsplash.com/photo-1488459711615-de61859233bd?w=100&q=80' },
-  { id: '20240122-005', date: '2024.01.22', store: '연남동 바다 수산', items: '모듬 회', price: '45,000원', status: '배송 중', img: 'https://images.unsplash.com/photo-1615141982883-c7ad0e69fd62?w=100&q=80' },
-  { id: '20240121-045', date: '2024.01.21', store: '망원시장 싱싱 정육', items: '한우 등심 외 1건', price: '85,000원', status: '배송 완료', img: 'https://images.unsplash.com/photo-1607623273573-599d75b03519?w=100&q=80' },
-  { id: '20240120-012', date: '2024.01.20', store: '베러 밀키트 샵', items: '밀푀유나베 키트', price: '18,900원', status: '배송 완료', img: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=100&q=80' }
+  { id: '20240122-001', date: '2024.01.22', store: '성수동 햇살 청과', items: '사과 외 3건', product: '꿀사과 5kg 한박스', price: '23,400원', status: '배송 완료', img: 'https://images.unsplash.com/photo-1488459711615-de61859233bd?w=120&q=80', reviewWritten: false },
+  { id: '20240122-005', date: '2024.01.22', store: '연남동 바다 수산', items: '모듬 회', product: '제철 모듬회 (대)', price: '45,000원', status: '배송 중', img: 'https://images.unsplash.com/photo-1615141982883-c7ad0e69fd62?w=120&q=80', reviewWritten: false },
+  { id: '20240121-045', date: '2024.01.21', store: '망원시장 싱싱 정육', items: '한우 등심 외 1건', product: '1++ 한우 등심 600g', price: '85,000원', status: '배송 완료', img: 'https://images.unsplash.com/photo-1607623273573-599d75b03519?w=120&q=80', reviewWritten: true },
+  { id: '20240120-012', date: '2024.01.20', store: '베러 밀키트 샵', items: '밀푀유나베 키트', product: '따끈한 밀푀유나베 (2인분)', price: '18,900원', status: '배송 완료', img: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=120&q=80', reviewWritten: true }
 ];
 
 export const notifications = [

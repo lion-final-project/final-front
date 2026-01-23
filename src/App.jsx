@@ -14,6 +14,7 @@ function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   const [isResidentRider, setIsResidentRider] = useState(false);
+  const [storeRegistrationStatus, setStoreRegistrationStatus] = useState('NONE'); // NONE, PENDING, APPROVED
   const [isDeliveryMode, setIsDeliveryMode] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState([
@@ -53,6 +54,8 @@ function App() {
         onOpenAuth={() => setIsAuthModalOpen(true)}
         isResidentRider={isResidentRider} 
         setIsResidentRider={setIsResidentRider}
+        storeRegistrationStatus={storeRegistrationStatus}
+        setStoreRegistrationStatus={setStoreRegistrationStatus}
         isDeliveryMode={isDeliveryMode}
         setIsDeliveryMode={setIsDeliveryMode}
         notificationCount={unreadCount}
