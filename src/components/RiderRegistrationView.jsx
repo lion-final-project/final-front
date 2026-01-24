@@ -14,7 +14,8 @@ const RiderRegistrationView = ({ onBack, onComplete }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.phone || !formData.vehicleModel) {
+    const needsVehicleInfo = !['walking', 'bicycle'].includes(formData.vehicleType);
+    if (!formData.name || !formData.phone || (needsVehicleInfo && !formData.vehicleModel)) {
       alert('필수 항목을 모두 입력해주세요.');
       return;
     }
@@ -40,7 +41,7 @@ const RiderRegistrationView = ({ onBack, onComplete }) => {
 
           {status === 'APPROVED' ? (
             <button 
-              onClick={onComplete}
+              onClick={() => onComplete(formData)}
               className="btn-primary"
               style={{ padding: '16px 32px', fontSize: '16px' }}
             >

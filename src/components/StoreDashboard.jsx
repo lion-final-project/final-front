@@ -181,6 +181,48 @@ const StoreDashboard = () => {
     return () => activeTimers.forEach(t => clearTimeout(t.timer));
   }, [orders]);
 
+  const [subscriptions, setSubscriptions] = useState([
+    { id: 1, name: '신선 채소 정기 팩', price: '19,900원', quantity: 4, subscribers: 42, status: '운영중' },
+    { id: 2, name: '프리미엄 정육 세트', price: '45,000원', quantity: 2, subscribers: 28, status: '운영중' },
+    { id: 3, name: '1인 가구 간편 세트', price: '12,500원', quantity: 6, subscribers: 86, status: '운영중' }
+  ]);
+
+  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  const [editingSubscription, setEditingSubscription] = useState(null);
+  const [subscriptionForm, setSubscriptionForm] = useState({
+    name: '',
+    price: '',
+    quantity: '',
+    status: '운영중'
+  });
+
+  const handleOpenSubscriptionModal = (sub = null) => {
+    if (sub) {
+      setEditingSubscription(sub);
+      setSubscriptionForm({ ...sub });
+    } else {
+      setEditingSubscription(null);
+      setSubscriptionForm({ name: '', price: '', quantity: '', status: '운영중' });
+    }
+    setIsSubscriptionModalOpen(true);
+  };
+
+  const handleSaveSubscription = (e) => {
+    e.preventDefault();
+    if (editingSubscription) {
+      setSubscriptions(prev => prev.map(s => s.id === editingSubscription.id ? { ...subscriptionForm, id: s.id } : s));
+    } else {
+      setSubscriptions(prev => [...prev, { ...subscriptionForm, id: Date.now(), subscribers: 0 }]);
+    }
+    setIsSubscriptionModalOpen(false);
+  };
+
+  const deleteSubscription = (id) => {
+    if (window.confirm('이 구독 상품을 삭제하시겠습니까?')) {
+      setSubscriptions(prev => prev.filter(s => s.id !== id));
+    }
+  };
+
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [productForm, setProductForm] = useState({
@@ -202,7 +244,9 @@ const StoreDashboard = () => {
         price: '',
         stock: '',
         category: '채소',
-        img: '📦'
+        img: '📦',
+        imageFile: null,
+        imagePreview: null
       });
     }
     setIsProductModalOpen(true);
@@ -210,10 +254,15 @@ const StoreDashboard = () => {
 
   const handleSaveProduct = (e) => {
     e.preventDefault();
+    const finalProduct = {
+      ...productForm,
+      img: productForm.imagePreview || productForm.img || '📦'
+    };
+    
     if (editingProduct) {
-      setProducts(prev => prev.map(p => p.id === editingProduct.id ? { ...productForm, id: p.id } : p));
+      setProducts(prev => prev.map(p => p.id === editingProduct.id ? { ...finalProduct, id: p.id } : p));
     } else {
-      setProducts(prev => [...prev, { ...productForm, id: Date.now() }]);
+      setProducts(prev => [...prev, { ...finalProduct, id: Date.now(), subscribers: 0, capacity: finalProduct.stock || 100 }]);
     }
     setIsProductModalOpen(false);
   };
@@ -363,11 +412,28 @@ const StoreDashboard = () => {
       case 'sales':
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ fontSize: '24px', fontWeight: '800', margin: 0 }}>매출 및 정산 분석</h2>
+              <div style={{ display: 'flex', background: 'white', padding: '4px', borderRadius: '12px', border: '1px solid #e2e8f0', gap: '4px' }}>
+                {['최근 7일', '1개월', '3개월', '직접 선택'].map((label, idx) => (
+                  <button 
+                    key={idx}
+                    style={{ 
+                      padding: '8px 16px', borderRadius: '8px', border: 'none', 
+                      background: idx === 0 ? 'var(--primary)' : 'transparent', 
+                      color: idx === 0 ? 'white' : '#64748b',
+                      fontSize: '13px', fontWeight: '700', cursor: 'pointer' 
+                    }}
+                  >{label}</button>
+                ))}
+              </div>
+            </div>
+
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px' }}>
               {[
-                { label: '오늘 매출', value: '485,200원', grow: '+12.5%', icon: '💰' },
-                { label: '어제 매출', value: '425,000원', grow: '-2.1%', icon: '📅' },
-                { label: '이번 달 누적', value: '12,450,000원', grow: '+5.4%', icon: '📈' },
+                { label: '조회 기간 매출', value: '18,450,200원', grow: '+12.5%', icon: '💰' },
+                { label: '일 평균 매출', value: '425,000원', grow: '-2.1%', icon: '📅' },
+                { label: '환불/취소', value: '120,400원', grow: '', icon: '�' },
                 { label: '정산 예정액', value: '3,240,000원', grow: '', icon: '🏦' }
               ].map((stat, i) => (
                 <div key={i} style={{ background: 'white', padding: '24px', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #f1f5f9' }}>
@@ -383,11 +449,11 @@ const StoreDashboard = () => {
 
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '32px' }}>
               <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #f1f5f9' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '32px' }}>최근 7일 매출 추이</h3>
+                <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '32px' }}>조회 기간 일별 매출 추이</h3>
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', height: '200px', padding: '0 20px' }}>
                   {[
-                    { day: '월', val: 65 }, { day: '화', val: 45 }, { day: '수', val: 80 }, 
-                    { day: '목', val: 55 }, { day: '금', val: 95 }, { day: '토', val: 100 }, { day: '일', val: 75 }
+                    { day: '01.18', val: 65 }, { day: '01.19', val: 45 }, { day: '01.20', val: 80 }, 
+                    { day: '01.21', val: 55 }, { day: '01.22', val: 95 }, { day: '01.23', val: 100 }, { day: '01.24', val: 75 }
                   ].map((d, i) => (
                     <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '40px' }}>
                       <div className="card-hover" style={{ 
@@ -397,12 +463,40 @@ const StoreDashboard = () => {
                         borderRadius: '8px 8px 0 0',
                         transition: 'height 1s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
                       }}></div>
-                      <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748b' }}>{d.day}</span>
+                      <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b' }}>{d.day}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
+              <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #f1f5f9' }}>
+                <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '24px' }}>매출 비중</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '200px' }}>
+                   <div style={{ position: 'relative', width: '120px', height: '120px' }}>
+                      <svg width="120" height="120" viewBox="0 0 42 42" style={{ transform: 'rotate(-90deg)' }}>
+                        <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#e2e8f0" strokeWidth="6"></circle>
+                        <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="var(--primary)" strokeWidth="6" strokeDasharray="65 35" strokeDashoffset="0"></circle>
+                        <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#3b82f6" strokeWidth="6" strokeDasharray="35 65" strokeDashoffset="-65"></circle>
+                      </svg>
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+                         <span style={{ fontSize: '18px', fontWeight: '800' }}>65%</span>
+                      </div>
+                   </div>
+                   <div style={{ marginTop: '24px', display: 'flex', gap: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                         <div style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: 'var(--primary)' }}></div>
+                         <span style={{ fontSize: '12px', color: '#64748b' }}>구독 상품</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                         <div style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: '#3b82f6' }}></div>
+                         <span style={{ fontSize: '12px', color: '#64748b' }}>일반 상품</span>
+                      </div>
+                   </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '32px' }}>
               <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #f1f5f9' }}>
                 <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '24px' }}>인기 상품 순위</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -421,68 +515,64 @@ const StoreDashboard = () => {
                   ))}
                 </div>
               </div>
-            </div>
 
-            <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #f1f5f9' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '24px' }}>정산 내역</h3>
-            <div className="table-responsive">
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#64748b', fontSize: '14px', textAlign: 'left' }}>
-                      <th style={{ padding: '16px' }}>정산 월</th>
-                      <th style={{ padding: '16px' }}>대상 기간</th>
-                      <th style={{ padding: '16px' }}>최종 정산액</th>
-                      <th style={{ padding: '16px' }}>상태</th>
-                      <th style={{ padding: '16px' }}>상세</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[
-                      { 
-                        month: '2026년 01월 정산', 
-                        period: '2026.01.01 ~ 2026.01.31', 
-                        amount: '18,450,200원', 
-                        rawAmount: '19,650,000원',
-                        fee: '1,199,800원',
-                        status: '지급완료',
-                        mid: 'HM_GN_001',
-                        breakdown: [
-                          { method: '신용카드', depositDate: '2026.01.20', salesDate: '2026.01.15', count: 12, salesA: '1,200,000', feeB: '32,400', vatC: '3,240', totalD: '35,640', netE: '1,164,360' },
-                          { method: '간편결제', depositDate: '2026.01.20', salesDate: '2026.01.15', count: 5, salesA: '450,000', feeB: '12,150', vatC: '1,215', totalD: '13,365', netE: '436,635' },
-                          { method: '신용카드', depositDate: '2026.01.13', salesDate: '2026.01.08', count: 8, salesA: '890,000', feeB: '24,030', vatC: '2,403', totalD: '26,433', netE: '863,567' },
-                          { method: '계좌이체', depositDate: '2026.01.05', salesDate: '2026.01.01', count: 3, salesA: '150,000', feeB: '3,000', vatC: '300', totalD: '3,300', netE: '146,700' }
-                        ]
-                      },
-                      { 
-                        month: '2025년 12월 정산', 
-                        period: '2025.12.01 ~ 2025.12.31', 
-                        amount: '15,230,000원', 
-                        rawAmount: '16,200,000원',
-                        fee: '970,000원',
-                        status: '지급완료',
-                        mid: 'HM_GN_001',
-                        breakdown: [
-                          { method: '신용카드', depositDate: '2025.12.20', salesDate: '2025.12.15', count: 15, salesA: '2,300,000', feeB: '62,100', vatC: '6,210', totalD: '68,310', netE: '2,231,690' }
-                        ]
-                      }
-                    ].map((s, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', fontSize: '14px' }}>
-                        <td style={{ padding: '16px', fontWeight: '700' }}>{s.month}</td>
-                        <td style={{ padding: '16px' }}>{s.period}</td>
-                        <td style={{ padding: '16px', fontWeight: '800' }}>{s.amount}</td>
-                        <td style={{ padding: '16px' }}>
-                          <span style={{ backgroundColor: '#f0fdf4', color: '#166534', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '700' }}>{s.status}</span>
-                        </td>
-                        <td style={{ padding: '16px' }}>
-                          <button 
-                            onClick={() => setSelectedSettlement(s)}
-                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer', fontSize: '12px', color: '#64748b' }}
-                          >상세보기</button>
-                        </td>
+              <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #f1f5f9' }}>
+                <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '24px' }}>최근 정산 내역</h3>
+                <div className="table-responsive">
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#64748b', fontSize: '14px', textAlign: 'left' }}>
+                        <th style={{ padding: '16px' }}>정산 월</th>
+                        <th style={{ padding: '16px' }}>최종 정산액</th>
+                        <th style={{ padding: '16px' }}>상태</th>
+                        <th style={{ padding: '16px' }}>상세</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {[
+                        { 
+                          month: '2026.01 정산분', 
+                          amount: '18,450,200원', 
+                          status: '지급완료',
+                          period: '2026.01.01 ~ 2026.01.31',
+                          rawAmount: '19,650,000원',
+                          fee: '1,199,800원',
+                          mid: 'HM_GN_001',
+                          breakdown: [
+                            { method: '신용카드', depositDate: '2026.01.20', salesDate: '2026.01.15', count: 12, salesA: '1,200,000', feeB: '32,400', vatC: '3,240', totalD: '35,640', netE: '1,164,360' },
+                            { method: '간편결제', depositDate: '2026.01.20', salesDate: '2026.01.15', count: 5, salesA: '450,000', feeB: '12,150', vatC: '1,215', totalD: '13,365', netE: '436,635' }
+                          ]
+                        },
+                        { 
+                          month: '2025.12 정산분', 
+                          amount: '15,230,000원', 
+                          status: '지급완료',
+                          period: '2025.12.01 ~ 2025.12.31',
+                          rawAmount: '16,200,000원',
+                          fee: '970,000원',
+                          mid: 'HM_GN_001',
+                          breakdown: [
+                            { method: '신용카드', depositDate: '2025.12.20', salesDate: '2025.12.15', count: 15, salesA: '2,300,000', feeB: '62,100', vatC: '6,210', totalD: '68,310', netE: '2,231,690' }
+                          ]
+                        }
+                      ].map((s, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', fontSize: '14px' }}>
+                          <td style={{ padding: '16px', fontWeight: '700' }}>{s.month}</td>
+                          <td style={{ padding: '16px', fontWeight: '800' }}>{s.amount}</td>
+                          <td style={{ padding: '16px' }}>
+                            <span style={{ backgroundColor: '#f0fdf4', color: '#166534', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '700' }}>{s.status}</span>
+                          </td>
+                          <td style={{ padding: '16px' }}>
+                            <button 
+                              onClick={() => setSelectedSettlement(s)}
+                              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer', fontSize: '12px' }}
+                            >상세</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
@@ -553,7 +643,24 @@ const StoreDashboard = () => {
                   {(product.stock / product.capacity) * 100 < lowStockThreshold && !product.isSoldOut && (
                     <span style={{ position: 'absolute', top: '12px', right: '12px', backgroundColor: '#ef4444', color: 'white', fontSize: '10px', fontWeight: '800', padding: '2px 6px', borderRadius: '4px' }}>발주 필요</span>
                   )}
-                  <div style={{ fontSize: '48px', marginBottom: '16px', filter: product.isSoldOut ? 'grayscale(1)' : 'none' }}>{product.img}</div>
+                  <div style={{ 
+                    width: '100%', 
+                    height: '100px', 
+                    marginBottom: '16px', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    filter: product.isSoldOut ? 'grayscale(1)' : 'none',
+                    borderRadius: '12px',
+                    overflow: 'hidden',
+                    backgroundColor: '#f8fafc'
+                  }}>
+                    {product.img && product.img.startsWith('data:image') || product.img.startsWith('http') ? (
+                      <img src={product.img} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <span style={{ fontSize: '48px' }}>{product.img}</span>
+                    )}
+                  </div>
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>{product.category}</div>
                   <div style={{ fontWeight: '700', fontSize: '16px', marginBottom: '4px' }}>{product.name}</div>
                   <div style={{ color: 'var(--primary)', fontWeight: '800', fontSize: '18px', marginBottom: '12px' }}>{product.price}</div>
@@ -608,6 +715,79 @@ const StoreDashboard = () => {
                 </div>
               ))}
             </div>
+          </div>
+        );
+      case 'subscriptions':
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+             {/* Subscription Overview Stats */}
+             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' }}>
+                <div style={{ padding: '24px', background: 'white', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', borderLeft: '4px solid #8b5cf6' }}>
+                   <div style={{ color: '#64748b', fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>전체 구독 상품</div>
+                   <div style={{ fontSize: '28px', fontWeight: '800' }}>{subscriptions.length}종</div>
+                </div>
+                <div style={{ padding: '24px', background: 'white', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', borderLeft: '4px solid #10b981' }}>
+                   <div style={{ color: '#64748b', fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>총 구독자 수</div>
+                   <div style={{ fontSize: '28px', fontWeight: '800' }}>{subscriptions.reduce((acc, curr) => acc + curr.subscribers, 0)}명</div>
+                </div>
+                <div style={{ padding: '24px', background: 'white', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', borderLeft: '4px solid #38bdf8' }}>
+                   <div style={{ color: '#64748b', fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>이번 달 예상 수익</div>
+                   <div style={{ fontSize: '28px', fontWeight: '800' }}>2,450,000원</div>
+                </div>
+             </div>
+
+             <div style={{ background: 'white', padding: '32px', borderRadius: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+                   <div>
+                      <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0 }}>구독 상품 리스트 및 관리</h2>
+                      <p style={{ color: '#94a3b8', fontSize: '13px', marginTop: '4px' }}>구독 구성을 직접 추가하고 가격과 구성을 결정할 수 있습니다.</p>
+                   </div>
+                   <button 
+                     onClick={() => handleOpenSubscriptionModal()}
+                     style={{ padding: '12px 24px', borderRadius: '12px', background: '#8b5cf6', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)' }}>+ 새 구독 상품 추가</button>
+                </div>
+
+                <div className="table-responsive">
+                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                         <tr style={{ textAlign: 'left', borderBottom: '2px solid #f1f5f9', color: '#64748b', fontSize: '14px' }}>
+                            <th style={{ padding: '16px' }}>구독 상품명</th>
+                            <th style={{ padding: '16px' }}>월 구독료</th>
+                            <th style={{ padding: '16px' }}>구성 품목 수</th>
+                            <th style={{ padding: '16px' }}>가입 고객</th>
+                            <th style={{ padding: '16px' }}>상태</th>
+                            <th style={{ padding: '16px' }}>관리</th>
+                         </tr>
+                      </thead>
+                      <tbody>
+                         {subscriptions.map((sub) => (
+                            <tr key={sub.id} style={{ borderBottom: '1px solid #f1f5f9', fontSize: '15px' }}>
+                               <td style={{ padding: '16px', fontWeight: '700' }}>{sub.name}</td>
+                               <td style={{ padding: '16px', fontWeight: '800', color: '#8b5cf6' }}>{sub.price}</td>
+                               <td style={{ padding: '16px' }}>{sub.quantity}개 품목</td>
+                               <td style={{ padding: '16px' }}>{sub.subscribers}명</td>
+                               <td style={{ padding: '16px' }}>
+                                  <span style={{ fontSize: '12px', color: '#10b981', backgroundColor: '#ecfdf5', padding: '4px 10px', borderRadius: '6px', fontWeight: '800' }}>● {sub.status}</span>
+                               </td>
+                               <td style={{ padding: '16px' }}>
+                                  <div style={{ display: 'flex', gap: '8px' }}>
+                                     <button 
+                                       onClick={() => handleOpenSubscriptionModal(sub)}
+                                       style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>수정</button>
+                                     <button 
+                                       onClick={() => deleteSubscription(sub.id)}
+                                       style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #fee2e2', background: 'white', color: '#ef4444', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>삭제</button>
+                                  </div>
+                               </td>
+                            </tr>
+                         ))}
+                         {subscriptions.length === 0 && (
+                            <tr><td colSpan="6" style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>등록된 구독 상품이 없습니다.</td></tr>
+                         )}
+                      </tbody>
+                   </table>
+                </div>
+             </div>
           </div>
         );
       case 'settings':
@@ -820,6 +1000,7 @@ const StoreDashboard = () => {
           { id: 'dashboard', label: '대시보드', icon: '🏠' },
           { id: 'orders', label: '주문 관리', icon: '📦' },
           { id: 'products', label: '상품 관리', icon: '🍎' },
+          { id: 'subscriptions', label: '구독 관리', icon: '💎' },
           { id: 'sales', label: '매출 및 정산', icon: '📊' },
           { id: 'settings', label: '운영 설정', icon: '⚙️' }
         ].map((item) => (
@@ -844,9 +1025,10 @@ const StoreDashboard = () => {
           </div>
         ))}
         
-        <div style={{ marginTop: 'auto', padding: '20px', backgroundColor: '#0f172a', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div style={{ fontSize: '13px', color: '#94a3b8' }}>도움이 필요하신가요?</div>
-          <button style={{ padding: '10px', borderRadius: '8px', background: '#334155', color: 'white', border: 'none', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>고객센터 연결</button>
+        <div style={{ marginTop: 'auto', padding: '20px', backgroundColor: '#0f172a', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>고객센터 안내</div>
+          <div style={{ fontSize: '18px', fontWeight: '800', color: '#38bdf8' }}>1588-0000</div>
+          <div style={{ fontSize: '11px', color: '#475569' }}>평일 09:00 ~ 18:00 운영</div>
         </div>
       </div>
 
@@ -1043,6 +1225,41 @@ const StoreDashboard = () => {
             </h2>
             <form onSubmit={handleSaveProduct} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div>
+                <label style={{ display: 'block', marginBottom: '12px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>상품 이미지</label>
+                <div 
+                  onClick={() => document.getElementById('product-image-upload').click()}
+                  style={{ 
+                    width: '100%', height: '160px', borderRadius: '16px', border: '2px dashed #cbd5e1', 
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', 
+                    backgroundColor: '#f8fafc', cursor: 'pointer', overflow: 'hidden', position: 'relative'
+                  }}>
+                  {productForm.imagePreview ? (
+                    <img src={productForm.imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <>
+                      <span style={{ fontSize: '32px', marginBottom: '8px' }}>📸</span>
+                      <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '600' }}>이미지 업로드 (클릭)</span>
+                    </>
+                  )}
+                  <input 
+                    id="product-image-upload"
+                    type="file" 
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setProductForm({ ...productForm, imageFile: file, imagePreview: reader.result });
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    style={{ display: 'none' }}
+                  />
+                </div>
+              </div>
+              <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>상품명</label>
                 <input 
                   required
@@ -1090,13 +1307,13 @@ const StoreDashboard = () => {
                   </select>
                 </div>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>아이콘 (이모지)</label>
-                  <input 
-                    type="text" 
-                    value={productForm.img}
-                    onChange={e => setProductForm({...productForm, img: e.target.value})}
-                    style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1', textAlign: 'center', fontSize: '20px' }} 
-                  />
+                   <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>대표 이모지</label>
+                   <input 
+                     type="text" 
+                     value={productForm.img}
+                     onChange={e => setProductForm({...productForm, img: e.target.value})}
+                     style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1', textAlign: 'center', fontSize: '20px' }} 
+                   />
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
@@ -1109,6 +1326,75 @@ const StoreDashboard = () => {
                   type="submit"
                   style={{ flex: 2, padding: '14px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
                 >{editingProduct ? '수정 완료' : '등록 완료'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Subscription Modal */}
+      {isSubscriptionModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, backdropFilter: 'blur(4px)' }}>
+          <div style={{ background: 'white', width: '100%', maxWidth: '500px', borderRadius: '24px', padding: '40px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '24px' }}>
+              {editingSubscription ? '구독 상품 수정' : '새 구독 상품 등록'}
+            </h2>
+            <form onSubmit={handleSaveSubscription} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>구독 상품명</label>
+                <input 
+                  required
+                  type="text" 
+                  value={subscriptionForm.name}
+                  onChange={e => setSubscriptionForm({...subscriptionForm, name: e.target.value})}
+                  placeholder="예: 우리집 신선 야채 팩"
+                  style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1' }} 
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>월 구독 가격</label>
+                  <input 
+                    required
+                    type="text" 
+                    value={subscriptionForm.price}
+                    onChange={e => setSubscriptionForm({...subscriptionForm, price: e.target.value})}
+                    placeholder="19,900원"
+                    style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>구성 품목 수량</label>
+                  <input 
+                    required
+                    type="number" 
+                    value={subscriptionForm.quantity}
+                    onChange={e => setSubscriptionForm({...subscriptionForm, quantity: e.target.value})}
+                    placeholder="4"
+                    style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1' }} 
+                  />
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>노출 상태</label>
+                <select 
+                  value={subscriptionForm.status}
+                  onChange={e => setSubscriptionForm({...subscriptionForm, status: e.target.value})}
+                  style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1' }}
+                >
+                  <option value="운영중">운영중 (노출)</option>
+                  <option value="중지됨">중지됨 (숨김)</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+                <button 
+                  type="button"
+                  onClick={() => setIsSubscriptionModalOpen(false)}
+                  style={{ flex: 1, padding: '14px', borderRadius: '12px', background: '#f1f5f9', border: 'none', fontWeight: '700', cursor: 'pointer' }}
+                >취소</button>
+                <button 
+                  type="submit"
+                  style={{ flex: 2, padding: '14px', borderRadius: '12px', background: '#8b5cf6', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)' }}
+                >{editingSubscription ? '수정 완료' : '구성 완료'}</button>
               </div>
             </form>
           </div>

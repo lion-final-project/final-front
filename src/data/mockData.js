@@ -59,8 +59,8 @@ export const reviews = [
 ];
 
 export const addresses = [
-  { id: 1, label: '우리집', address: '서울특별시 강남구 역삼동 123-45', detail: '푸르지오 아파트 102동 1504호', contact: '010-1234-5678', isDefault: true },
-  { id: 2, label: '회사', address: '서울특별시 서초구 서초동 998-1', detail: '강남빌딩 12층 테헤란로 411', contact: '010-9876-5432', isDefault: false }
+  { id: 1, label: '우리집', address: '서울특별시 강남구 역삼동 123-45', detail: '푸르지오 아파트 102동 1504호', contact: '010-1234-5678', isDefault: true, entranceType: 'LOCKED', entrancePassword: '#1234' },
+  { id: 2, label: '회사', address: '서울특별시 서초구 서초동 998-1', detail: '강남빌딩 12층 테헤란로 411', contact: '010-9876-5432', isDefault: false, entranceType: 'FREE', entrancePassword: '' }
 ];
 
 export const paymentMethods = [

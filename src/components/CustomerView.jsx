@@ -50,7 +50,7 @@ const TrackingModal = ({ isOpen, onClose, orderId }) => {
   );
 };
 
-const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth, isResidentRider, setIsResidentRider, notificationCount, storeRegistrationStatus, setStoreRegistrationStatus }) => {
+const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth, isResidentRider, setIsResidentRider, notificationCount, storeRegistrationStatus, setStoreRegistrationStatus, riderInfo, setRiderInfo }) => {
   const [activeTab, setActiveTab] = useState('home');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -96,9 +96,37 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [editingPaymentMethod, setEditingPaymentMethod] = useState(null);
   const [newPaymentMethod, setNewPaymentMethod] = useState({ name: '', number: '', color: '#10b981', type: 'card', isDefault: false });
-  const [newAddress, setNewAddress] = useState({ label: '', contact: '', address: '', detail: '', isDefault: false });
+  const [editingAddress, setEditingAddress] = useState(null);
+  const [newAddress, setNewAddress] = useState({ 
+    label: '', 
+    contact: '', 
+    address: '', 
+    detail: '', 
+    entranceType: 'FREE', // FREE: 자율출입, LOCKED: 공동현관비번
+    entrancePassword: '',
+    isDefault: false 
+  });
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [viewingReview, setViewingReview] = useState(null);
+
+  const handleOpenAddressModal = (addr = null) => {
+    if (addr) {
+      setEditingAddress(addr);
+      setNewAddress({ ...addr });
+    } else {
+      setEditingAddress(null);
+      setNewAddress({ 
+        label: '', 
+        contact: '', 
+        address: '', 
+        detail: '', 
+        entranceType: 'FREE',
+        entrancePassword: '',
+        isDefault: false 
+      });
+    }
+    setIsAddressModalOpen(true);
+  };
 
   const handleSaveAddress = () => {
     if (!newAddress.label || !newAddress.contact || !newAddress.address || !newAddress.detail) {
@@ -106,7 +134,6 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
       return;
     }
 
-    const newId = Date.now();
     let updatedList = [...addressList];
 
     // If new address is default, unset previous default
@@ -114,19 +141,35 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
       updatedList = updatedList.map(addr => ({ ...addr, isDefault: false }));
     }
 
-    // If it's the first address, make it default automatically
-    const isFirst = updatedList.length === 0;
+    if (editingAddress) {
+      updatedList = updatedList.map(addr => addr.id === editingAddress.id ? { ...newAddress } : addr);
+      setAddressList(updatedList);
+      showToast('배송 정보가 수정되었습니다.');
+    } else {
+      const newId = Date.now();
+      // If it's the first address, make it default automatically
+      const isFirst = updatedList.length === 0;
+      
+      updatedList.push({
+        id: newId,
+        ...newAddress,
+        isDefault: isFirst || newAddress.isDefault
+      });
+      setAddressList(updatedList);
+      showToast('새 배송지가 추가되었습니다.');
+    }
 
-    updatedList.push({
-      id: newId,
-      ...newAddress,
-      isDefault: isFirst || newAddress.isDefault
-    });
-
-    setAddressList(updatedList);
     setIsAddressModalOpen(false);
-    setNewAddress({ label: '', contact: '', address: '', detail: '', isDefault: false });
-    showToast('새 배송지가 추가되었습니다.');
+    setEditingAddress(null);
+    setNewAddress({ 
+      label: '', 
+      contact: '', 
+      address: '', 
+      detail: '', 
+      entranceType: 'FREE',
+      entrancePassword: '',
+      isDefault: false 
+    });
   };
 
   const handleOpenReviewModal = (order) => {
@@ -328,7 +371,8 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
         return (
           <RiderRegistrationView 
             onBack={() => setActiveTab('partner')}
-            onComplete={() => {
+            onComplete={(data) => {
+              setRiderInfo(data);
               setUserRole('RIDER');
               setActiveTab('home');
               window.scrollTo(0, 0);
@@ -535,7 +579,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                       <h3 style={{ fontSize: '18px', fontWeight: '700' }}>배송지 관리</h3>
                       <button 
-                        onClick={() => setIsAddressModalOpen(true)}
+                        onClick={() => handleOpenAddressModal()}
                         style={{ padding: '8px 16px', borderRadius: '8px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>+ 새 배송지 추가</button>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -547,7 +591,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                               {addr.isDefault && <span style={{ fontSize: '10px', backgroundColor: 'var(--primary)', color: 'white', padding: '2px 6px', borderRadius: '4px', fontWeight: '800' }}>기본배송지</span>}
                             </div>
                             <div style={{ display: 'flex', gap: '12px', fontSize: '13px', color: '#94a3b8' }}>
-                              <span onClick={() => showToast('배송 정보 수정 기능을 준비 중입니다.')} style={{ cursor: 'pointer' }}>수정</span>
+                              <span onClick={() => handleOpenAddressModal(addr)} style={{ cursor: 'pointer' }}>수정</span>
                               <span onClick={() => {
                                 if (window.confirm('정말 삭제하시겠습니까?')) {
                                   setAddressList(prev => prev.filter(a => a.id !== addr.id));
@@ -558,7 +602,13 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                           </div>
                           <div style={{ fontSize: '15px', color: '#1e293b', marginBottom: '4px' }}>{addr.address}</div>
                           <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '4px' }}>{addr.detail}</div>
-                          <div style={{ fontSize: '13px', color: '#94a3b8' }}>{addr.contact}</div>
+                          <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>{addr.contact}</div>
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '8px', padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', fontSize: '12px' }}>
+                            <span style={{ color: '#64748b', fontWeight: '700' }}>출입 정보:</span>
+                            <span style={{ color: '#1e293b', fontWeight: '600' }}>
+                              {addr.entranceType === 'FREE' ? '자율 출입 가능' : `공동현관 (#${addr.entrancePassword})`}
+                            </span>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -570,7 +620,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                   <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }} onClick={() => setIsAddressModalOpen(false)}>
                     <div style={{ background: 'white', width: '100%', maxWidth: '500px', borderRadius: '24px', padding: '32px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                        <h3 style={{ fontSize: '20px', fontWeight: '800' }}>새 배송지 추가</h3>
+                        <h3 style={{ fontSize: '20px', fontWeight: '800' }}>{editingAddress ? '배송지 수정' : '새 배송지 추가'}</h3>
                         <button onClick={() => setIsAddressModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '24px', color: '#94a3b8', cursor: 'pointer' }}>✕</button>
                       </div>
                       
@@ -622,6 +672,32 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                           />
                         </div>
                         
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                           <div>
+                              <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>출입 방법</label>
+                              <select 
+                                value={newAddress.entranceType}
+                                onChange={(e) => setNewAddress({ ...newAddress, entranceType: e.target.value })}
+                                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                              >
+                                 <option value="FREE">자율 출입 가능</option>
+                                 <option value="LOCKED">공동현관 비밀번호</option>
+                              </select>
+                           </div>
+                           {newAddress.entranceType === 'LOCKED' && (
+                              <div>
+                                 <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>비밀번호</label>
+                                 <input 
+                                   type="text" 
+                                   placeholder="예: #1234"
+                                   value={newAddress.entrancePassword}
+                                   onChange={(e) => setNewAddress({ ...newAddress, entrancePassword: e.target.value })}
+                                   style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                                 />
+                              </div>
+                           )}
+                        </div>
+
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
                           <input 
                             type="checkbox" 

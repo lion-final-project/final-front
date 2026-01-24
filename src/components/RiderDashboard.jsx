@@ -60,7 +60,7 @@ const MapSimulator = ({ status }) => {
   );
 };
 
-const RiderDashboard = ({ isResidentRider }) => {
+const RiderDashboard = ({ isResidentRider, riderInfo }) => {
   const [activeTab, setActiveTab] = useState('main');
   const [isOnline, setIsOnline] = useState(true);
   const [activeDeliveries, setActiveDeliveries] = useState([]); // Array of { ...req, status }
@@ -69,14 +69,30 @@ const RiderDashboard = ({ isResidentRider }) => {
   
   const [verificationStatus /* , setVerificationStatus */] = useState('verified'); // unverified, pending, verified
   const [vehicleInfo, setVehicleInfo] = useState({ 
-    type: 'electric_car', 
-    model: '현대 아이오닉5', 
     plate: '123가 4567' 
   });
 
+  const [historyFilter, setHistoryFilter] = useState('today'); // today, week, month
+  const [expandedHistoryItems, setExpandedHistoryItems] = useState(new Set());
+  const [selectedReceipt, setSelectedReceipt] = useState(null);
+  const [expandedSettlements, setExpandedSettlements] = useState(new Set());
+
+  // Multiple vehicles support
+  const [registeredVehicles, setRegisteredVehicles] = useState([
+    { 
+      id: 1, 
+      type: riderInfo?.vehicleType || 'bicycle', 
+      model: riderInfo?.vehicleModel || '', 
+      plate: riderInfo?.vehiclePlate || '',
+      isVerified: true 
+    }
+  ]);
+  const [activeVehicleId, setActiveVehicleId] = useState(1);
+  const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
+
   const deliveryRequests = [
-    { id: 'REQ001', store: '무림 정육점', destination: '삼성동 빌라 302호', distance: '1.2km', fee: 3500 },
-    { id: 'REQ002', store: '행복 마트 강남점', destination: '논현동 원룸 201호', distance: '0.8km', fee: 3000 }
+    { id: 'REQ001', store: '무림 정육점', destination: '삼성동 빌라 302호', distance: '1.2km', fee: 3500, customerPhone: '010-1234-5678' },
+    { id: 'REQ002', store: '행복 마트 강남점', destination: '논현동 원룸 201호', distance: '0.8km', fee: 3000, customerPhone: '010-9876-5432' }
   ];
 
   const handleAcceptRequest = (req) => {
@@ -102,6 +118,13 @@ const RiderDashboard = ({ isResidentRider }) => {
     });
   };
 
+  const toggleHistoryExpand = (id) => {
+    const newItems = new Set(expandedHistoryItems);
+    if (newItems.has(id)) newItems.delete(id);
+    else newItems.add(id);
+    setExpandedHistoryItems(newItems);
+  };
+
   const renderActiveView = () => {
     if (!isOnline && activeTab === 'main') {
       return (
@@ -124,64 +147,123 @@ const RiderDashboard = ({ isResidentRider }) => {
                 <div style={{ fontSize: '20px', fontWeight: '800', color: '#38bdf8' }}>{earnings.today.toLocaleString()}원</div>
               </div>
               <div style={{ backgroundColor: '#1e293b', padding: '20px', borderRadius: '16px' }}>
-                <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '4px' }}>이번 주 수익</div>
+                <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '4px' }}>금주 정산 예정</div>
                 <div style={{ fontSize: '20px', fontWeight: '800', color: '#10b981' }}>{earnings.weekly.toLocaleString()}원</div>
               </div>
             </div>
-            <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '16px' }}>최근 정산/출금 내역</h3>
+            <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '16px' }}>최근 정산</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {[
-                { date: '2026.01.20', amount: '50,000원', status: '입금완료', type: '출금' },
-                { date: '2026.01.18', amount: '120,000원', status: '준비중', type: '정산' }
+                { date: '2026.01.20', amount: '50,000원', status: '입금완료', type: '정산', details: '1월 3주차 배달 수수료 (14건)' },
+                { date: '2026.01.13', amount: '120,000원', status: '입금완료', type: '정산', details: '1월 2주차 배달 수수료 (32건)' }
               ].map((item, i) => (
-                <div key={i} style={{ backgroundColor: '#1e293b', padding: '16px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontWeight: '700', fontSize: '15px' }}>{item.amount} {item.type}</div>
-                    <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>{item.date}</div>
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div 
+                    onClick={() => {
+                       const newSet = new Set(expandedSettlements);
+                       if (newSet.has(i)) newSet.delete(i); else newSet.add(i);
+                       setExpandedSettlements(newSet);
+                    }}
+                    style={{ backgroundColor: '#1e293b', padding: '16px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: '700', fontSize: '15px' }}>{item.amount} {item.type}</div>
+                      <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>{item.date}</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                       <div style={{ color: item.status === '입금완료' ? '#2ecc71' : '#f59e0b', fontWeight: '800', fontSize: '13px' }}>{item.status}</div>
+                       <span style={{ fontSize: '10px', color: '#94a3b8', transform: expandedSettlements.has(i) ? 'rotate(180deg)' : 'none' }}>▼</span>
+                    </div>
                   </div>
-                  <div style={{ color: item.status === '입금완료' ? '#2ecc71' : '#f59e0b', fontWeight: '800', fontSize: '13px' }}>{item.status}</div>
+                  {expandedSettlements.has(i) && (
+                    <div style={{ backgroundColor: '#0f172a', padding: '12px 16px', borderRadius: '10px', fontSize: '13px', color: '#94a3b8', animation: 'fadeIn 0.2s' }}>
+                       {item.details}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           </div>
         );
       case 'history':
+        const historyData = [
+          { id: 'ORD20260124101', store: '행복 마트', dest: '역삼동 123-1', time: '14:23', fee: 3500, items: '신선란 10구, 유기농 우유 1L', customer: '김철수', status: '배달완료', date: '오늘' },
+          { id: 'ORD20260124085', store: '싱싱 정육점', dest: '삼성동 45-2', time: '13:10', fee: 4000, items: '한우 등심 300g x 2', customer: '이영희', status: '배달완료', date: '오늘' },
+          { id: 'ORD20260124052', store: '우리 마켓', dest: '대치동 900', time: '12:05', fee: 3200, items: '꿀사과 3입, 바나나 1송이', customer: '박지민', status: '취소됨', date: '오늘' },
+          { id: 'ORD20260120101', store: '마켓컬리', dest: '논현동 44', time: '11:00', fee: 3500, items: '샐러드 팩 x 3', customer: '최도현', status: '배달완료', date: 'week' },
+          { id: 'ORD20260115001', store: '이마트24', dest: '압구정 12', time: '19:30', fee: 3000, items: '생수 2L x 6', customer: '정유미', status: '배달완료', date: 'month' }
+        ].filter(item => {
+           if (historyFilter === 'today') return item.date === '오늘';
+           if (historyFilter === 'week') return item.date === '오늘' || item.date === 'week';
+           return true;
+        });
+
         return (
           <div style={{ padding: '20px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '20px' }}>배달 히스토리</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: '800' }}>배달 히스토리</h2>
+              <div style={{ display: 'flex', backgroundColor: '#1e293b', padding: '4px', borderRadius: '10px' }}>
+                {['today', 'week', 'month'].map((f) => (
+                  <button 
+                    key={f}
+                    onClick={() => setHistoryFilter(f)}
+                    style={{ 
+                      padding: '6px 12px', borderRadius: '8px', border: 'none', 
+                      background: historyFilter === f ? 'var(--primary)' : 'transparent',
+                      color: historyFilter === f ? 'white' : '#94a3b8',
+                      fontSize: '12px', fontWeight: '800', cursor: 'pointer'
+                    }}
+                  >{f === 'today' ? '오늘' : f === 'week' ? '1주일' : '한달'}</button>
+                ))}
+              </div>
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {[
-                { id: 'ORD20260124101', store: '행복 마트', dest: '역삼동 123-1', time: '14:23', fee: 3500, items: '신선란 10구, 유기농 우유 1L', customer: '김철수' },
-                { id: 'ORD20260124085', store: '싱싱 정육점', dest: '삼성동 45-2', time: '13:10', fee: 4000, items: '한우 등심 300g x 2', customer: '이영희' },
-                { id: 'ORD20260124052', store: '우리 마켓', dest: '대치동 900', time: '12:05', fee: 3200, items: '꿀사과 3입, 바나나 1송이', customer: '박지민' }
-              ].map((item, i) => (
-                <div key={i} style={{ backgroundColor: '#1e293b', padding: '20px', borderRadius: '16px', border: '1px solid #334155' }}>
+              {historyData.map((item, i) => (
+                <div key={item.id} style={{ backgroundColor: '#1e293b', padding: '20px', borderRadius: '16px', border: '1px solid #334155' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-                    <span style={{ fontSize: '12px', color: '#94a3b8' }}>오늘 {item.time}</span>
-                    <span style={{ fontSize: '11px', backgroundColor: '#0f172a', color: '#2ecc71', padding: '4px 10px', borderRadius: '6px', fontWeight: '900' }}>배달 완료</span>
+                    <span style={{ fontSize: '12px', color: '#94a3b8' }}>{item.date === '오늘' ? `오늘 ${item.time}` : item.id.substring(3, 11)}</span>
+                    <span style={{ 
+                      fontSize: '11px', 
+                      backgroundColor: item.status === '취소됨' ? 'rgba(239, 68, 68, 0.2)' : '#0f172a', 
+                      color: item.status === '취소됨' ? '#ef4444' : '#2ecc71', 
+                      padding: '4px 10px', borderRadius: '6px', fontWeight: '900' 
+                    }}>{item.status}</span>
                   </div>
                   
-                  <div style={{ marginBottom: '16px' }}>
-                    <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '4px' }}>주문번호: {item.id}</div>
-                    <div style={{ fontSize: '16px', fontWeight: '800' }}>{item.store} → {item.dest}</div>
+                  <div 
+                    onClick={() => toggleHistoryExpand(item.id)}
+                    style={{ marginBottom: '16px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '4px' }}>주문번호: {item.id}</div>
+                      <div style={{ fontSize: '16px', fontWeight: '800' }}>{item.store} → {item.dest}</div>
+                    </div>
+                    <span style={{ fontSize: '12px', color: '#94a3b8', transform: expandedHistoryItems.has(item.id) ? 'rotate(180deg)' : 'none', transition: '0.2s' }}>▼</span>
                   </div>
 
-                  <div style={{ backgroundColor: '#0f172a', padding: '16px', borderRadius: '12px', marginBottom: '16px' }}>
-                    <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '8px', fontWeight: '700' }}>배달 상세 내역</div>
-                    <div style={{ fontSize: '14px', marginBottom: '8px' }}>
-                      <span style={{ color: '#94a3b8' }}>품목:</span> {item.items}
+                  {expandedHistoryItems.has(item.id) && (
+                    <div style={{ backgroundColor: '#0f172a', padding: '16px', borderRadius: '12px', marginBottom: '16px', animation: 'fadeIn 0.2s ease-out' }}>
+                      <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '8px', fontWeight: '700' }}>배달 상세 내역</div>
+                      <div style={{ fontSize: '14px', marginBottom: '8px' }}>
+                        <span style={{ color: '#94a3b8' }}>품목:</span> {item.items}
+                      </div>
+                      <div style={{ fontSize: '14px' }}>
+                        <span style={{ color: '#94a3b8' }}>고객:</span> {item.customer} (문의: 010-****-1234)
+                      </div>
                     </div>
-                    <div style={{ fontSize: '14px' }}>
-                      <span style={{ color: '#94a3b8' }}>고객:</span> {item.customer} (문의: 010-****-1234)
-                    </div>
-                  </div>
+                  )}
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: '18px', color: '#38bdf8', fontWeight: '900' }}>+{item.fee.toLocaleString()}원</div>
-                    <button 
-                      onClick={() => alert(`주문번호 ${item.id}의 상세 영수증을 불러옵니다.`)}
-                      style={{ fontSize: '12px', color: '#94a3b8', background: 'transparent', border: '1px solid #334155', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer' }}
-                    >영수증 보기</button>
+                    <div style={{ fontSize: '18px', color: item.status === '취소됨' ? '#94a3b8' : '#38bdf8', fontWeight: '900' }}>
+                      {item.status === '취소됨' ? '0원' : `+${item.fee.toLocaleString()}원`}
+                    </div>
+                    {item.status !== '취소됨' && (
+                      <button 
+                        onClick={() => setSelectedReceipt(item)}
+                        style={{ fontSize: '12px', color: '#94a3b8', background: 'transparent', border: '1px solid #334155', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer' }}
+                      >영수증 보기</button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -213,42 +295,63 @@ const RiderDashboard = ({ isResidentRider }) => {
               </div>
             </div>
 
-            <div style={{ backgroundColor: '#1e293b', padding: '24px', borderRadius: '20px', border: '1px solid #334155' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '20px' }}>차량 정보 설정</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <div>
-                  <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '8px' }}>운송 수단</label>
-                  <select 
-                    value={vehicleInfo.type}
-                    onChange={(e) => setVehicleInfo({...vehicleInfo, type: e.target.value})}
-                    style={{ width: '100%', padding: '14px', borderRadius: '12px', backgroundColor: '#0f172a', border: '1px solid #334155', color: 'white', fontWeight: '600' }}
-                  >
-                    <option value="electric_car">전기차 / 승용차</option>
-                    <option value="motorcycle">오토바이</option>
-                    <option value="bicycle">자전거 / 전동 킥보드</option>
-                    <option value="walking">도보</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '8px' }}>차량 모델</label>
-                  <input 
-                    type="text" 
-                    value={vehicleInfo.model}
-                    onChange={(e) => setVehicleInfo({...vehicleInfo, model: e.target.value})}
-                    style={{ width: '100%', padding: '14px', borderRadius: '12px', backgroundColor: '#0f172a', border: '1px solid #334155', color: 'white' }} 
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '8px' }}>차량 번호</label>
-                  <input 
-                    type="text" 
-                    value={vehicleInfo.plate}
-                    onChange={(e) => setVehicleInfo({...vehicleInfo, plate: e.target.value})}
-                    style={{ width: '100%', padding: '14px', borderRadius: '12px', backgroundColor: '#0f172a', border: '1px solid #334155', color: 'white' }} 
-                  />
-                </div>
-                <button style={{ backgroundColor: '#38bdf8', color: 'white', border: 'none', padding: '16px', borderRadius: '12px', fontWeight: '800', marginTop: '12px', cursor: 'pointer' }}>정보 저장하기</button>
+            <div style={{ backgroundColor: '#1e293b', padding: '24px', borderRadius: '20px', border: '1px solid #334155', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '700' }}>보유 운송 수단</h3>
+                <button 
+                  onClick={() => setShowAddVehicleModal(true)}
+                  style={{ background: 'var(--primary)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}
+                >+ 추가하기</button>
               </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {registeredVehicles.map(v => (
+                  <div 
+                    key={v.id}
+                    onClick={() => setActiveVehicleId(v.id)}
+                    style={{ 
+                      padding: '16px', 
+                      borderRadius: '12px', 
+                      backgroundColor: activeVehicleId === v.id ? 'rgba(56, 189, 248, 0.1)' : '#0f172a', 
+                      border: activeVehicleId === v.id ? '2px solid #38bdf8' : '1px solid #334155',
+                      cursor: 'pointer',
+                      transition: '0.2s'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: v.model ? '8px' : '0' }}>
+                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '18px' }}>
+                            {v.type === 'walking' ? '🏃' : v.type === 'bicycle' ? '🚲' : v.type === 'motorcycle' ? '🛵' : '🚗'}
+                          </span>
+                          <span style={{ fontWeight: '700', fontSize: '14px' }}>
+                            {v.type === 'walking' ? '도보' : v.type === 'bicycle' ? '자전거' : v.type === 'motorcycle' ? '오토바이' : '자동차'}
+                          </span>
+                          {activeVehicleId === v.id && (
+                            <span style={{ fontSize: '10px', backgroundColor: '#38bdf8', color: 'white', padding: '2px 6px', borderRadius: '4px', fontWeight: '900' }}>운행 중</span>
+                          )}
+                       </div>
+                    </div>
+                    {v.model && (
+                      <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+                        {v.model} {v.plate && `(${v.plate})`}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ backgroundColor: '#1e293b', padding: '20px', borderRadius: '20px', border: '1px solid rgba(241, 196, 15, 0.3)' }}>
+               <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: '20px' }}>📢</span>
+                  <div>
+                     <div style={{ fontSize: '14px', fontWeight: '700', color: '#f1c40f', marginBottom: '4px' }}>면허 필요 수단 추가 안내</div>
+                     <div style={{ fontSize: '12px', color: '#94a3b8', lineHeight: '1.6' }}>
+                        오토바이, 승용차 등 면허가 필요한 운송 수단은 서류 확인이 필요합니다. <br/>
+                        <span style={{ color: '#38bdf8', fontWeight: '700', cursor: 'pointer' }} onClick={() => alert('상담사 채팅으로 이동합니다.')}>[상담사 문의]</span>를 통해 신청해 주세요.
+                     </div>
+                  </div>
+               </div>
             </div>
 
             <div style={{ marginTop: '24px', textAlign: 'center' }}>
@@ -308,9 +411,17 @@ const RiderDashboard = ({ isResidentRider }) => {
                     </div>
 
                     <div style={{ backgroundColor: '#0f172a', padding: '16px', borderRadius: '12px', marginBottom: '20px' }}>
-                      <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>{delivery.status === 'delivering' ? '목적지' : '픽업지'}</div>
-                      <div style={{ fontSize: '15px', fontWeight: '800' }}>
-                        {delivery.status === 'delivering' ? delivery.destination : delivery.store}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                         <div>
+                            <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>{delivery.status === 'delivering' ? '목적지' : '픽업지'}</div>
+                            <div style={{ fontSize: '15px', fontWeight: '800' }}>
+                              {delivery.status === 'delivering' ? delivery.destination : delivery.store}
+                            </div>
+                         </div>
+                         <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>고객 연락처</div>
+                            <div style={{ fontSize: '14px', fontWeight: '700', color: '#38bdf8' }}>{delivery.customerPhone}</div>
+                         </div>
                       </div>
                     </div>
 
@@ -476,6 +587,84 @@ const RiderDashboard = ({ isResidentRider }) => {
               style={{ width: '100%', marginTop: '20px', padding: '14px', border: 'none', background: 'transparent', color: '#94a3b8', fontWeight: '700', cursor: 'pointer' }}>
               닫기
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Receipt Modal */}
+      {selectedReceipt && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ backgroundColor: 'white', color: 'black', borderRadius: '4px', width: '100%', maxWidth: '360px', padding: '24px', fontFamily: 'monospace' }}>
+            <div style={{ textAlign: 'center', borderBottom: '1px dashed #ccc', paddingBottom: '16px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 'bold' }}>[전자 영수증]</h3>
+              <div style={{ fontSize: '12px', marginTop: '4px' }}>동네마켓 - {selectedReceipt.store}</div>
+            </div>
+            <div style={{ padding: '20px 0', borderBottom: '1px dashed #ccc' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span>주문 번호</span>
+                <span>{selectedReceipt.id}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <span>배달 완료</span>
+                <span>2026.01.24 {selectedReceipt.time}</span>
+              </div>
+              
+              <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>주문 내역</div>
+              <div style={{ fontSize: '13px' }}>{selectedReceipt.items}</div>
+            </div>
+            <div style={{ padding: '20px 0' }}>
+               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 'bold' }}>
+                  <span>배달 수수료</span>
+                  <span>{selectedReceipt.fee.toLocaleString()}원</span>
+               </div>
+            </div>
+            <button 
+              onClick={() => setSelectedReceipt(null)}
+              style={{ width: '100%', padding: '14px', background: '#333', color: 'white', border: 'none', fontWeight: 'bold', cursor: 'pointer', marginTop: '20px' }}>확인</button>
+          </div>
+        </div>
+      )}
+
+      {/* Add Vehicle Modal */}
+      {showAddVehicleModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ backgroundColor: '#1e293b', borderRadius: '24px', width: '100%', maxWidth: '400px', padding: '32px' }}>
+            <h3 style={{ fontSize: '20px', fontWeight: '900', marginBottom: '24px' }}>운송 수단 추가</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+               <div style={{ fontSize: '14px', color: '#94a3b8' }}>자유롭게 추가 가능한 수단</div>
+               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <button 
+                    onClick={() => {
+                       setRegisteredVehicles([...registeredVehicles, { id: Date.now(), type: 'walking', model: '', plate: '', isVerified: true }]);
+                       setShowAddVehicleModal(false);
+                    }}
+                    style={{ padding: '16px', borderRadius: '12px', backgroundColor: '#0f172a', border: '1px solid #334155', color: 'white', cursor: 'pointer' }}
+                  >🚶 도보</button>
+                  <button 
+                    onClick={() => {
+                       setRegisteredVehicles([...registeredVehicles, { id: Date.now(), type: 'bicycle', model: '일반 자전거', plate: '', isVerified: true }]);
+                       setShowAddVehicleModal(false);
+                    }}
+                    style={{ padding: '16px', borderRadius: '12px', backgroundColor: '#0f172a', border: '1px solid #334155', color: 'white', cursor: 'pointer' }}
+                  >🚲 자전거</button>
+               </div>
+               
+               <div style={{ fontSize: '14px', color: '#94a3b8', marginTop: '12px' }}>면허/심사가 필요한 수단</div>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <button 
+                    onClick={() => alert('오토바이/승용차 추가는 상담사 문의가 필요합니다.')}
+                    style={{ padding: '16px', borderRadius: '12px', backgroundColor: '#334155', border: '1px solid #475569', color: '#94a3b8', cursor: 'pointer', textAlign: 'left' }}
+                  >🛵 오토바이 추가 문의</button>
+                  <button 
+                    onClick={() => alert('오토바이/승용차 추가는 상담사 문의가 필요합니다.')}
+                    style={{ padding: '16px', borderRadius: '12px', backgroundColor: '#334155', border: '1px solid #475569', color: '#94a3b8', cursor: 'pointer', textAlign: 'left' }}
+                  >🚗 승용차 추가 문의</button>
+               </div>
+            </div>
+            <button 
+              onClick={() => setShowAddVehicleModal(false)}
+              style={{ width: '100%', marginTop: '32px', padding: '16px', background: 'transparent', border: 'none', color: '#64748b', fontWeight: '700', cursor: 'pointer' }}
+            >닫기</button>
           </div>
         </div>
       )}
