@@ -15,7 +15,6 @@ function App() {
 
   const [isResidentRider, setIsResidentRider] = useState(false);
   const [storeRegistrationStatus, setStoreRegistrationStatus] = useState('NONE'); // NONE, PENDING, APPROVED
-  const [isDeliveryMode, setIsDeliveryMode] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState([
     { id: 1, title: '주문 수락됨', body: '행복 마트에서 사장님이 주문을 수락했습니다.', time: '5분 전', type: 'order', read: false },
@@ -56,8 +55,6 @@ function App() {
         setIsResidentRider={setIsResidentRider}
         storeRegistrationStatus={storeRegistrationStatus}
         setStoreRegistrationStatus={setStoreRegistrationStatus}
-        isDeliveryMode={isDeliveryMode}
-        setIsDeliveryMode={setIsDeliveryMode}
         notificationCount={unreadCount}
       />
     );

@@ -14,6 +14,7 @@ import { orders, subscriptions, reviews, stores, addresses, paymentMethods, faqs
 import CartModal from './CartModal';
 import StoreDetailView from './StoreDetailView';
 import StoreRegistrationView from './StoreRegistrationView';
+import RiderRegistrationView from './RiderRegistrationView';
 import OrderManagementView from './OrderManagementView';
 import LocationModal from './LocationModal';
 
@@ -49,7 +50,7 @@ const TrackingModal = ({ isOpen, onClose, orderId }) => {
   );
 };
 
-const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth, isResidentRider, setIsResidentRider, isDeliveryMode, setIsDeliveryMode, notificationCount, storeRegistrationStatus, setStoreRegistrationStatus }) => {
+const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth, isResidentRider, setIsResidentRider, notificationCount, storeRegistrationStatus, setStoreRegistrationStatus }) => {
   const [activeTab, setActiveTab] = useState('home');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -90,7 +91,11 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
 
   /* Address Management State */
   const [addressList, setAddressList] = useState(addresses);
+  const [paymentMethodList, setPaymentMethodList] = useState(paymentMethods);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [editingPaymentMethod, setEditingPaymentMethod] = useState(null);
+  const [newPaymentMethod, setNewPaymentMethod] = useState({ name: '', number: '', color: '#10b981', type: 'card', isDefault: false });
   const [newAddress, setNewAddress] = useState({ label: '', contact: '', address: '', detail: '', isDefault: false });
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [viewingReview, setViewingReview] = useState(null);
@@ -138,6 +143,12 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
     setIsReviewModalOpen(false);
   };
 
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setSelectedStore(null);
+    window.scrollTo(0, 0);
+  };
+
   const onAddToCart = (product, store) => {
     setCartItems(prev => {
       const existing = prev.find(item => item.id === product.id);
@@ -166,23 +177,67 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
 
   const clearCart = () => setCartItems([]);
 
-  const renderActiveView = () => {
-    if (isDeliveryMode) return <ResidentDeliveryView />;
-    
-    // If a store is selected, show the detail view regardless of tab (or handle as a pseudo-tab)
-    if (selectedStore) {
-      return (
-        <StoreDetailView 
-          store={selectedStore} 
-          onBack={() => {
-            setSelectedStore(null);
-            window.scrollTo(0, 0);
-          }}
-          onAddToCart={onAddToCart}
-        />
-      );
+  const handleDeletePaymentMethod = (id) => {
+    if (window.confirm('이 결제 수단을 삭제하시겠습니까?')) {
+      const updatedList = paymentMethodList.filter(pm => pm.id !== id);
+      // If the deleted one was default, make the first one default
+      if (paymentMethodList.find(pm => pm.id === id)?.isDefault && updatedList.length > 0) {
+        updatedList[0].isDefault = true;
+      }
+      setPaymentMethodList(updatedList);
+      showToast('결제 수단이 삭제되었습니다.');
+    }
+  };
+
+  const handleSetDefaultPaymentMethod = (id) => {
+    const updatedList = paymentMethodList.map(pm => ({
+      ...pm,
+      isDefault: pm.id === id
+    }));
+    setPaymentMethodList(updatedList);
+    showToast('기본 결제 수단으로 설정되었습니다.');
+  };
+
+  const handleOpenPaymentModal = (pm = null) => {
+    if (pm) {
+      setEditingPaymentMethod(pm);
+      setNewPaymentMethod({ ...pm });
+    } else {
+      setEditingPaymentMethod(null);
+      setNewPaymentMethod({ name: '', number: '', color: '#10b981', type: 'card', isDefault: false });
+    }
+    setIsPaymentModalOpen(true);
+  };
+
+  const handleSavePaymentMethod = () => {
+    if (!newPaymentMethod.name || !newPaymentMethod.number) {
+      alert('모든 항목을 입력해주세요.');
+      return;
     }
 
+    let updatedList = [...paymentMethodList];
+    if (newPaymentMethod.isDefault) {
+      updatedList = updatedList.map(pm => ({ ...pm, isDefault: false }));
+    }
+
+    if (editingPaymentMethod) {
+      updatedList = updatedList.map(pm => pm.id === editingPaymentMethod.id ? { ...newPaymentMethod } : pm);
+      setPaymentMethodList(updatedList);
+      showToast('결제 수단이 수정되었습니다.');
+    } else {
+      const newId = Date.now();
+      updatedList.push({
+        id: newId,
+        ...newPaymentMethod,
+        isDefault: updatedList.length === 0 || newPaymentMethod.isDefault
+      });
+      setPaymentMethodList(updatedList);
+      showToast('새 결제 수단이 추가되었습니다.');
+    }
+    setIsPaymentModalOpen(false);
+  };
+
+  const renderActiveView = () => {
     switch (activeTab) {
       case 'special':
         return (
@@ -269,6 +324,17 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
             setStatus={setStoreRegistrationStatus}
           />
         );
+      case 'rider_registration':
+        return (
+          <RiderRegistrationView 
+            onBack={() => setActiveTab('partner')}
+            onComplete={() => {
+              setUserRole('RIDER');
+              setActiveTab('home');
+              window.scrollTo(0, 0);
+            }}
+          />
+        );
       case 'support':
         return <SupportView userRole={userRole} onOpenAuth={onOpenAuth} />;
       case 'partner':
@@ -284,6 +350,11 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
               }
               if (role === 'STORE_APPLICATION') {
                 setActiveTab('store_registration');
+                window.scrollTo(0, 0);
+                return;
+              }
+              if (role === 'RIDER') {
+                setActiveTab('rider_registration');
                 window.scrollTo(0, 0);
                 return;
               }
@@ -576,7 +647,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                       <h3 style={{ fontSize: '18px', fontWeight: '700' }}>결제 수단 관리</h3>
                       <button 
-                        onClick={() => showToast('새 결제 수단 등록 페이지로 이동합니다.')}
+                        onClick={() => handleOpenPaymentModal()}
                         style={{ padding: '8px 16px', borderRadius: '8px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>+ 결제 수단 추가</button>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -594,12 +665,12 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                         }}
                         pagination={true}
                         navigation={true}
-                        initialSlide={paymentMethods.findIndex(pm => pm.isDefault) !== -1 ? paymentMethods.findIndex(pm => pm.isDefault) : 0}
+                        initialSlide={paymentMethodList.findIndex(pm => pm.isDefault) !== -1 ? paymentMethodList.findIndex(pm => pm.isDefault) : 0}
                         slideToClickedSlide={true}
                         modules={[EffectCoverflow, Pagination, Navigation]}
                         className="mySwiper"
                       >
-                        {paymentMethods.map(pm => (
+                        {paymentMethodList.map(pm => (
                           <SwiperSlide key={pm.id} style={{ background: pm.color || 'var(--primary)' }}>
                              <div style={{ width: '100%', height: '100%', padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxSizing: 'border-box' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -614,49 +685,166 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                                     {pm.number ? pm.number : '**** **** **** ****'}
                                 </div>
 
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                      <div>
                                         <div style={{ fontSize: '10px', opacity: 0.7, textTransform: 'uppercase' }}>Card Holder</div>
                                         <div style={{ fontSize: '14px', fontWeight: '700', letterSpacing: '1px' }}>MEMBER</div>
                                      </div>
-                                     {pm.isDefault && (
-                                         <div style={{ 
-                                             backgroundColor: 'rgba(255,255,255,0.9)', 
-                                             color: pm.color || 'black', 
-                                             padding: '6px 12px', 
-                                             borderRadius: '20px', 
-                                             fontSize: '11px', 
-                                             fontWeight: '800',
-                                             boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                                         }}>
-                                             기본 결제
-                                         </div>
-                                     )}
-                                     {!pm.isDefault && (
-                                         <button 
-                                            onClick={() => showToast('기본 결제 수단으로 변경되었습니다.')}
-                                            style={{ 
-                                                backgroundColor: 'rgba(0,0,0,0.2)', 
-                                                color: 'white', 
-                                                border: '1px solid rgba(255,255,255,0.4)',
-                                                padding: '6px 12px', 
-                                                borderRadius: '20px', 
-                                                fontSize: '11px', 
-                                                fontWeight: '600',
-                                                cursor: 'pointer'
-                                            }}
-                                         >
-                                             기본 설정
-                                         </button>
-                                     )}
+                                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                       {pm.isDefault ? (
+                                           <div style={{ 
+                                               backgroundColor: 'rgba(255,255,255,0.9)', 
+                                               color: pm.color || 'black', 
+                                               padding: '6px 12px', 
+                                               borderRadius: '20px', 
+                                               fontSize: '11px', 
+                                               fontWeight: '800',
+                                               boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                                           }}>
+                                               기본 결제
+                                           </div>
+                                       ) : (
+                                           <button 
+                                              onClick={() => handleSetDefaultPaymentMethod(pm.id)}
+                                              style={{ 
+                                                  backgroundColor: 'rgba(0,0,0,0.2)', 
+                                                  color: 'white', 
+                                                  border: '1px solid rgba(255,255,255,0.4)',
+                                                  padding: '6px 12px', 
+                                                  borderRadius: '20px', 
+                                                  fontSize: '11px', 
+                                                  fontWeight: '600',
+                                                  cursor: 'pointer'
+                                              }}
+                                           >
+                                               기본 설정
+                                           </button>
+                                       )}
+                                       <button 
+                                          onClick={() => handleOpenPaymentModal(pm)}
+                                          style={{ 
+                                              backgroundColor: 'rgba(255, 255, 255, 0.2)', 
+                                              color: 'white', 
+                                              border: '1px solid rgba(255,255,255,0.4)',
+                                              padding: '6px 12px', 
+                                              borderRadius: '20px', 
+                                              fontSize: '11px', 
+                                              fontWeight: '600',
+                                              cursor: 'pointer'
+                                          }}
+                                       >
+                                           수정
+                                       </button>
+                                       <button 
+                                          onClick={() => handleDeletePaymentMethod(pm.id)}
+                                          style={{ 
+                                              backgroundColor: 'rgba(239, 68, 68, 0.2)', 
+                                              color: 'white', 
+                                              border: '1px solid rgba(255,255,255,0.4)',
+                                              padding: '6px 12px', 
+                                              borderRadius: '20px', 
+                                              fontSize: '11px', 
+                                              fontWeight: '600',
+                                              cursor: 'pointer'
+                                          }}
+                                       >
+                                           삭제
+                                       </button>
+                                     </div>
                                 </div>
                             </div>
                           </SwiperSlide>
                         ))}
+                        <SwiperSlide key="add-new" style={{ background: '#f8fafc', border: '2px dashed #cbd5e1', color: '#64748b' }}>
+                           <div 
+                              onClick={() => handleOpenPaymentModal()}
+                              style={{ 
+                                 width: '100%', 
+                                 height: '100%', 
+                                 display: 'flex', 
+                                 flexDirection: 'column', 
+                                 alignItems: 'center', 
+                                 justifyContent: 'center', 
+                                 cursor: 'pointer'
+                              }}
+                           >
+                              <div style={{ fontSize: '48px', marginBottom: '12px', opacity: 0.5 }}>+</div>
+                              <div style={{ fontWeight: '800', fontSize: '18px' }}>결제 수단 추가</div>
+                              <div style={{ fontSize: '12px', marginTop: '4px', opacity: 0.7 }}>신용/체크카드, 간편결제</div>
+                           </div>
+                        </SwiperSlide>
                       </Swiper>
+
+                      {/* Payment Modal */}
+                      {isPaymentModalOpen && (
+                        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }} onClick={() => setIsPaymentModalOpen(false)}>
+                          <div style={{ background: 'white', width: '100%', maxWidth: '450px', borderRadius: '24px', padding: '32px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                              <h3 style={{ fontSize: '20px', fontWeight: '800' }}>{editingPaymentMethod ? '결제 수단 수정' : '새 결제 수단 추가'}</h3>
+                              <button onClick={() => setIsPaymentModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '24px', color: '#94a3b8', cursor: 'pointer' }}>✕</button>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                              <div>
+                                <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>카드/계좌 명칭</label>
+                                <input 
+                                  type="text" 
+                                  placeholder="예: 생활비 카드, 국민은행 메인"
+                                  value={newPaymentMethod.name}
+                                  onChange={(e) => setNewPaymentMethod({ ...newPaymentMethod, name: e.target.value })}
+                                  style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                                />
+                              </div>
+                              <div>
+                                <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>번호</label>
+                                <input 
+                                  type="text" 
+                                  placeholder="**** **** **** ****"
+                                  value={newPaymentMethod.number}
+                                  onChange={(e) => setNewPaymentMethod({ ...newPaymentMethod, number: e.target.value })}
+                                  style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                                />
+                              </div>
+                              <div>
+                                <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>테마 색상</label>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                  {['#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#f97316', '#1e293b'].map(c => (
+                                    <div 
+                                      key={c}
+                                      onClick={() => setNewPaymentMethod({ ...newPaymentMethod, color: c })}
+                                      style={{ 
+                                        width: '32px', height: '32px', borderRadius: '50%', backgroundColor: c, cursor: 'pointer',
+                                        border: newPaymentMethod.color === c ? '3px solid #fff' : 'none',
+                                        boxShadow: newPaymentMethod.color === c ? '0 0 0 2px var(--primary)' : 'none'
+                                      }}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                              
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                                <input 
+                                  type="checkbox" 
+                                  id="def-payment" 
+                                  checked={newPaymentMethod.isDefault}
+                                  onChange={(e) => setNewPaymentMethod({ ...newPaymentMethod, isDefault: e.target.checked })}
+                                  style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }} 
+                                />
+                                <label htmlFor="def-payment" style={{ fontSize: '14px', color: '#475569', cursor: 'pointer' }}>기본 결제 수단으로 설정</label>
+                              </div>
+
+                              <button 
+                                onClick={handleSavePaymentMethod}
+                                style={{ width: '100%', padding: '16px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '800', fontSize: '16px', cursor: 'pointer', marginTop: '12px' }}
+                              >{editingPaymentMethod ? '수정 완료' : '저장하기'}</button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <p style={{ marginTop: '24px', color: '#94a3b8', fontSize: '14px', textAlign: 'center' }}>
                         카드를 스와이프하여 관리할 수 있습니다.<br />
-                        <span style={{ fontSize: '12px', color: '#cbd5e1' }}>(삭제하려면 카드를 길게 누르세요)</span>
+                        <span style={{ fontSize: '12px', color: '#cbd5e1' }}>(상세 수정을 위해 수정 버튼을 누르세요)</span>
                       </p>
                     </div>
                   </div>
@@ -672,11 +860,11 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                       <div>
                         <div style={{ fontSize: '64px', marginBottom: '24px' }}>🎉</div>
                         <h3 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '16px' }}>이미 동네 라이더이시군요!</h3>
-                        <p style={{ color: '#64748b', marginBottom: '32px' }}>헤더의 <b>'배달 모드로 전환'</b> 버튼을 눌러 지금 바로 시작해보세요.</p>
+                        <p style={{ color: '#64748b', marginBottom: '32px' }}>지금 바로 동네 마켓의 라이더가 되어 배달을 시작해보세요.</p>
                         <button 
-                          onClick={() => setIsDeliveryMode(true)}
-                          style={{ padding: '16px 32px', borderRadius: '12px', background: '#38bdf8', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
-                        >배달 시작하기</button>
+                          onClick={() => setUserRole('RIDER')}
+                          style={{ padding: '16px 32px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
+                        >라이더 앱으로 이동하기</button>
                       </div>
                     ) : (
                       <>
@@ -783,11 +971,11 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                           <div>
                             <div style={{ fontSize: '64px', marginBottom: '24px' }}>✨</div>
                             <h3 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '16px' }}>동네 라이더 인증 완료!</h3>
-                            <p style={{ color: '#64748b', marginBottom: '32px' }}>이제 이웃을 위한 배달을 시작할 수 있습니다.</p>
+                            <p style={{ color: '#64748b', marginBottom: '32px' }}>이제 이웃을 위한 배달을 시작할 수 있습니다. 라이더 앱으로 이동합니다.</p>
                             <button 
-                              onClick={() => setIsDeliveryMode(true)}
-                              style={{ padding: '16px 32px', borderRadius: '12px', background: '#38bdf8', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
-                            >배달 대시보드로 이동</button>
+                              onClick={() => setUserRole('RIDER')}
+                              style={{ padding: '16px 32px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
+                            >라이더 앱으로 이동</button>
                           </div>
                         )}
                       </>
@@ -882,27 +1070,42 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
         searchQuery={searchQuery} 
         setSearchQuery={setSearchQuery} 
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         isLoggedIn={isLoggedIn}
         onLogout={onLogout}
         onOpenAuth={onOpenAuth}
         cartCount={cartItems.length}
         notificationCount={notificationCount}
         isResidentRider={isResidentRider}
-        isDeliveryMode={isDeliveryMode}
-        onToggleDeliveryMode={() => {
-          setIsDeliveryMode(!isDeliveryMode);
-          setActiveTab('home');
-        }}
         onLocationClick={() => setIsLocationModalOpen(true)}
       />
       
-      {renderActiveView()}
+      <div style={{ minHeight: 'calc(100vh - 200px)' }}>
+        {selectedStore ? (
+          <div style={{
+            animation: 'fadeInLayer 0.3s ease-out'
+          }}>
+            <StoreDetailView 
+              store={selectedStore} 
+              onBack={() => {
+                setSelectedStore(null);
+                window.scrollTo(0, 0);
+              }}
+              onAddToCart={onAddToCart}
+            />
+          </div>
+        ) : (
+          renderActiveView()
+        )}
+        <style>{`
+          @keyframes fadeInLayer {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+        `}</style>
+      </div>
 
-      <Footer onTabChange={(tab) => {
-        setActiveTab(tab);
-        window.scrollTo(0, 0);
-      }} />
+      <Footer onTabChange={handleTabChange} />
 
       {/* Review Modal */}
       {isReviewModalOpen && (

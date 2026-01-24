@@ -151,17 +151,38 @@ const RiderDashboard = ({ isResidentRider }) => {
             <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '20px' }}>배달 히스토리</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {[
-                { store: '행복 마트', dest: '역삼동 123-1', time: '14:23', fee: 3500 },
-                { store: '싱싱 정육점', dest: '삼성동 45-2', time: '13:10', fee: 4000 },
-                { store: '우리 마켓', dest: '대치동 900', time: '12:05', fee: 3200 }
+                { id: 'ORD20260124101', store: '행복 마트', dest: '역삼동 123-1', time: '14:23', fee: 3500, items: '신선란 10구, 유기농 우유 1L', customer: '김철수' },
+                { id: 'ORD20260124085', store: '싱싱 정육점', dest: '삼성동 45-2', time: '13:10', fee: 4000, items: '한우 등심 300g x 2', customer: '이영희' },
+                { id: 'ORD20260124052', store: '우리 마켓', dest: '대치동 900', time: '12:05', fee: 3200, items: '꿀사과 3입, 바나나 1송이', customer: '박지민' }
               ].map((item, i) => (
                 <div key={i} style={{ backgroundColor: '#1e293b', padding: '20px', borderRadius: '16px', border: '1px solid #334155' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
                     <span style={{ fontSize: '12px', color: '#94a3b8' }}>오늘 {item.time}</span>
-                    <span style={{ fontSize: '11px', backgroundColor: '#0f172a', color: '#2ecc71', padding: '2px 8px', borderRadius: '4px', fontWeight: '800' }}>완료</span>
+                    <span style={{ fontSize: '11px', backgroundColor: '#0f172a', color: '#2ecc71', padding: '4px 10px', borderRadius: '6px', fontWeight: '900' }}>배달 완료</span>
                   </div>
-                  <div style={{ marginBottom: '8px', fontWeight: '700' }}>{item.store} → {item.dest}</div>
-                  <div style={{ fontSize: '15px', color: '#38bdf8', fontWeight: '800' }}>+{item.fee.toLocaleString()}원</div>
+                  
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '4px' }}>주문번호: {item.id}</div>
+                    <div style={{ fontSize: '16px', fontWeight: '800' }}>{item.store} → {item.dest}</div>
+                  </div>
+
+                  <div style={{ backgroundColor: '#0f172a', padding: '16px', borderRadius: '12px', marginBottom: '16px' }}>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '8px', fontWeight: '700' }}>배달 상세 내역</div>
+                    <div style={{ fontSize: '14px', marginBottom: '8px' }}>
+                      <span style={{ color: '#94a3b8' }}>품목:</span> {item.items}
+                    </div>
+                    <div style={{ fontSize: '14px' }}>
+                      <span style={{ color: '#94a3b8' }}>고객:</span> {item.customer} (문의: 010-****-1234)
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: '18px', color: '#38bdf8', fontWeight: '900' }}>+{item.fee.toLocaleString()}원</div>
+                    <button 
+                      onClick={() => alert(`주문번호 ${item.id}의 상세 영수증을 불러옵니다.`)}
+                      style={{ fontSize: '12px', color: '#94a3b8', background: 'transparent', border: '1px solid #334155', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer' }}
+                    >영수증 보기</button>
+                  </div>
                 </div>
               ))}
             </div>

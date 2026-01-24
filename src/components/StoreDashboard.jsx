@@ -781,7 +781,6 @@ const StoreDashboard = () => {
                             }}></div>
                           </div>
                         </div>
-                        <button style={{ padding: '6px 12px', borderRadius: '6px', backgroundColor: '#f1f5f9', border: 'none', fontSize: '12px', fontWeight: '700', color: '#475569', cursor: 'pointer' }}>발주</button>
                       </div>
                     </div>
                   ))}

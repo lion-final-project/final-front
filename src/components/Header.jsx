@@ -11,18 +11,15 @@ const Header = ({
   notificationCount, 
   onOpenNotifications,
   isResidentRider,
-  isDeliveryMode,
-  onToggleDeliveryMode,
   onLogout,
   onLocationClick
 }) => {
   return (
-    <header className="header-glass" style={{ borderBottom: isDeliveryMode ? '2px solid #38bdf8' : '1px solid var(--border)' }}>
+    <header className="header-glass" style={{ borderBottom: '1px solid var(--border)' }}>
       <div className="container header-container">
         <div className="header-left">
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <h1 className="gradient-text header-logo" style={{ cursor: 'pointer', margin: 0 }} onClick={() => onTabChange?.('home')}>동네마켓</h1>
-            {isDeliveryMode && <span style={{ fontSize: '10px', color: '#38bdf8', fontWeight: '800', marginTop: '-4px' }}>배달 파트너 모드</span>}
           </div>
           <nav className="header-nav">
             <a href="#" className={activeTab === 'home' ? 'active' : ''} onClick={(e) => { e.preventDefault(); onTabChange?.('home'); }}>우리 동네</a>
@@ -71,29 +68,6 @@ const Header = ({
             />
           </div>
           <div className="header-icons">
-            {isResidentRider && (
-              <button 
-                onClick={onToggleDeliveryMode}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '20px',
-                  border: `1.5px solid ${isDeliveryMode ? '#38bdf8' : 'var(--primary)'}`,
-                  background: isDeliveryMode ? '#38bdf8' : 'white',
-                  color: isDeliveryMode ? 'white' : 'var(--primary)',
-                  fontSize: '12px',
-                  fontWeight: '800',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  transition: 'all 0.2s',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-                }}
-              >
-                <span>{isDeliveryMode ? '쇼핑 모드로 전환' : '배달 모드로 전환'}</span>
-                <span>{isDeliveryMode ? '🛒' : '🛵'}</span>
-              </button>
-            )}
             {/* Notifications */}
             <div style={{ position: 'relative', cursor: 'pointer' }} onClick={onOpenNotifications}>
               <span style={{ fontSize: '20px' }}>🔔</span>
