@@ -33,13 +33,47 @@ const StoreGrid = ({ selectedCategory, searchQuery, onStoreClick }) => {
             }}
           >
             <div style={{
+              position: 'relative',
               height: '180px',
-              backgroundImage: `url(${store.img})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              transition: 'transform 0.5s ease'
-            }} className="store-card-img" />
-            <div style={{ padding: '16px' }}>
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                height: '100%',
+                backgroundImage: `url(${store.img})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                transition: 'transform 0.5s ease',
+                filter: store.isOpen ? 'none' : 'grayscale(0.6) brightness(0.7)'
+              }} className="store-card-img" />
+              
+              {!store.isOpen && (
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  backdropFilter: 'blur(2px)'
+                }}>
+                  <div style={{
+                    backgroundColor: '#ef4444',
+                    color: 'white',
+                    padding: '6px 14px',
+                    borderRadius: '30px',
+                    fontSize: '13px',
+                    fontWeight: '800',
+                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)'
+                  }}>
+                    현재 배달 불가능
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div style={{ padding: '16px', opacity: store.isOpen ? 1 : 0.7 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                 <h3 style={{ 
                   fontSize: '18px', 
@@ -47,7 +81,8 @@ const StoreGrid = ({ selectedCategory, searchQuery, onStoreClick }) => {
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  maxWidth: '180px'
+                  maxWidth: '180px',
+                  color: store.isOpen ? 'inherit' : '#64748b'
                 }} title={store.name}>{store.name}</h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <span style={{ fontSize: '14px', color: '#f59e0b', fontWeight: '700' }}>★ {store.rate}</span>
@@ -55,26 +90,35 @@ const StoreGrid = ({ selectedCategory, searchQuery, onStoreClick }) => {
                 </div>
               </div>
               <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-                <span style={{ color: 'var(--primary)', fontWeight: '600' }}>🚚 {store.time}</span>
+                <span style={{ color: store.isOpen ? 'var(--primary)' : '#94a3b8', fontWeight: '600' }}>
+                  {store.isOpen ? `🚚 ${store.time}` : '🕒 영업 종료'}
+                </span>
               </p>
-              <button style={{
-                width: '100%',
-                padding: '10px 0',
-                border: '1px solid var(--border)',
-                borderRadius: '8px',
-                fontWeight: '600',
-                fontSize: '14px',
-                backgroundColor: '#f8fafc',
-                transition: 'all 0.2s'
-              }}>
-                구경하기
+              <button 
+                disabled={!store.isOpen}
+                style={{
+                  width: '100%',
+                  padding: '10px 0',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  fontWeight: '600',
+                  fontSize: '14px',
+                  backgroundColor: store.isOpen ? '#f8fafc' : '#f1f5f9',
+                  color: store.isOpen ? '#1e293b' : '#94a3b8',
+                  transition: 'all 0.2s',
+                  cursor: store.isOpen ? 'pointer' : 'not-allowed'
+                }}
+              >
+                {store.isOpen ? '구경하기' : '영업 준비 중'}
               </button>
             </div>
           </div>
         ))
       ) : (
-        <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '100px 0', color: 'var(--text-muted)' }}>
-          <p style={{ fontSize: '18px' }}>해당하는 상점이 없습니다.</p>
+        <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '100px 0', color: 'var(--text-muted)', backgroundColor: 'white', borderRadius: '24px', border: '1px dashed var(--border)' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🏪</div>
+          <p style={{ fontSize: '18px', fontWeight: '700', color: '#64748b' }}>현재 배달 가능한 매장이 없습니다.</p>
+          <p style={{ fontSize: '14px', marginTop: '8px' }}>주소를 변경하거나 다른 카테고리를 선택해보세요.</p>
         </div>
       )}
 

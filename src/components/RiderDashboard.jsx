@@ -66,6 +66,7 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
   const [activeDeliveries, setActiveDeliveries] = useState([]); // Array of { ...req, status }
   const [earnings, setEarnings] = useState({ today: 48500, weekly: 342000 });
   const [showMsgModal, setShowMsgModal] = useState(false);
+  const [completionNotification, setCompletionNotification] = useState(null); // { fee: 3500 }
   
   const [verificationStatus /* , setVerificationStatus */] = useState('verified'); // unverified, pending, verified
   const [vehicleInfo, setVehicleInfo] = useState({ 
@@ -90,9 +91,20 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
   const [activeVehicleId, setActiveVehicleId] = useState(1);
   const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
 
+  const handleDeleteVehicle = (id, e) => {
+    e.stopPropagation();
+    if (activeVehicleId === id) {
+      alert('현재 운행 중인 수단은 삭제할 수 없습니다. 다른 수단을 선택한 후 삭제해 주세요.');
+      return;
+    }
+    if (window.confirm('선택한 운송 수단을 삭제하시겠습니까?')) {
+      setRegisteredVehicles(prev => prev.filter(v => v.id !== id));
+    }
+  };
+
   const deliveryRequests = [
-    { id: 'REQ001', store: '무림 정육점', destination: '삼성동 빌라 302호', distance: '1.2km', fee: 3500, customerPhone: '010-1234-5678' },
-    { id: 'REQ002', store: '행복 마트 강남점', destination: '논현동 원룸 201호', distance: '0.8km', fee: 3000, customerPhone: '010-9876-5432' }
+    { id: 'REQ001', store: '무림 정육점', storeAddress: '강남구 삼성동 15-5', destination: '삼성동 빌라 302호', distance: '1.2km', fee: 3500, customerPhone: '010-1234-5678' },
+    { id: 'REQ002', store: '행복 마트 강남점', storeAddress: '역삼동 823-1', destination: '논현동 원룸 201호', distance: '0.8km', fee: 3000, customerPhone: '010-9876-5432' }
   ];
 
   const handleAcceptRequest = (req) => {
@@ -111,7 +123,8 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
         return prev.map(d => d.id === id ? { ...d, status: 'delivering' } : d);
       } else if (delivery.status === 'delivering') {
         setEarnings(e => ({ ...e, today: e.today + delivery.fee }));
-        alert('배달이 완료되었습니다! 수익이 적립되었습니다.');
+        setCompletionNotification({ fee: delivery.fee });
+        setTimeout(() => setCompletionNotification(null), 4000); // Auto close after 4s
         return prev.filter(d => d.id !== id);
       }
       return prev;
@@ -130,8 +143,8 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
       return (
         <div style={{ padding: '60px 20px', textAlign: 'center', opacity: 0.6 }}>
           <div style={{ fontSize: '80px', marginBottom: '20px' }}>💤</div>
-          <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '12px' }}>현재 휴식 중입니다</h2>
-          <p style={{ color: '#94a3b8', fontSize: '15px' }}>배달을 시작하려면 상단의 'ON' 버튼을 눌러주세요.</p>
+          <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '12px' }}>현재 '운행 불가' 상태입니다</h2>
+          <p style={{ color: '#94a3b8', fontSize: '15px' }}>배달을 시작하려면 상단의 버튼을 활성화해주세요.</p>
         </div>
       );
     }
@@ -140,18 +153,13 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
       case 'earnings':
         return (
           <div style={{ padding: '20px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '20px' }}>수익 상세</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-              <div style={{ backgroundColor: '#1e293b', padding: '20px', borderRadius: '16px' }}>
-                <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '4px' }}>오늘 수익</div>
-                <div style={{ fontSize: '20px', fontWeight: '800', color: '#38bdf8' }}>{earnings.today.toLocaleString()}원</div>
-              </div>
-              <div style={{ backgroundColor: '#1e293b', padding: '20px', borderRadius: '16px' }}>
-                <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '4px' }}>금주 정산 예정</div>
-                <div style={{ fontSize: '20px', fontWeight: '800', color: '#10b981' }}>{earnings.weekly.toLocaleString()}원</div>
-              </div>
+            <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '20px' }}>정산 내역</h2>
+            <div style={{ backgroundColor: '#1e293b', padding: '24px', borderRadius: '20px', marginBottom: '32px', borderLeft: '4px solid #10b981' }}>
+               <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '4px' }}>이번 주 정산 예정 금액</div>
+               <div style={{ fontSize: '28px', fontWeight: '900', color: '#10b981' }}>{earnings.weekly.toLocaleString()}원</div>
+               <div style={{ color: '#64748b', fontSize: '12px', marginTop: '6px' }}>정산일: 매주 수요일</div>
             </div>
-            <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '16px' }}>최근 정산</h3>
+            <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '16px' }}>최근 정산 기록</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {[
                 { date: '2026.01.20', amount: '50,000원', status: '입금완료', type: '정산', details: '1월 3주차 배달 수수료 (14건)' },
@@ -197,6 +205,10 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
            if (historyFilter === 'week') return item.date === '오늘' || item.date === 'week';
            return true;
         });
+         
+         const totalHistoryFee = historyData.reduce((sum, item) => 
+           item.status === '배달완료' ? sum + item.fee : sum, 0
+         );
 
         return (
           <div style={{ padding: '20px' }}>
@@ -218,6 +230,11 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
               </div>
             </div>
 
+            <div style={{ backgroundColor: '#1e293b', padding: '16px 20px', borderRadius: '12px', marginBottom: '20px', borderLeft: '4px solid #38bdf8' }}>
+               <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>{historyFilter === 'today' ? '오늘' : historyFilter === 'week' ? '1주일' : '한달'} 총 수익</div>
+               <div style={{ fontSize: '20px', fontWeight: '900', color: '#38bdf8' }}>{totalHistoryFee.toLocaleString()}원</div>
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {historyData.map((item, i) => (
                 <div key={item.id} style={{ backgroundColor: '#1e293b', padding: '20px', borderRadius: '16px', border: '1px solid #334155' }}>
@@ -236,7 +253,6 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
                     style={{ marginBottom: '16px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                   >
                     <div>
-                      <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '4px' }}>주문번호: {item.id}</div>
                       <div style={{ fontSize: '16px', fontWeight: '800' }}>{item.store} → {item.dest}</div>
                     </div>
                     <span style={{ fontSize: '12px', color: '#94a3b8', transform: expandedHistoryItems.has(item.id) ? 'rotate(180deg)' : 'none', transition: '0.2s' }}>▼</span>
@@ -246,10 +262,13 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
                     <div style={{ backgroundColor: '#0f172a', padding: '16px', borderRadius: '12px', marginBottom: '16px', animation: 'fadeIn 0.2s ease-out' }}>
                       <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '8px', fontWeight: '700' }}>배달 상세 내역</div>
                       <div style={{ fontSize: '14px', marginBottom: '8px' }}>
+                        <span style={{ color: '#94a3b8' }}>주문번호:</span> {item.id}
+                      </div>
+                      <div style={{ fontSize: '14px', marginBottom: '8px' }}>
                         <span style={{ color: '#94a3b8' }}>품목:</span> {item.items}
                       </div>
                       <div style={{ fontSize: '14px' }}>
-                        <span style={{ color: '#94a3b8' }}>고객:</span> {item.customer} (문의: 010-****-1234)
+                        <span style={{ color: '#94a3b8' }}>고객:</span> {item.customer.length > 2 ? item.customer[0] + '*'.repeat(item.customer.length - 2) + item.customer.slice(-1) : item.customer[0] + '*'} (문의: ****1234)
                       </div>
                     </div>
                   )}
@@ -330,7 +349,13 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
                             <span style={{ fontSize: '10px', backgroundColor: '#38bdf8', color: 'white', padding: '2px 6px', borderRadius: '4px', fontWeight: '900' }}>운행 중</span>
                           )}
                        </div>
-                    </div>
+                        {activeVehicleId !== v.id && (
+                          <button 
+                            onClick={(e) => handleDeleteVehicle(v.id, e)}
+                            style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '18px', cursor: 'pointer', padding: '4px' }}
+                          >✕</button>
+                        )}
+                     </div>
                     {v.model && (
                       <div style={{ fontSize: '12px', color: '#94a3b8' }}>
                         {v.model} {v.plate && `(${v.plate})`}
@@ -362,6 +387,27 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
       default:
         return (
           <div style={{ padding: '20px' }}>
+            {/* Today's Earning Summary - Fixed at top of home */}
+            <div style={{ 
+              background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', 
+              padding: '24px', 
+              borderRadius: '24px', 
+              marginBottom: '32px', 
+              border: '1px solid #334155',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '4px' }}>오늘의 배달 수익</div>
+                  <div style={{ fontSize: '28px', fontWeight: '900', color: '#38bdf8' }}>{earnings.today.toLocaleString()}원</div>
+                </div>
+                <div style={{ textAlign: 'center', backgroundColor: 'rgba(56, 189, 248, 0.1)', padding: '8px 16px', borderRadius: '12px' }}>
+                  <div style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '700' }}>진행 완료</div>
+                  <div style={{ fontSize: '18px', fontWeight: '900' }}>12건</div>
+                </div>
+              </div>
+            </div>
+
             {/* Active Deliveries List */}
             {activeDeliveries.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '32px' }}>
@@ -447,33 +493,33 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
             {/* Statistics and New Requests */}
             {activeDeliveries.length < 3 ? (
               <>
-                <div style={{ background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', padding: '24px', borderRadius: '16px', marginBottom: '30px', borderLeft: '4px solid #38bdf8' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <div style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '8px' }}>오늘의 배달 수익</div>
-                      <div style={{ fontSize: '32px', fontWeight: '900' }}>{earnings.today.toLocaleString()}원</div>
-                      <div style={{ color: '#64748b', fontSize: '12px', marginTop: '4px', fontWeight: '600' }}>목표 수익까지 11,500원 남음</div>
-                    </div>
-                  </div>
-                </div>
-
                 <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '16px' }}>주변 배달 요청</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   {deliveryRequests.filter(req => !activeDeliveries.some(d => d.id === req.id)).map((req) => (
-                    <div key={req.id} style={{ backgroundColor: '#1e293b', borderRadius: '16px', padding: '20px', border: '1px solid #334155' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                        <div>
-                          <div style={{ fontWeight: '800', fontSize: '16px', marginBottom: '4px' }}>{req.store}</div>
-                          <div style={{ fontSize: '13px', color: '#94a3b8' }}>📍 {req.destination}</div>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ color: '#38bdf8', fontWeight: '900', fontSize: '18px' }}>{req.fee.toLocaleString()}원</div>
-                          <div style={{ fontSize: '12px', color: '#64748b' }}>{req.distance}</div>
-                        </div>
+                    <div key={req.id} style={{ backgroundColor: '#1e293b', borderRadius: '16px', overflow: 'hidden', border: '1px solid #334155' }}>
+                      <div style={{ padding: '4px' }}>
+                        <MapSimulator status="preview" />
                       </div>
-                      <button 
-                        onClick={() => handleAcceptRequest(req)}
-                        style={{ width: '100%', padding: '14px', borderRadius: '10px', backgroundColor: '#38bdf8', color: 'white', border: 'none', fontWeight: '800', cursor: 'pointer' }}>배달 수락</button>
+                      <div style={{ padding: '20px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                          <div>
+                            <div style={{ fontWeight: '800', fontSize: '16px', marginBottom: '4px' }}>{req.store}</div>
+                            <div style={{ fontSize: '13px', color: '#38bdf8', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ fontSize: '14px' }}>🏬</span> {req.storeAddress}
+                            </div>
+                            <div style={{ fontSize: '13px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ fontSize: '14px' }}>📍</span> {req.destination}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ color: '#38bdf8', fontWeight: '900', fontSize: '18px' }}>{req.fee.toLocaleString()}원</div>
+                            <div style={{ fontSize: '12px', color: '#64748b' }}>{req.distance}</div>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => handleAcceptRequest(req)}
+                          style={{ width: '100%', padding: '14px', borderRadius: '10px', backgroundColor: '#38bdf8', color: 'white', border: 'none', fontWeight: '800', cursor: 'pointer' }}>배달 수락</button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -522,11 +568,11 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
             <span style={{ 
               width: '8px', height: '8px', 
-              backgroundColor: isOnline ? 'var(--primary)' : '#64748b', 
+              backgroundColor: isOnline ? 'var(--primary)' : '#ef4444', 
               borderRadius: '50%',
-              boxShadow: isOnline ? '0 0 10px var(--primary)' : 'none'
+              boxShadow: isOnline ? '0 0 10px var(--primary)' : '0 0 10px #ef4444'
             }}></span>
-            <span style={{ fontWeight: '700', color: isOnline ? 'white' : '#94a3b8' }}>{isOnline ? '운행 중' : '휴식 중'}</span>
+            <span style={{ fontWeight: '700', color: isOnline ? 'white' : '#ef4444' }}>{isOnline ? '운행 중' : '운행 불가'}</span>
           </div>
           <button 
             onClick={() => setIsOnline(!isOnline)}
@@ -688,7 +734,7 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
         {[
           { icon: '🏠', label: '홈', tab: 'main' },
           { icon: '📋', label: '히스토리', tab: 'history' },
-          { icon: '💰', label: '수익', tab: 'earnings' },
+          { icon: '💰', label: '정산', tab: 'earnings' },
           { icon: '👤', label: '계정/차량', tab: 'account' }
         ].map(item => (
           <div 
@@ -711,6 +757,39 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
         ))}
       </div>
 
+      {completionNotification && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 'calc(100% - 32px)',
+          maxWidth: '468px',
+          backgroundColor: '#10b981',
+          color: 'white',
+          padding: '16px 20px',
+          borderRadius: '24px',
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.4)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          zIndex: 2000,
+          animation: 'slideDownBounce 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+        }}>
+          <div style={{ 
+            width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.2)', 
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' 
+          }}>🎉</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '13px', fontWeight: '600', opacity: 0.9 }}>배달 완료!</div>
+            <div style={{ fontSize: '16px', fontWeight: '800' }}>{completionNotification.fee.toLocaleString()}원 수익 적립</div>
+          </div>
+          <button 
+            onClick={() => setCompletionNotification(null)}
+            style={{ background: 'none', border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer', padding: '4px' }}>✕</button>
+        </div>
+      )}
+
       <style>{`
         .widget-card {
           transition: transform 0.3s ease;
@@ -721,6 +800,10 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
         @keyframes pulse-anim {
           0% { transform: scale(1); opacity: 0.4; }
           100% { transform: scale(2.5); opacity: 0; }
+        }
+        @keyframes slideDownBounce {
+          from { transform: translate(-50%, -100px); opacity: 0; }
+          to { transform: translate(-50%, 0); opacity: 1; }
         }
         .pulse-primary {
           animation: pulse-anim 2s infinite;

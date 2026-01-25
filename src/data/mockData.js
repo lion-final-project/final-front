@@ -7,7 +7,8 @@ export const categories = [
   { id: 'bakery', name: '베이커리', icon: '🥐' },
   { id: 'banchan', name: '반찬가게', icon: '🍱' },
   { id: 'hardware', name: '철물/생활', icon: '🔧' },
-  { id: 'snack', name: '간식/분식', icon: '🍡' }
+  { id: 'snack', name: '간식/분식', icon: '🍡' },
+  { id: 'empty', name: '준비 중', icon: '⌛' }
 ];
 
 const generateProducts = (storeName) => {
@@ -22,18 +23,19 @@ const generateProducts = (storeName) => {
 };
 
 export const stores = [
-  { id: 1, name: '성수동 햇살 청과', category: 'fruit', rate: 4.8, reviews: 128, time: '15분 내 도착', img: 'https://images.unsplash.com/photo-1488459711615-de61859233bd?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('햇살 청과') },
-  { id: 2, name: '망원시장 싱싱 정육', category: 'butcher', rate: 4.9, reviews: 256, time: '20분 내 도착', img: 'https://images.unsplash.com/photo-1607623273573-599d75b03519?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('싱싱 정육') },
-  { id: 3, name: '연남동 바다 수산', category: 'fish', rate: 4.7, reviews: 89, time: '25분 내 도착', img: 'https://images.unsplash.com/photo-1615141982883-c7ad0e69fd62?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('바다 수산') },
-  { id: 4, name: '합정동 소문난 마트', category: 'mart', rate: 4.6, reviews: 154, time: '12분 내 도착', img: 'https://images.unsplash.com/photo-1578916171728-46686eac8d1f?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('소문난 마트') },
-  { id: 13, name: '성심당 마포점', category: 'bakery', rate: 4.9, reviews: 1024, time: '40분 내 도착', img: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=400&q=80', products: generateProducts('성심당') },
-  { id: 6, name: '서교동 로컬 반찬', category: 'banchan', rate: 4.8, reviews: 75, time: '18분 내 도착', img: 'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('로컬 반찬') },
-  { id: 7, name: '우리동네 철물점', category: 'hardware', rate: 4.5, reviews: 42, time: '30분 내 도착', img: 'https://images.unsplash.com/photo-1581235720704-06d3acfcb36f?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('철물점') },
-  { id: 16, name: '행복한 수퍼마켓', category: 'mart', rate: 4.6, reviews: 85, time: '12분 내 도착', img: 'https://images.unsplash.com/photo-1550583724-125581f77833?auto=format&fit=crop&w=400&q=80', products: generateProducts('행복한 수퍼') },
-  { id: 20, name: '바삭이네 분식', category: 'snack', rate: 4.7, reviews: 450, time: '30분 내 도착', img: 'https://images.unsplash.com/photo-1585117822944-77e87aed24fe?auto=format&fit=crop&w=400&q=80', products: generateProducts('바삭이네') }
+  { id: 1, name: '성수동 햇살 청과', category: 'fruit', rate: 4.8, reviews: 128, time: '15분 내 도착', img: 'https://images.unsplash.com/photo-1488459711615-de61859233bd?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('햇살 청과'), isOpen: true },
+  { id: 2, name: '망원시장 싱싱 정육', category: 'butcher', rate: 4.9, reviews: 256, time: '20분 내 도착', img: 'https://images.unsplash.com/photo-1607623273573-599d75b03519?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('싱싱 정육'), isOpen: true },
+  { id: 3, name: '연남동 바다 수산', category: 'fish', rate: 4.7, reviews: 89, time: '25분 내 도착', img: 'https://images.unsplash.com/photo-1615141982883-c7ad0e69fd62?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('바다 수산'), isOpen: true },
+  { id: 4, name: '합정동 소문난 마트', category: 'mart', rate: 4.6, reviews: 154, time: '12분 내 도착', img: 'https://images.unsplash.com/photo-1578916171728-46686eac8d1f?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('소문난 마트'), isOpen: false },
+  { id: 13, name: '성심당 마포점', category: 'bakery', rate: 4.9, reviews: 1024, time: '40분 내 도착', img: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=400&q=80', products: generateProducts('성심당'), isOpen: true },
+  { id: 6, name: '서교동 로컬 반찬', category: 'banchan', rate: 4.8, reviews: 75, time: '18분 내 도착', img: 'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('로컬 반찬'), isOpen: true },
+  { id: 7, name: '우리동네 철물점', category: 'hardware', rate: 4.5, reviews: 42, time: '30분 내 도착', img: 'https://images.unsplash.com/photo-1581235720704-06d3acfcb36f?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80', products: generateProducts('철물점'), isOpen: false },
+  { id: 16, name: '행복한 수퍼마켓', category: 'mart', rate: 4.6, reviews: 85, time: '12분 내 도착', img: 'https://images.unsplash.com/photo-1550583724-125581f77833?auto=format&fit=crop&w=400&q=80', products: generateProducts('행복한 수퍼'), isOpen: true },
+  { id: 20, name: '바삭이네 분식', category: 'snack', rate: 4.7, reviews: 450, time: '30분 내 도착', img: 'https://images.unsplash.com/photo-1585117822944-77e87aed24fe?auto=format&fit=crop&w=400&q=80', products: generateProducts('바삭이네'), isOpen: true }
 ];
 
 export const orders = [
+  { id: '20240123-001', date: '2024.01.23', store: '소문난 마트 합정점', items: '유기농 우유 외 2건', product: '유기농 우유 1L', price: '12,500원', status: '주문 접수 중', img: 'https://images.unsplash.com/photo-1550583724-125581f77833?w=120&q=80', reviewWritten: false },
   { id: '20240122-001', date: '2024.01.22', store: '성수동 햇살 청과', items: '사과 외 3건', product: '꿀사과 5kg 한박스', price: '23,400원', status: '배송 완료', img: 'https://images.unsplash.com/photo-1488459711615-de61859233bd?w=120&q=80', reviewWritten: false },
   { id: '20240122-005', date: '2024.01.22', store: '연남동 바다 수산', items: '모듬 회', product: '제철 모듬회 (대)', price: '45,000원', status: '배송 중', img: 'https://images.unsplash.com/photo-1615141982883-c7ad0e69fd62?w=120&q=80', reviewWritten: false },
   { id: '20240121-045', date: '2024.01.21', store: '망원시장 싱싱 정육', items: '한우 등심 외 1건', product: '1++ 한우 등심 600g', price: '85,000원', status: '배송 완료', img: 'https://images.unsplash.com/photo-1607623273573-599d75b03519?w=120&q=80', reviewWritten: true },
@@ -47,9 +49,24 @@ export const notifications = [
 ];
 
 export const subscriptions = [
-  { id: 1, name: '신선 채소 꾸러미', period: '주 1회 (목)', price: '19,900원/월', status: '이용 중', img: '🥬' },
-  { id: 2, name: '데일리 발효유 구독', period: '주 3회 (월,수,금)', price: '12,000원/월', status: '이용 중', img: '🥛' },
-  { id: 3, name: '주간 제철 과일', period: '격주 1회 (토)', price: '29,900원/월', status: '이용 대기', img: '🍎' }
+  { 
+    id: 1, name: '신선 채소 꾸러미', period: '주 1회 (목)', price: '19,900원/월', status: '구독중', img: '🥬', nextPayment: '2026.02.05',
+    monthlyCount: '4회', includedItems: ['유기농 상추 200g', '친환경 오이 2개', '무농약 토마토 500g', '계절 채소 1종']
+  },
+  { 
+    id: 2, name: '데일리 발효유 구독', period: '주 3회 (월,수,금)', price: '12,000원/월', status: '해지 예정', img: '🥛', nextPayment: '2026.02.01',
+    monthlyCount: '12회', includedItems: ['플레인 요거트 150ml', '저지방 우유 200ml', '프리미엄 요구르트']
+  },
+  { 
+    id: 3, name: '주간 제철 과일', period: '격주 1회 (토)', price: '29,900원/월', status: '해지됨', img: '🍎', nextPayment: '-',
+    monthlyCount: '2회', includedItems: ['꿀부사 사과 3알', '고당도 배 1알', '제철 과일 팩 (랜덤)']
+  }
+];
+
+export const subscriptionPayments = [
+  { id: 'SP-001', name: '신선 채소 꾸러미', date: '2026.01.05', amount: '19,900원', status: '결제완료' },
+  { id: 'SP-002', name: '데일리 발효유 구독', date: '2026.01.01', amount: '12,000원', status: '결제완료' },
+  { id: 'SP-003', name: '신선 채소 꾸러미', date: '2025.12.05', amount: '19,900원', status: '결제완료' }
 ];
 
 export const reviews = [
@@ -93,7 +110,7 @@ export const coupons = [
 
 export const inquiries = [
   { id: 1, type: '배송 문의', title: '배송이 아직 안 왔어요.', content: '1시간 전에 주문했는데 아직 배송 중으로 뜨네요. 확인 부탁드립니다.', date: '2024.01.21', status: '답변 완료', answer: '안녕하세요 고객님, 현재 기상 상황으로 인해 배송이 다소 지연되었습니다. 10분 내로 도착 예정입니다. 불편을 드려 죄송합니다.' },
-  { id: 2, type: '결제 문의', title: '카드 결제 취소 확인 부탁드려요.', content: '주문 취소했는데 카드 취소 문자가 안 와서 문의드립니다.', date: '2024.01.18', status: '처리 중' }
+  { id: 2, type: '결제 문의', title: '카드 결제 취소 확인 부탁드려요.', content: '주문 취소했는데 카드 취소 문자가 안 와서 문의드립니다.', date: '2024.01.18', status: '접수 완료' }
 ];
 
 export const loyaltyPoints = 2450;

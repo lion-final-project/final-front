@@ -124,7 +124,6 @@ const CheckoutView = ({ cartItems, onComplete }) => {
     // Simulate payment process
     setTimeout(() => {
       setIsProcessing(false);
-      alert('결제가 완료되었습니다!');
       onComplete();
     }, 1500);
   };

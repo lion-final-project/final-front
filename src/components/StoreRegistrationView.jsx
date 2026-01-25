@@ -5,8 +5,22 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
     category: '',
     products: '',
     businessName: '',
-    businessNumber: ''
+    businessNumber: '',
+    offDays: [],
+    weekdayHours: { open: '09:00', close: '22:00' },
+    weekendHours: { open: '10:00', close: '21:00' },
+    weekdayLastOrder: '21:30',
+    weekendLastOrder: '20:30'
   });
+
+  const toggleOffDay = (day) => {
+    setFormData(prev => ({
+      ...prev,
+      offDays: prev.offDays.includes(day) 
+        ? prev.offDays.filter(d => d !== day)
+        : [...prev.offDays, day]
+    }));
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -161,6 +175,77 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
             />
           </div>
 
+          {/* Regular Off-days */}
+          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+            <label style={{ display: 'block', fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
+              5. 정기 휴무일 (중복 선택 가능)
+            </label>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {['월', '화', '수', '목', '금', '토', '일'].map(day => (
+                <div 
+                  key={day}
+                  onClick={() => toggleOffDay(day)}
+                  style={{ 
+                    padding: '8px 16px', borderRadius: '20px', border: '1px solid #e2e8f0', cursor: 'pointer', fontSize: '14px', fontWeight: '700',
+                    backgroundColor: formData.offDays.includes(day) ? 'var(--primary)' : 'white',
+                    color: formData.offDays.includes(day) ? 'white' : '#64748b',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {day}요일
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Operating Hours & Last Order */}
+          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+            <label style={{ display: 'block', fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
+              6. 운영 시간 및 라스트 오더 <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#64748b', marginBottom: '8px' }}>평일 운영 시간</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                       <input type="time" value={formData.weekdayHours.open} onChange={(e) => setFormData({...formData, weekdayHours: {...formData.weekdayHours, open: e.target.value}})} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }} />
+                       <span style={{ color: '#94a3b8' }}>~</span>
+                       <input type="time" value={formData.weekdayHours.close} onChange={(e) => setFormData({...formData, weekdayHours: {...formData.weekdayHours, close: e.target.value}})} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#64748b', marginBottom: '8px' }}>주말 운영 시간</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                       <input type="time" value={formData.weekendHours.open} onChange={(e) => setFormData({...formData, weekendHours: {...formData.weekendHours, open: e.target.value}})} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }} />
+                       <span style={{ color: '#94a3b8' }}>~</span>
+                       <input type="time" value={formData.weekendHours.close} onChange={(e) => setFormData({...formData, weekendHours: {...formData.weekendHours, close: e.target.value}})} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }} />
+                    </div>
+                  </div>
+               </div>
+               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#8b5cf6', marginBottom: '8px' }}>평일 라스트 오더</div>
+                    <input 
+                      type="time" 
+                      value={formData.weekdayLastOrder} 
+                      onChange={(e) => setFormData({...formData, weekdayLastOrder: e.target.value})} 
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #8b5cf6', fontSize: '13px', color: '#8b5cf6', fontWeight: '700' }} 
+                    />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#8b5cf6', marginBottom: '8px' }}>주말 라스트 오더</div>
+                    <input 
+                      type="time" 
+                      value={formData.weekendLastOrder} 
+                      onChange={(e) => setFormData({...formData, weekendLastOrder: e.target.value})} 
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #8b5cf6', fontSize: '13px', color: '#8b5cf6', fontWeight: '700' }} 
+                    />
+                  </div>
+               </div>
+               <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px' }}>* 영업 종료 전 배달 및 준비를 위해 주문을 마감하는 시간입니다.</div>
+            </div>
+          </div>
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
             <button 
               type="submit"
@@ -172,7 +257,12 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
             <button 
               type="button"
               onClick={() => {
-                 setFormData({ category: '', products: '', businessName: '', businessNumber: '' });
+                setFormData({ 
+                  category: '', products: '', businessName: '', businessNumber: '',
+                  offDays: [], weekdayHours: { open: '09:00', close: '22:00' },
+                  weekendHours: { open: '10:00', close: '21:00' }, 
+                  weekdayLastOrder: '21:30', weekendLastOrder: '20:30'
+                });
               }}
               style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
             >

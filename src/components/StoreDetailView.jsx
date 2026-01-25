@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const StoreDetailView = ({ store, onBack, onAddToCart }) => {
+const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) => {
   const [activeSubTab, setActiveSubTab] = useState('menu');
   const [reviewSort, setReviewSort] = useState('latest');
   
@@ -14,6 +14,7 @@ const StoreDetailView = ({ store, onBack, onAddToCart }) => {
   ]);
   const [editingReviewId, setEditingReviewId] = useState(null);
   const [editContent, setEditContent] = useState('');
+  const [selectedSubForDetail, setSelectedSubForDetail] = useState(null);
 
   // Edit/Delete Handlers
   const handleDeleteReview = (id) => {
@@ -41,13 +42,13 @@ const StoreDetailView = ({ store, onBack, onAddToCart }) => {
 
   // Mock subscription products for demo
   const subscriptionProducts = [
-    { id: 'sub1', name: '[정기배송] 유기농 우유 1L (주 1회)', price: 4500, img: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=400&q=80', desc: '매주 신선한 우유를 문앞으로', category: '구독' },
-    { id: 'sub2', name: '[정기배송] 신선 달걀 15구 (주 1회)', price: 8900, img: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?auto=format&fit=crop&w=400&q=80', desc: '아침마다 만나는 신선함', category: '구독' },
-    { id: 'sub3', name: '[정기배송] 제철 과일 랜덤박스 (주 1회)', price: 25000, img: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80', desc: '가장 맛있는 제철 과일 엄선', category: '구독' }
+    { id: 'sub1', name: '[정기배송] 유기농 우유 1L (주 1회)', price: 4500, img: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=400&q=80', desc: '매주 신선한 우유를 문앞으로', category: '구독', deliveryFrequency: '주 1회' },
+    { id: 'sub2', name: '[정기배송] 신선 달걀 15구 (주 1회)', price: 8900, img: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?auto=format&fit=crop&w=400&q=80', desc: '아침마다 만나는 신선함', category: '구독', deliveryFrequency: '주 1회' },
+    { id: 'sub3', name: '[정기배송] 제철 과일 랜덤박스 (주 1회)', price: 25000, img: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80', desc: '가장 맛있는 제철 과일 엄선', category: '구독', deliveryFrequency: '주 1회' }
   ];
 
   const handleSubscribe = (product) => {
-    alert(`'${product.name}' 구독 설정 페이지로 이동합니다.`);
+    setSelectedSubForDetail(product);
   };
 
   const handleReport = (id) => {
@@ -468,6 +469,85 @@ const StoreDetailView = ({ store, onBack, onAddToCart }) => {
       {/* Content */}
       <div style={{ minHeight: '600px' }}>
         {renderSubTabContent()}
+      </div>
+
+      <SubscriptionDetailModal 
+        subscription={selectedSubForDetail} 
+        onClose={() => setSelectedSubForDetail(null)} 
+        onPayment={() => {
+          onSubscribeCheckout(selectedSubForDetail);
+          setSelectedSubForDetail(null);
+        }}
+      />
+    </div>
+  );
+};
+
+const SubscriptionDetailModal = ({ subscription, onClose, onPayment }) => {
+  if (!subscription) return null;
+
+  // Calculate next delivery date (e.g., next Monday)
+  const getNextDeliveryDate = () => {
+    const now = new Date();
+    const result = new Date();
+    result.setDate(now.getDate() + (1 + 7 - now.getDay()) % 7 || 7);
+    return `${result.getFullYear()}년 ${result.getMonth() + 1}월 ${result.getDate()}일 (월)`;
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', 
+      display: 'flex', alignItems: 'center', justifyContent: 'center', 
+      zIndex: 2000, backdropFilter: 'blur(8px)', animation: 'fadeIn 0.3s ease-out'
+    }} onClick={onClose}>
+      <div style={{
+        background: 'white', width: '90%', maxWidth: '440px', borderRadius: '32px',
+        padding: '32px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+        position: 'relative', animation: 'slideUp 0.3s ease-out', overflowY: 'auto', maxHeight: '90vh'
+      }} onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} style={{ position: 'absolute', top: '24px', right: '24px', border: 'none', background: 'transparent', fontSize: '20px', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
+        
+        <div style={{ width: '100%', height: '240px', borderRadius: '20px', overflow: 'hidden', marginBottom: '24px' }}>
+          <img src={subscription.img} alt={subscription.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+          <span style={{ background: '#fdf2f8', color: '#be185d', padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: '800' }}>BEST</span>
+          <span style={{ background: '#f0fdf4', color: '#166534', padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: '800' }}>무료배송</span>
+        </div>
+
+        <h2 style={{ fontSize: '24px', fontWeight: '900', color: '#1e293b', marginBottom: '12px' }}>{subscription.name}</h2>
+        <p style={{ color: '#64748b', fontSize: '15px', lineHeight: '1.6', marginBottom: '24px' }}>{subscription.desc}</p>
+
+        <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '20px', marginBottom: '32px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <span style={{ color: '#64748b', fontWeight: '600', fontSize: '14px' }}>배송 주기</span>
+            <span style={{ color: '#1e293b', fontWeight: '800', fontSize: '14px' }}>매주 월요일 (주 1회)</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', padding: '12px 0', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }}>
+            <span style={{ color: '#be185d', fontWeight: '700', fontSize: '15px' }}>첫 배송 시작일</span>
+            <span style={{ color: '#be185d', fontWeight: '900', fontSize: '15px' }}>{getNextDeliveryDate()}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px' }}>
+            <span style={{ color: '#64748b', fontWeight: '600', fontSize: '14px' }}>월 구독료</span>
+            <span style={{ color: '#1e293b', fontWeight: '900', fontSize: '18px' }}>{subscription.price?.toLocaleString()}원</span>
+          </div>
+        </div>
+
+        <button 
+          onClick={onPayment}
+          style={{ 
+            width: '100%', padding: '18px', borderRadius: '16px', background: 'linear-gradient(135deg, #be185d, #db2777)', 
+            color: 'white', border: 'none', fontWeight: '800', fontSize: '17px', 
+            cursor: 'pointer', boxShadow: '0 8px 20px rgba(190, 24, 93, 0.3)',
+            transition: 'transform 0.2s'
+          }}
+          onMouseOver={e => e.currentTarget.style.transform = 'scale(1.02)'}
+          onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}
+        >
+          {subscription.price?.toLocaleString()}원 결제하고 구독 시작하기
+        </button>
+        <p style={{ textAlign: 'center', fontSize: '12px', color: '#94a3b8', marginTop: '16px' }}>구독 해지는 언제든 마이페이지에서 가능합니다.</p>
       </div>
     </div>
   );

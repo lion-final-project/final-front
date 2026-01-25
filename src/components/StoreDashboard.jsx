@@ -9,6 +9,67 @@ const StoreDashboard = () => {
   const [mgmtFilter, setMgmtFilter] = useState('unhandled');
   const [lowStockThreshold, setLowStockThreshold] = useState(20);
   const [selectedSettlement, setSelectedSettlement] = useState(null);
+  const [popularProductTab, setPopularProductTab] = useState('ordered'); // 'ordered' or 'subscription'
+  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [selectedSettlementPeriod, setSelectedSettlementPeriod] = useState('2026년 1월');
+  const [isPeriodSelectorOpen, setIsPeriodSelectorOpen] = useState(false);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setCurrentTime(now);
+      
+      setOrders(prevOrders => {
+        let changed = false;
+        const nowObj = new Date(now);
+        // getDay(): 0(일)~6(토) -> 우리 배열은 0(월)~6(일)
+        const dayIdx = nowObj.getDay() === 0 ? 6 : nowObj.getDay() - 1;
+        const todayHours = businessHours[dayIdx];
+        const currentTimeStr = `${String(nowObj.getHours()).padStart(2, '0')}:${String(nowObj.getMinutes()).padStart(2, '0')}`;
+
+        const newOrders = prevOrders.map(order => {
+          // 1. 영업 종료 시간 체크 (휴무일이거나 마감시간 이후인 경우)
+          if (order.status === '신규' || order.status === '준비중') {
+            if (todayHours.isClosed || currentTimeStr > todayHours.close) {
+              changed = true;
+              return { ...order, status: '거절됨', rejectionReason: '영업 종료' };
+            }
+          }
+
+          // 2. 5분 초과 미응답 체크 (영업시간 내인 경우만)
+          if (order.status === '신규' && order.createdAt) {
+            const timeDiff = now - order.createdAt;
+            const limit = 5 * 60 * 1000;
+            if (timeDiff >= limit) {
+              changed = true;
+              return { ...order, status: '거절됨', rejectionReason: '마트 사정' };
+            }
+          }
+          return order;
+        });
+        return changed ? newOrders : prevOrders;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const [businessHours, setBusinessHours] = useState([
+    { day: '월요일', open: '09:00', close: '22:00', lastOrder: '21:30', isClosed: false },
+    { day: '화요일', open: '09:00', close: '22:00', lastOrder: '21:30', isClosed: false },
+    { day: '수요일', open: '09:00', close: '22:00', lastOrder: '21:30', isClosed: false },
+    { day: '목요일', open: '09:00', close: '22:00', lastOrder: '21:30', isClosed: false },
+    { day: '금요일', open: '09:00', close: '22:00', lastOrder: '21:30', isClosed: false },
+    { day: '토요일', open: '09:00', close: '22:00', lastOrder: '21:30', isClosed: false },
+    { day: '일요일', open: '09:00', close: '22:00', lastOrder: '21:30', isClosed: true },
+  ]);
+
+  const handleBusinessHourChange = (index, field, value) => {
+    const updated = [...businessHours];
+    updated[index][field] = value;
+    setBusinessHours(updated);
+  };
+
+
   const [storeInfo] = useState({
     name: '행복 마트 강남점',
     category: '일반 마트 / 편의점'
@@ -43,12 +104,12 @@ const StoreDashboard = () => {
     { 
       id: 'ORD20260123006', customer: '한소희', items: '사과 1개, 바나나 2개 외', 
       itemsList: [{ name: '사과', qty: 1, price: '2,000원' }, { name: '바나나', qty: 2, price: '3,000원' }, { name: '키위 1박스', qty: 1, price: '15,000원' }],
-      price: '20,000원', status: '신규', date: '2026.01.23 15:10', prepTime: 10 
+      price: '20,000원', status: '신규', date: '2026.01.23 15:10', prepTime: 10, createdAt: Date.now() 
     },
     { 
       id: 'ORD20260123007', customer: '우영우', items: '김밥 재료 세트, 참기름', 
       itemsList: [{ name: '김밥 재료 세트', qty: 1, price: '18,500원' }, { name: '참기름', qty: 1, price: '3,500원' }],
-      price: '22,000원', status: '신규', date: '2026.01.23 22:30', prepTime: 10 
+      price: '22,000원', status: '신규', date: '2026.01.23 22:30', prepTime: 10, createdAt: Date.now() - 60000 
     },
     { 
       id: 'ORD20260123008', customer: '이도현', items: '대패 삼겹살 500g, 쌈장', 
@@ -63,7 +124,7 @@ const StoreDashboard = () => {
     { 
       id: 'ORD20260123010', customer: '안유진', items: '하겐다즈 파인트, 오레오', 
       itemsList: [{ name: '하겐다즈 파인트', qty: 1, price: '14,500원' }, { name: '오레오', qty: 1, price: '2,000원' }],
-      price: '16,500원', status: '신규', date: '2026.01.23 22:38', prepTime: 10 
+      price: '16,500원', status: '신규', date: '2026.01.23 22:38', prepTime: 10, createdAt: Date.now() - 120000 
     },
     { 
       id: 'ORD20260123011', customer: '남주혁', items: '안성탕면 멀티, 단무지', 
@@ -73,7 +134,7 @@ const StoreDashboard = () => {
     { 
       id: 'ORD20260123012', customer: '김지원', items: '스타벅스 RTD 커피 4캔', 
       itemsList: [{ name: '스타벅스 RTD 커피 4캔', qty: 1, price: '10,800원' }],
-      price: '10,800원', status: '신규', date: '2026.01.23 22:40', prepTime: 10 
+      price: '10,800원', status: '신규', date: '2026.01.23 22:40', prepTime: 10, createdAt: Date.now() - 180000 
     },
     { 
       id: 'ORD20260123013', customer: '공유', items: '스텔라 아르투아 500ml 4캔', 
@@ -149,6 +210,23 @@ const StoreDashboard = () => {
     setExpandedOrders(newExpanded);
   };
 
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [rejectOrderId, setRejectOrderId] = useState(null);
+  const [rejectReason, setRejectReason] = useState('재고 부족');
+
+  const handleOpenRejectModal = (orderId) => {
+    setRejectOrderId(orderId);
+    setRejectReason('재고 부족');
+    setIsRejectModalOpen(true);
+  };
+
+  const handleConfirmReject = () => {
+    setOrders(prev => prev.map(order => 
+      order.id === rejectOrderId ? { ...order, status: '거절됨', rejectionReason: rejectReason } : order
+    ));
+    setIsRejectModalOpen(false);
+  };
+
   const updatePrepTime = (id, time) => {
     setOrders(prev => prev.map(order => 
       order.id === id ? { ...order, prepTime: parseInt(time) } : order
@@ -181,6 +259,15 @@ const StoreDashboard = () => {
     return () => activeTimers.forEach(t => clearTimeout(t.timer));
   }, [orders]);
 
+  const [expandedSubscriptions, setExpandedSubscriptions] = useState(new Set());
+
+  const handleToggleSubscriptionExpand = (id) => {
+    const newExpanded = new Set(expandedSubscriptions);
+    if (newExpanded.has(id)) newExpanded.delete(id);
+    else newExpanded.add(id);
+    setExpandedSubscriptions(newExpanded);
+  };
+
   const [subscriptions, setSubscriptions] = useState([
     { id: 1, name: '신선 채소 정기 팩', price: '19,900원', quantity: 4, subscribers: 42, status: '운영중' },
     { id: 2, name: '프리미엄 정육 세트', price: '45,000원', quantity: 2, subscribers: 28, status: '운영중' },
@@ -193,16 +280,28 @@ const StoreDashboard = () => {
     name: '',
     price: '',
     quantity: '',
-    status: '운영중'
+    status: '운영중',
+    description: '',
+    weeklyFreq: 1,
+    monthlyTotal: 4,
+    deliveryDays: [],
+    selectedProductIds: [],
+    imageFile: null,
+    imagePreview: null
   });
 
   const handleOpenSubscriptionModal = (sub = null) => {
     if (sub) {
       setEditingSubscription(sub);
-      setSubscriptionForm({ ...sub });
+      setSubscriptionForm({ ...sub, imagePreview: sub.img || null, selectedProductIds: sub.selectedProductIds || [] });
     } else {
       setEditingSubscription(null);
-      setSubscriptionForm({ name: '', price: '', quantity: '', status: '운영중' });
+      setSubscriptionForm({ 
+        name: '', price: '', quantity: '', status: '운영중', description: '', 
+        weeklyFreq: 1, monthlyTotal: 4, deliveryDays: [],
+        selectedProductIds: [],
+        imageFile: null, imagePreview: null 
+      });
     }
     setIsSubscriptionModalOpen(true);
   };
@@ -218,9 +317,28 @@ const StoreDashboard = () => {
   };
 
   const deleteSubscription = (id) => {
-    if (window.confirm('이 구독 상품을 삭제하시겠습니까?')) {
-      setSubscriptions(prev => prev.filter(s => s.id !== id));
+    const sub = subscriptions.find(s => s.id === id);
+    if (!sub) return;
+
+    if (sub.status === '삭제 예정') {
+      alert('이미 삭제 예약된 상품입니다. 다음 달 1일에 자동 삭제됩니다.');
+      return;
     }
+
+    if (window.confirm(`[${sub.name}] 상품을 정말 삭제하시겠습니까?\n\n구독 상품은 정책상 '다음 달 1일'에 일괄 삭제 반영됩니다.\n삭제 처리 후 반드시 구독 고객들에게 알림을 발송해주세요.`)) {
+      setSubscriptions(prev => prev.map(s => 
+        s.id === id ? { ...s, status: '삭제 예정', nextMonthDelete: true } : s
+      ));
+      alert('삭제 예약이 완료되었습니다. 고객 알림 버튼을 눌러 공지를 진행해주세요.');
+    }
+  };
+
+  const sendSubscriptionNotification = (sub) => {
+    if (sub.status !== '삭제 예정') {
+      alert('알림 발송은 삭제 요청 후에 가능합니다!');
+      return;
+    }
+    alert(`[${sub.name}] 구독자 전원에게 알림톡 및 앱 푸시가 발송되었습니다.\n\n"공지: ${sub.name} 상품이 매장 사정으로 인해 다음 달부터 운영 중단될 예정입니다. 서비스 이용에 참고 부탁드립니다."`);
   };
 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -283,6 +401,7 @@ const StoreDashboard = () => {
       case '배달중': return { bg: '#fdf4ff', text: '#701a75' };
       case '배달완료': return { bg: '#f1f5f9', text: '#475569' };
       case '완료': return { bg: '#f1f5f9', text: '#475569' };
+      case '거절됨': return { bg: '#fef2f2', text: '#ef4444' };
       default: return { bg: '#f1f5f9', text: '#475569' };
     }
   };
@@ -409,171 +528,188 @@ const StoreDashboard = () => {
             </div>
           </div>
         );
-      case 'sales':
+      case 'settlements':
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ fontSize: '24px', fontWeight: '800', margin: 0 }}>매출 및 정산 분석</h2>
-              <div style={{ display: 'flex', background: 'white', padding: '4px', borderRadius: '12px', border: '1px solid #e2e8f0', gap: '4px' }}>
-                {['최근 7일', '1개월', '3개월', '직접 선택'].map((label, idx) => (
-                  <button 
-                    key={idx}
-                    style={{ 
-                      padding: '8px 16px', borderRadius: '8px', border: 'none', 
-                      background: idx === 0 ? 'var(--primary)' : 'transparent', 
-                      color: idx === 0 ? 'white' : '#64748b',
-                      fontSize: '13px', fontWeight: '700', cursor: 'pointer' 
-                    }}
-                  >{label}</button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px' }}>
-              {[
-                { label: '조회 기간 매출', value: '18,450,200원', grow: '+12.5%', icon: '💰' },
-                { label: '일 평균 매출', value: '425,000원', grow: '-2.1%', icon: '📅' },
-                { label: '환불/취소', value: '120,400원', grow: '', icon: '�' },
-                { label: '정산 예정액', value: '3,240,000원', grow: '', icon: '🏦' }
-              ].map((stat, i) => (
-                <div key={i} style={{ background: 'white', padding: '24px', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #f1f5f9' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                    <span style={{ fontSize: '24px' }}>{stat.icon}</span>
-                    {stat.grow && <span style={{ fontSize: '12px', fontWeight: '800', color: stat.grow.startsWith('+') ? '#10b981' : '#ef4444' }}>{stat.grow}</span>}
+            {/* Header with Selector */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' }}>
+              <div 
+                onClick={() => setIsPeriodSelectorOpen(!isPeriodSelectorOpen)}
+                style={{ display: 'flex', alignItems: 'center', gap: '16px', backgroundColor: 'white', padding: '10px 20px', borderRadius: '16px', border: '1px solid #e2e8f0', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', position: 'relative', zIndex: 100 }}
+              >
+                <span style={{ fontSize: '18px' }}>📅</span>
+                <span style={{ fontSize: '16px', fontWeight: '800', color: '#1e293b' }}>{selectedSettlementPeriod} 정산 내역</span>
+                <span style={{ fontSize: '12px', color: '#94a3b8', transform: isPeriodSelectorOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
+                
+                {isPeriodSelectorOpen && (
+                  <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, width: '100%', backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)', overflow: 'hidden', zIndex: 101 }}>
+                    {['2026년 1월', '2025년 12월', '2025년 11월', '2025년 10월'].map((period) => (
+                      <div 
+                        key={period}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedSettlementPeriod(period);
+                          setIsPeriodSelectorOpen(false);
+                        }}
+                        style={{ padding: '12px 20px', fontSize: '14px', fontWeight: '700', color: selectedSettlementPeriod === period ? 'var(--primary)' : '#475569', backgroundColor: selectedSettlementPeriod === period ? '#f0fdf4' : 'white', cursor: 'pointer', borderBottom: '1px solid #f1f5f9' }}
+                      >
+                        {period}
+                      </div>
+                    ))}
                   </div>
-                  <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '4px' }}>{stat.label}</div>
-                  <div style={{ fontSize: '20px', fontWeight: '900' }}>{stat.value}</div>
-                </div>
-              ))}
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#ecfdf5', color: '#10b981', padding: '8px 16px', borderRadius: '30px', fontWeight: '800', fontSize: '14px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }}></span>
+                정산 확정
+              </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '32px' }}>
-              <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #f1f5f9' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '32px' }}>조회 기간 일별 매출 추이</h3>
-                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', height: '200px', padding: '0 20px' }}>
-                  {[
-                    { day: '01.18', val: 65 }, { day: '01.19', val: 45 }, { day: '01.20', val: 80 }, 
-                    { day: '01.21', val: 55 }, { day: '01.22', val: 95 }, { day: '01.23', val: 100 }, { day: '01.24', val: 75 }
-                  ].map((d, i) => (
-                    <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '40px' }}>
-                      <div className="card-hover" style={{ 
-                        width: '100%', 
-                        height: `${d.val}%`, 
-                        background: i === 5 ? 'var(--primary)' : 'linear-gradient(to top, #e2e8f0, #cbd5e1)', 
-                        borderRadius: '8px 8px 0 0',
-                        transition: 'height 1s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
-                      }}></div>
-                      <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748b' }}>{d.day}</span>
-                    </div>
-                  ))}
-                </div>
+            {/* Payment Structure Summary */}
+            <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #f1f5f9', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                <div style={{ width: '28px', height: '28px', backgroundColor: '#3b82f6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: '900', fontSize: '14px' }}>💳</div>
+                <h3 style={{ fontSize: '18px', fontWeight: '800', margin: 0 }}>결제 구조 요약</h3>
               </div>
+              <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 32px 40px' }}>전체 주문 중 일반 주문과 구독 주문의 비중을 확인합니다.</p>
 
-              <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #f1f5f9' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '24px' }}>매출 비중</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '200px' }}>
-                   <div style={{ position: 'relative', width: '120px', height: '120px' }}>
-                      <svg width="120" height="120" viewBox="0 0 42 42" style={{ transform: 'rotate(-90deg)' }}>
-                        <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#e2e8f0" strokeWidth="6"></circle>
-                        <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="var(--primary)" strokeWidth="6" strokeDasharray="65 35" strokeDashoffset="0"></circle>
-                        <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#3b82f6" strokeWidth="6" strokeDasharray="35 65" strokeDashoffset="-65"></circle>
-                      </svg>
-                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
-                         <span style={{ fontSize: '18px', fontWeight: '800' }}>65%</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '32px' }}>
+                <div>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px', fontWeight: '700' }}>
+                      <span style={{ color: '#475569' }}>매출 비중</span>
+                      <div>
+                        <span style={{ color: '#3b82f6' }}>● 일반 68%</span>
+                        <span style={{ color: '#8b5cf6', marginLeft: '16px' }}>● 구독 32%</span>
                       </div>
                    </div>
-                   <div style={{ marginTop: '24px', display: 'flex', gap: '16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                         <div style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: 'var(--primary)' }}></div>
-                         <span style={{ fontSize: '12px', color: '#64748b' }}>구독 상품</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                         <div style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: '#3b82f6' }}></div>
-                         <span style={{ fontSize: '12px', color: '#64748b' }}>일반 상품</span>
-                      </div>
+                   <div style={{ height: '12px', width: '100%', backgroundColor: '#f1f5f9', borderRadius: '6px', overflow: 'hidden', display: 'flex' }}>
+                      <div style={{ width: '68%', height: '100%', background: 'linear-gradient(90deg, #3b82f6, #60a5fa)' }}></div>
+                      <div style={{ width: '32%', height: '100%', background: 'linear-gradient(90deg, #8b5cf6, #a78bfa)' }}></div>
                    </div>
+                </div>
+                <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '20px', border: '1px solid #f1f5f9' }}>
+                   <div style={{ fontSize: '12px', fontWeight: '700', color: '#8b5cf6', marginBottom: '8px' }}>일반 주문 수</div>
+                   <div style={{ fontSize: '24px', fontWeight: '900' }}>168 <span style={{ fontSize: '14px', fontWeight: '600', color: '#94a3b8' }}>건</span></div>
+                </div>
+                <div style={{ backgroundColor: '#f5f3ff', padding: '20px', borderRadius: '20px', border: '1px solid #ede9fe' }}>
+                   <div style={{ fontSize: '12px', fontWeight: '700', color: '#8b5cf6', marginBottom: '8px' }}>구독 주문 수</div>
+                   <div style={{ fontSize: '24px', fontWeight: '900', color: '#8b5cf6' }}>80 <span style={{ fontSize: '14px', fontWeight: '600', color: '#a78bfa' }}>건</span></div>
                 </div>
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '32px' }}>
-              <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #f1f5f9' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '24px' }}>인기 상품 순위</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {[
-                    { name: '대추토마토 500g', count: 124, rank: 1 },
-                    { name: '삼겹살 600g', count: 98, rank: 2 },
-                    { name: '신선란 10구', count: 85, rank: 3 }
-                  ].map((p, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                      <span style={{ fontSize: '18px', fontWeight: '900', color: i === 0 ? 'var(--primary)' : '#94a3b8', width: '20px' }}>{p.rank}</span>
-                      <div style={{ flexGrow: 1 }}>
-                        <div style={{ fontSize: '14px', fontWeight: '700' }}>{p.name}</div>
-                        <div style={{ fontSize: '12px', color: '#94a3b8' }}>{p.count}회 주문</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            {/* Main Financial Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
+               {[
+                 { label: '총 결제 금액', value: '₩18,290,500', sub: '↗12% 전월 대비', color: '#1e293b', subColor: '#10b981' },
+                 { label: '플랫폼 수수료 합계', value: '-₩1,463,240', sub: '고정 8% 플랫폼 수수료 적용', color: '#ef4444', subColor: '#94a3b8' },
+                 { label: '환불/취소 금액', value: '-₩342,100', sub: '4건의 취소 내역 반영', color: '#94a3b8', subColor: '#94a3b8' },
+                 { label: '최종 정산 예정 금액', value: '₩16,485,160', sub: '🗓️ 2월 1일 지급 예정', color: '#ffffff', subColor: '#ffffff', highlight: true },
+               ].map((card, i) => (
+                 <div key={i} style={{ 
+                    background: card.highlight ? 'linear-gradient(135deg, #3b82f6, #2563eb)' : 'white', 
+                    padding: '24px', borderRadius: '24px', 
+                    border: '1px solid #f1f5f9',
+                    color: card.color,
+                    boxShadow: card.highlight ? '0 10px 20px rgba(37, 99, 235, 0.2)' : 'none',
+                    display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '160px'
+                 }}>
+                   <div style={{ fontSize: '14px', fontWeight: '700', color: card.highlight ? 'rgba(255,255,255,0.8)' : '#64748b' }}>{card.label}</div>
+                   <div>
+                     <div style={{ fontSize: '24px', fontWeight: '900', marginBottom: '8px' }}>{card.value}</div>
+                     <div style={{ fontSize: '12px', fontWeight: '600', color: card.subColor }}>{card.sub}</div>
+                   </div>
+                 </div>
+               ))}
+            </div>
 
-              <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #f1f5f9' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '24px' }}>최근 정산 내역</h3>
-                <div className="table-responsive">
+            {/* Secondary Stats Strip */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
+               {[
+                 { label: '총 주문 건수', value: '248 건', icon: '🛍️' },
+                 { label: '환불 건수', value: '4 건', icon: '🔄' },
+                 { label: '평균 주문 금액', value: '₩73,750', icon: '💳' },
+                 { label: '매출 증감률', value: '+8.4%', icon: '📈' },
+               ].map((stat, i) => (
+                 <div key={i} style={{ background: 'white', padding: '16px 24px', borderRadius: '20px', border: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>{stat.icon}</div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '600' }}>{stat.label}</div>
+                      <div style={{ fontSize: '16px', fontWeight: '800', color: i === 3 ? '#10b981' : '#1e293b' }}>{stat.value}</div>
+                    </div>
+                 </div>
+               ))}
+            </div>
+
+            {/* Order Table Component */}
+            <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #f1f5f9' }}>
+               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+                  <h3 style={{ fontSize: '20px', fontWeight: '800', margin: 0 }}>주문별 정산 내역</h3>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <div style={{ position: 'relative' }}>
+                      <input 
+                        type="text" 
+                        placeholder="주문 번호 검색..." 
+                        style={{ padding: '12px 16px 12px 40px', borderRadius: '12px', border: '1px solid #e2e8f0', width: '280px', fontSize: '14px' }}
+                      />
+                      <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>🔍</span>
+                    </div>
+                    <button style={{ padding: '10px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                       <span style={{ fontSize: '18px' }}>⚖️</span>
+                    </button>
+                  </div>
+               </div>
+
+               <div className="table-responsive">
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
-                      <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#64748b', fontSize: '14px', textAlign: 'left' }}>
-                        <th style={{ padding: '16px' }}>정산 월</th>
-                        <th style={{ padding: '16px' }}>최종 정산액</th>
-                        <th style={{ padding: '16px' }}>상태</th>
-                        <th style={{ padding: '16px' }}>상세</th>
+                      <tr style={{ textAlign: 'left', borderBottom: '2px solid #f1f5f9', color: '#64748b', fontSize: '13px', fontWeight: '700' }}>
+                        <th style={{ padding: '16px' }}>주문 번호</th>
+                        <th style={{ padding: '16px' }}>유형</th>
+                        <th style={{ padding: '16px' }}>주문 일시</th>
+                        <th style={{ padding: '16px', textAlign: 'right' }}>결제 금액</th>
+                        <th style={{ padding: '16px', textAlign: 'right' }}>수수료 (8%)</th>
+                        <th style={{ padding: '16px', textAlign: 'center' }}>환불 여부</th>
+                        <th style={{ padding: '16px', textAlign: 'center' }}>정산 반영</th>
+                        <th style={{ padding: '16px', textAlign: 'right' }}>정산 금액</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {[
-                        { 
-                          month: '2026.01 정산분', 
-                          amount: '18,450,200원', 
-                          status: '지급완료',
-                          period: '2026.01.01 ~ 2026.01.31',
-                          rawAmount: '19,650,000원',
-                          fee: '1,199,800원',
-                          mid: 'HM_GN_001',
-                          breakdown: [
-                            { method: '신용카드', depositDate: '2026.01.20', salesDate: '2026.01.15', count: 12, salesA: '1,200,000', feeB: '32,400', vatC: '3,240', totalD: '35,640', netE: '1,164,360' },
-                            { method: '간편결제', depositDate: '2026.01.20', salesDate: '2026.01.15', count: 5, salesA: '450,000', feeB: '12,150', vatC: '1,215', totalD: '13,365', netE: '436,635' }
-                          ]
-                        },
-                        { 
-                          month: '2025.12 정산분', 
-                          amount: '15,230,000원', 
-                          status: '지급완료',
-                          period: '2025.12.01 ~ 2025.12.31',
-                          rawAmount: '16,200,000원',
-                          fee: '970,000원',
-                          mid: 'HM_GN_001',
-                          breakdown: [
-                            { method: '신용카드', depositDate: '2025.12.20', salesDate: '2025.12.15', count: 15, salesA: '2,300,000', feeB: '62,100', vatC: '6,210', totalD: '68,310', netE: '2,231,690' }
-                          ]
-                        }
-                      ].map((s, i) => (
-                        <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', fontSize: '14px' }}>
-                          <td style={{ padding: '16px', fontWeight: '700' }}>{s.month}</td>
-                          <td style={{ padding: '16px', fontWeight: '800' }}>{s.amount}</td>
-                          <td style={{ padding: '16px' }}>
-                            <span style={{ backgroundColor: '#f0fdf4', color: '#166534', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '700' }}>{s.status}</span>
-                          </td>
-                          <td style={{ padding: '16px' }}>
-                            <button 
-                              onClick={() => setSelectedSettlement(s)}
-                              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer', fontSize: '12px' }}
-                            >상세</button>
-                          </td>
-                        </tr>
-                      ))}
+                       {[
+                         { id: '#ORD-2026-9901', type: '구독주문', date: '01월 28일 14:32', amount: '₩124,500', fee: '-₩9,960', refund: '해당없음', status: '반영됨', net: '₩114,540' },
+                         { id: '#ORD-2026-9895', type: '일반주문', date: '01월 28일 12:15', amount: '₩86,200', fee: '-₩6,900', refund: '부분 환불', status: '반영됨', net: '₩79,300' },
+                         { id: '#ORD-2026-9892', type: '구독주문', date: '01월 28일 10:44', amount: '₩210,000', fee: '-₩16,800', refund: '해당없음', status: '반영됨', net: '₩193,200' },
+                       ].map((row, i) => (
+                         <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', fontSize: '14px', transition: 'background 0.2s' }} className="hover-row">
+                            <td style={{ padding: '16px', fontWeight: '800' }}>{row.id}</td>
+                            <td style={{ padding: '16px' }}>
+                               <span style={{ 
+                                 backgroundColor: row.type === '구독주문' ? '#f5f3ff' : '#f1f5f9', 
+                                 color: row.type === '구독주문' ? '#8b5cf6' : '#64748b', 
+                                 padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' 
+                               }}>{row.type}</span>
+                            </td>
+                            <td style={{ padding: '16px', color: '#64748b' }}>{row.date}</td>
+                            <td style={{ padding: '16px', textAlign: 'right', fontWeight: '700' }}>{row.amount}</td>
+                            <td style={{ padding: '16px', textAlign: 'right', color: '#ef4444', fontWeight: '600' }}>{row.fee}</td>
+                            <td style={{ padding: '16px', textAlign: 'center' }}>
+                               <span style={{ 
+                                 backgroundColor: row.refund === '해당없음' ? '#f1f5f9' : '#fff1f2', 
+                                 color: row.refund === '해당없음' ? '#94a3b8' : '#e11d48', 
+                                 padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '800' 
+                               }}>{row.refund}</span>
+                            </td>
+                            <td style={{ padding: '16px', textAlign: 'center' }}>
+                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#10b981', fontWeight: '800', fontSize: '12px' }}>
+                                  <span style={{ fontSize: '14px' }}>✅</span> 반영됨
+                               </div>
+                            </td>
+                            <td style={{ padding: '16px', textAlign: 'right', fontWeight: '900' }}>{row.net}</td>
+                         </tr>
+                       ))}
                     </tbody>
                   </table>
-                </div>
-              </div>
+               </div>
             </div>
           </div>
         );
@@ -751,6 +887,7 @@ const StoreDashboard = () => {
                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                          <tr style={{ textAlign: 'left', borderBottom: '2px solid #f1f5f9', color: '#64748b', fontSize: '14px' }}>
+                            <th style={{ padding: '16px', width: '40px' }}></th>
                             <th style={{ padding: '16px' }}>구독 상품명</th>
                             <th style={{ padding: '16px' }}>월 구독료</th>
                             <th style={{ padding: '16px' }}>구성 품목 수</th>
@@ -761,28 +898,83 @@ const StoreDashboard = () => {
                       </thead>
                       <tbody>
                          {subscriptions.map((sub) => (
-                            <tr key={sub.id} style={{ borderBottom: '1px solid #f1f5f9', fontSize: '15px' }}>
-                               <td style={{ padding: '16px', fontWeight: '700' }}>{sub.name}</td>
-                               <td style={{ padding: '16px', fontWeight: '800', color: '#8b5cf6' }}>{sub.price}</td>
-                               <td style={{ padding: '16px' }}>{sub.quantity}개 품목</td>
-                               <td style={{ padding: '16px' }}>{sub.subscribers}명</td>
-                               <td style={{ padding: '16px' }}>
-                                  <span style={{ fontSize: '12px', color: '#10b981', backgroundColor: '#ecfdf5', padding: '4px 10px', borderRadius: '6px', fontWeight: '800' }}>● {sub.status}</span>
-                               </td>
-                               <td style={{ padding: '16px' }}>
-                                  <div style={{ display: 'flex', gap: '8px' }}>
-                                     <button 
-                                       onClick={() => handleOpenSubscriptionModal(sub)}
-                                       style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>수정</button>
-                                     <button 
-                                       onClick={() => deleteSubscription(sub.id)}
-                                       style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #fee2e2', background: 'white', color: '#ef4444', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>삭제</button>
-                                  </div>
-                               </td>
-                            </tr>
+                            <React.Fragment key={sub.id}>
+                               <tr style={{ borderBottom: expandedSubscriptions.has(sub.id) ? 'none' : '1px solid #f1f5f9', fontSize: '15px', transition: 'all 0.2s', backgroundColor: expandedSubscriptions.has(sub.id) ? 'rgba(139, 92, 246, 0.02)' : 'transparent' }}>
+                                 <td style={{ padding: '16px', textAlign: 'center' }}>
+                                   <button 
+                                     onClick={() => handleToggleSubscriptionExpand(sub.id)}
+                                     style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '12px', transform: expandedSubscriptions.has(sub.id) ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', color: expandedSubscriptions.has(sub.id) ? '#8b5cf6' : '#94a3b8' }}
+                                   >▼</button>
+                                 </td>
+                                 <td style={{ padding: '16px', fontWeight: '700' }}>
+                                   <div 
+                                     onClick={() => handleToggleSubscriptionExpand(sub.id)}
+                                     style={{ cursor: 'pointer' }}
+                                   >
+                                     {sub.name}
+                                   </div>
+                                 </td>
+                                 <td style={{ padding: '16px', fontWeight: '800', color: '#8b5cf6' }}>{sub.price}</td>
+                                 <td style={{ padding: '16px' }}>{sub.quantity}개 품목</td>
+                                 <td style={{ padding: '16px' }}>{sub.subscribers}명</td>
+                                 <td style={{ padding: '16px' }}>
+                                    <span style={{ 
+                                      fontSize: '12px', 
+                                      color: sub.status === '삭제 예정' ? '#ef4444' : '#10b981', 
+                                      backgroundColor: sub.status === '삭제 예정' ? '#fee2e2' : '#ecfdf5', 
+                                      padding: '4px 10px', borderRadius: '6px', fontWeight: '800' 
+                                    }}>● {sub.status}</span>
+                                 </td>
+                                 <td style={{ padding: '16px' }}>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                       <button 
+                                         disabled
+                                         title="구독 상품은 안정적인 유지를 위해 수정이 불가합니다. 필요시 삭제 후 재등록해주세요."
+                                         style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #f1f5f9', background: '#f8fafc', color: '#94a3b8', cursor: 'not-allowed', fontSize: '12px', fontWeight: '600' }}>수정 불가</button>
+                                       <button 
+                                         onClick={() => deleteSubscription(sub.id)}
+                                         style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #fee2e2', background: sub.status === '삭제 예정' ? '#ef4444' : 'white', color: sub.status === '삭제 예정' ? 'white' : '#ef4444', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
+                                         {sub.status === '삭제 예정' ? '삭제 예약됨' : '삭제 요청'}
+                                       </button>
+                                       <div style={{ width: '1px', height: '16px', background: '#e2e8f0', margin: '0 4px' }}></div>
+                                       <button 
+                                         onClick={() => sendSubscriptionNotification(sub)}
+                                         style={{ padding: '6px 12px', borderRadius: '8px', border: sub.status === '삭제 예정' ? '1px solid #8b5cf6' : '1px solid #e2e8f0', background: 'white', color: sub.status === '삭제 예정' ? '#8b5cf6' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: '800' }}>🔔 알림 발송</button>
+                                    </div>
+                                 </td>
+                               </tr>
+                               {expandedSubscriptions.has(sub.id) && (
+                                 <tr style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: 'rgba(139, 92, 246, 0.02)' }}>
+                                   <td colSpan="7" style={{ padding: '0 24px 24px 72px' }}>
+                                     <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #ede9fe', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
+                                       <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '12px' }}>
+                                         <div style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', marginBottom: '8px' }}>주당 배송 횟수</div>
+                                         <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>{sub.weeklyFreq || 1}회 <span style={{ fontSize: '13px', fontWeight: '500' }}>배송 / 주</span></div>
+                                       </div>
+                                       <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '12px' }}>
+                                         <div style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', marginBottom: '8px' }}>월간 총 배송 횟수</div>
+                                         <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>{sub.monthlyTotal || 4}회 <span style={{ fontSize: '13px', fontWeight: '500' }}>배송 / 월</span></div>
+                                       </div>
+                                       <div style={{ backgroundColor: '#fdfaff', padding: '16px', borderRadius: '12px', border: '1px solid #f3e8ff' }}>
+                                         <div style={{ fontSize: '12px', fontWeight: '700', color: '#8b5cf6', marginBottom: '8px' }}>배송 요일 설정</div>
+                                         <div style={{ display: 'flex', gap: '6px' }}>
+                                           {(sub.deliveryDays || ['목']).map(day => (
+                                             <span key={day} style={{ backgroundColor: '#8b5cf6', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '800' }}>{day}요일</span>
+                                           ))}
+                                         </div>
+                                       </div>
+                                       <div style={{ gridColumn: 'span 3', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
+                                         <div style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', marginBottom: '8px' }}>상품 상세 설명</div>
+                                         <div style={{ fontSize: '14px', color: '#475569', lineHeight: '1.6' }}>{sub.description || '구성된 상품 목록 및 서비스 안내 내용이 표시됩니다.'}</div>
+                                       </div>
+                                     </div>
+                                   </td>
+                                 </tr>
+                               )}
+                             </React.Fragment>
                          ))}
                          {subscriptions.length === 0 && (
-                            <tr><td colSpan="6" style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>등록된 구독 상품이 없습니다.</td></tr>
+                            <tr><td colSpan="7" style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>등록된 구독 상품이 없습니다.</td></tr>
                          )}
                       </tbody>
                    </table>
@@ -811,14 +1003,74 @@ const StoreDashboard = () => {
                    <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px' }}>* 등록된 업종 정보입니다. (수정 불가)</p>
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '10px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>영업 시작 시간</label>
-                  <input type="time" defaultValue="09:00" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '10px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>영업 종료 시간</label>
-                  <input type="time" defaultValue="22:00" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1' }} />
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '20px', fontWeight: '800', fontSize: '16px', color: '#1e293b' }}>요일별 영업 시간 설정</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {businessHours.map((bh, idx) => (
+                    <div key={idx} style={{ 
+                      display: 'grid', gridTemplateColumns: 'minmax(80px, 1fr) 2fr 2fr 2fr 1fr', gap: '16px', alignItems: 'center',
+                      padding: '16px', borderRadius: '12px', border: '1px solid #f1f5f9',
+                      backgroundColor: bh.isClosed ? '#fef2f2' : 'white',
+                      transition: 'all 0.2s'
+                    }}>
+                      <div style={{ fontSize: '15px', fontWeight: '700', color: bh.isClosed ? '#ef4444' : '#1e293b' }}>{bh.day}</div>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#94a3b8' }}>오픈</span>
+                        <input 
+                          type="time" 
+                          disabled={bh.isClosed}
+                          value={bh.open} 
+                          onChange={(e) => handleBusinessHourChange(idx, 'open', e.target.value)}
+                          style={{ 
+                            width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px',
+                            backgroundColor: bh.isClosed ? '#f1f5f9' : 'white', cursor: bh.isClosed ? 'not-allowed' : 'text'
+                          }} 
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#94a3b8' }}>마감</span>
+                        <input 
+                          type="time" 
+                          disabled={bh.isClosed}
+                          value={bh.close} 
+                          onChange={(e) => handleBusinessHourChange(idx, 'close', e.target.value)}
+                          style={{ 
+                            width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px',
+                            backgroundColor: bh.isClosed ? '#f1f5f9' : 'white', cursor: bh.isClosed ? 'not-allowed' : 'text'
+                          }} 
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#8b5cf6' }}>라스트 오더</span>
+                        <input 
+                          type="time" 
+                          disabled={bh.isClosed}
+                          value={bh.lastOrder} 
+                          onChange={(e) => handleBusinessHourChange(idx, 'lastOrder', e.target.value)}
+                          style={{ 
+                            width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #8b5cf6', fontSize: '13px',
+                            backgroundColor: bh.isClosed ? '#f1f5f9' : 'white', cursor: bh.isClosed ? 'not-allowed' : 'text',
+                            color: bh.isClosed ? '#94a3b8' : '#8b5cf6'
+                          }} 
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+                        <input 
+                          type="checkbox" 
+                          id={`closed-${idx}`}
+                          checked={bh.isClosed}
+                          onChange={(e) => handleBusinessHourChange(idx, 'isClosed', e.target.checked)}
+                          style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#ef4444' }}
+                        />
+                        <label htmlFor={`closed-${idx}`} style={{ fontSize: '13px', fontWeight: '700', color: bh.isClosed ? '#ef4444' : '#64748b', cursor: 'pointer' }}>휴무</label>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
               <button style={{ marginTop: '20px', padding: '18px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '800', fontSize: '16px', cursor: 'pointer', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)' }}>
@@ -868,9 +1120,25 @@ const StoreDashboard = () => {
                             ▼
                           </button>
                           <div>
-                            <div style={{ fontWeight: '700', fontSize: '15px' }}>{order.id}</div>
-                            <div style={{ fontSize: '14px', color: '#64748b', marginTop: '4px' }}>{order.items}</div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>{order.date}</div>
+                             <div style={{ fontSize: '15px', fontWeight: '700' }}>{order.id}</div>
+                             <div style={{ fontSize: '14px', color: '#64748b', marginTop: '4px' }}>{order.items}</div>
+                             {order.status === '거절됨' && (
+                               <div style={{ fontSize: '12px', color: '#ef4444', fontWeight: '700', marginTop: '4px' }}>
+                                 사유: {order.rejectionReason}
+                               </div>
+                             )}
+                             <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>{order.date}</div>
+                             {order.status === '신규' && order.createdAt && (
+                               <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: '800', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                 <span style={{ fontSize: '14px' }}>⏰</span>
+                                 자동 거절까지 {(() => {
+                                   const remaining = Math.max(0, (5 * 60 * 1000) - (currentTime - order.createdAt));
+                                   const mins = Math.floor(remaining / 60000);
+                                   const secs = Math.floor((remaining % 60000) / 1000);
+                                   return `${mins}분 ${secs}초`;
+                                 })()} 남음
+                               </div>
+                             )}
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -898,7 +1166,9 @@ const StoreDashboard = () => {
                             <button onClick={() => updateOrderStatus(order.id, '배달중')} style={{ padding: '10px 20px', borderRadius: '10px', background: '#a855f7', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}>라이더 픽업</button>
                           )}
                           {order.status === '신규' && (
-                            <button style={{ padding: '10px 20px', borderRadius: '10px', background: 'white', border: '1px solid #cbd5e1', color: '#64748b', fontWeight: '700', cursor: 'pointer' }}>거절</button>
+                            <button 
+                              onClick={() => handleOpenRejectModal(order.id)}
+                              style={{ padding: '10px 20px', borderRadius: '10px', background: 'white', border: '1px solid #cbd5e1', color: '#64748b', fontWeight: '700', cursor: 'pointer' }}>거절</button>
                           )}
                         </div>
                       </div>
@@ -1001,7 +1271,7 @@ const StoreDashboard = () => {
           { id: 'orders', label: '주문 관리', icon: '📦' },
           { id: 'products', label: '상품 관리', icon: '🍎' },
           { id: 'subscriptions', label: '구독 관리', icon: '💎' },
-          { id: 'sales', label: '매출 및 정산', icon: '📊' },
+          { id: 'settlements', label: '매출 및 정산', icon: '📈' },
           { id: 'settings', label: '운영 설정', icon: '⚙️' }
         ].map((item) => (
           <div 
@@ -1340,6 +1610,41 @@ const StoreDashboard = () => {
             </h2>
             <form onSubmit={handleSaveSubscription} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div>
+                <label style={{ display: 'block', marginBottom: '12px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>구독 상품 대표 이미지</label>
+                <div 
+                  onClick={() => document.getElementById('sub-image-upload').click()}
+                  style={{ 
+                    width: '100%', height: '160px', borderRadius: '16px', border: '2px dashed #cbd5e1', 
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', 
+                    backgroundColor: '#f8fafc', cursor: 'pointer', overflow: 'hidden', position: 'relative'
+                  }}>
+                  {subscriptionForm.imagePreview ? (
+                    <img src={subscriptionForm.imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <>
+                      <span style={{ fontSize: '32px', marginBottom: '8px' }}>📸</span>
+                      <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '600' }}>이미지 업로드 (클릭)</span>
+                    </>
+                  )}
+                  <input 
+                    id="sub-image-upload"
+                    type="file" 
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setSubscriptionForm({ ...subscriptionForm, imageFile: file, imagePreview: reader.result });
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    style={{ display: 'none' }}
+                  />
+                </div>
+              </div>
+              <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>구독 상품명</label>
                 <input 
                   required
@@ -1348,6 +1653,17 @@ const StoreDashboard = () => {
                   onChange={e => setSubscriptionForm({...subscriptionForm, name: e.target.value})}
                   placeholder="예: 우리집 신선 야채 팩"
                   style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1' }} 
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>구독 설명</label>
+                <textarea 
+                  required
+                  rows="3"
+                  value={subscriptionForm.description}
+                  onChange={e => setSubscriptionForm({...subscriptionForm, description: e.target.value})}
+                  placeholder="구독 상품의 구성과 혜택을 상세히 입력해주세요."
+                  style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1', resize: 'none', fontFamily: 'inherit' }} 
                 />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -1374,6 +1690,60 @@ const StoreDashboard = () => {
                   />
                 </div>
               </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>주당 배송 횟수</label>
+                  <input 
+                    required
+                    type="number" 
+                    value={subscriptionForm.weeklyFreq}
+                    onChange={e => setSubscriptionForm({...subscriptionForm, weeklyFreq: e.target.value})}
+                    placeholder="1"
+                    style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>월간 총 배송 횟수</label>
+                  <input 
+                    required
+                    type="number" 
+                    value={subscriptionForm.monthlyTotal}
+                    onChange={e => setSubscriptionForm({...subscriptionForm, monthlyTotal: e.target.value})}
+                    placeholder="4"
+                    style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1' }} 
+                  />
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>배송 요일 설정</label>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {['월', '화', '수', '목', '금', '토', '일'].map(day => (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => {
+                        const days = subscriptionForm.deliveryDays.includes(day)
+                          ? subscriptionForm.deliveryDays.filter(d => d !== day)
+                          : [...subscriptionForm.deliveryDays, day];
+                        setSubscriptionForm({ ...subscriptionForm, deliveryDays: days });
+                      }}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid',
+                        borderColor: subscriptionForm.deliveryDays.includes(day) ? '#8b5cf6' : '#cbd5e1',
+                        backgroundColor: subscriptionForm.deliveryDays.includes(day) ? '#f5f3ff' : 'white',
+                        color: subscriptionForm.deliveryDays.includes(day) ? '#8b5cf6' : '#64748b',
+                        fontWeight: '700',
+                        fontSize: '13px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {day}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>노출 상태</label>
                 <select 
@@ -1384,6 +1754,57 @@ const StoreDashboard = () => {
                   <option value="운영중">운영중 (노출)</option>
                   <option value="중지됨">중지됨 (숨김)</option>
                 </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '12px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>구성 품목 선택 ({subscriptionForm.selectedProductIds.length})</label>
+                <div style={{ 
+                  maxHeight: '180px', 
+                  overflowY: 'auto', 
+                  border: '1px solid #cbd5e1', 
+                  borderRadius: '12px', 
+                  padding: '12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  backgroundColor: '#f8fafc'
+                }}>
+                  {products.map(p => (
+                    <div 
+                      key={p.id} 
+                      onClick={() => {
+                        const ids = subscriptionForm.selectedProductIds.includes(p.id)
+                          ? subscriptionForm.selectedProductIds.filter(id => id !== p.id)
+                          : [...subscriptionForm.selectedProductIds, p.id];
+                        setSubscriptionForm({ ...subscriptionForm, selectedProductIds: ids });
+                      }}
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '12px', 
+                        padding: '10px',
+                        backgroundColor: 'white',
+                        borderRadius: '8px',
+                        border: '1px solid',
+                        borderColor: subscriptionForm.selectedProductIds.includes(p.id) ? '#8b5cf6' : '#e2e8f0',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      <input 
+                        type="checkbox" 
+                        checked={subscriptionForm.selectedProductIds.includes(p.id)}
+                        onChange={() => {}} // Controlled by div onClick
+                        style={{ width: '18px', height: '18px', accentColor: '#8b5cf6', cursor: 'pointer' }}
+                      />
+                      <span style={{ fontSize: '20px' }}>{p.img}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>{p.name}</div>
+                        <div style={{ fontSize: '12px', color: '#64748b' }}>{p.price}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '8px' }}>* 구독 패키지에 포함될 상품을 목록에서 모두 선택해 주세요.</p>
               </div>
               <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
                 <button 
@@ -1397,6 +1818,49 @@ const StoreDashboard = () => {
                 >{editingSubscription ? '수정 완료' : '구성 완료'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Reason Modal */}
+      {isRejectModalOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)'
+        }} onClick={() => setIsRejectModalOpen(false)}>
+          <div style={{
+            background: 'white', width: '100%', maxWidth: '400px', borderRadius: '24px', padding: '32px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
+          }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '16px' }}>주문 거절 사유 선택</h3>
+            <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '24px' }}>주문을 거절하시는 사유를 선택해주세요. 고객에게 알림이 전송됩니다.</p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '32px' }}>
+              {['재고 부족', '영업 종료', '배달 불가 지역', '기타 사유'].map((reason) => (
+                <button
+                  key={reason}
+                  onClick={() => setRejectReason(reason)}
+                  style={{
+                    padding: '16px', borderRadius: '12px', border: '2px solid',
+                    borderColor: rejectReason === reason ? 'var(--primary)' : '#f1f5f9',
+                    background: rejectReason === reason ? 'rgba(46, 204, 113, 0.05)' : 'white',
+                    color: rejectReason === reason ? 'var(--primary)' : '#475569',
+                    fontWeight: '700', textAlign: 'left', cursor: 'pointer', transition: 'all 0.2s'
+                  }}
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button 
+                onClick={() => setIsRejectModalOpen(false)}
+                style={{ flex: 1, padding: '14px', borderRadius: '12px', background: '#f1f5f9', border: 'none', fontWeight: '700', cursor: 'pointer' }}
+              >취소</button>
+              <button 
+                onClick={handleConfirmReject}
+                style={{ flex: 2, padding: '14px', borderRadius: '12px', background: '#ef4444', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
+              >거절 확정</button>
+            </div>
           </div>
         </div>
       )}

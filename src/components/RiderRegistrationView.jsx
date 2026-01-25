@@ -4,7 +4,7 @@ const RiderRegistrationView = ({ onBack, onComplete }) => {
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
-    vehicleType: 'bicycle',
+    vehicleType: 'walking',
     vehicleModel: '',
     vehiclePlate: '',
     region: '서울시 강남구'
@@ -81,11 +81,11 @@ const RiderRegistrationView = ({ onBack, onComplete }) => {
     <div style={{ minHeight: '100vh', backgroundColor: '#f0f2f5', padding: '40px 20px' }}>
       <div style={{ maxWidth: '640px', margin: '0 auto' }}>
         {/* Header Section */}
-        <div style={{ background: 'white', borderRadius: '12px', padding: '24px', borderTop: '10px solid #1e293b', marginBottom: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-          <h1 style={{ fontSize: '32px', fontWeight: '700', marginBottom: '12px' }}>전문 라이더 지원</h1>
+        <div style={{ background: 'white', borderRadius: '12px', padding: '24px', borderTop: '10px solid #38bdf8', marginBottom: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <h1 style={{ fontSize: '32px', fontWeight: '700', marginBottom: '12px' }}>주민 라이더 지원</h1>
           <p style={{ color: '#475569', fontSize: '14px', lineHeight: '1.5' }}>
-            동네마켓의 전문 배달 파트너가 되어 안정적인 수익을 창출하세요.<br/>
-            운송 수단 정보와 개인 정보를 입력해주시면 확인 후 개별 연락드립니다.
+            동네마켓의 주민 배달 파트너가 되어 우리 동네 이웃들에게 행복을 배달하세요.<br/>
+            초기 가입 시에는 빠른 활동을 위해 <strong>도보</strong> 및 <strong>자전거</strong>만 선택 가능합니다.
           </p>
           <div style={{ marginTop: '16px', fontSize: '12px', color: '#ef4444' }}>* 필수 항목</div>
         </div>
@@ -127,38 +127,35 @@ const RiderRegistrationView = ({ onBack, onComplete }) => {
               style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '14px' }}
             >
               <option value="walking">도보</option>
-              <option value="bicycle">자전거 / 전동 킥보드</option>
-              <option value="motorcycle">오토바이</option>
-              <option value="electric_car">전기차 / 승용차</option>
+              <option value="bicycle">자전거</option>
             </select>
+            <div style={{ marginTop: '12px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+               <p style={{ fontSize: '12px', color: '#64748b', margin: 0, lineHeight: '1.5' }}>
+                 💡 <strong>오토바이</strong> 및 <strong>승용차</strong> 배달은 라이더 승인 후, <br />
+                 라이더 마이페이지 내 <strong>'전문 수단 인증'</strong> 섹션에서 면허/보험 서류 확인 후 활성화됩니다.
+               </p>
+            </div>
           </div>
 
           {/* Vehicle Details */}
-          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-            <label style={{ display: 'block', fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
-              3. 상세 정보 (차종/모델명, 차량번호) <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <input 
-                type="text"
-                placeholder="차량 모델 (예: 현대 아이오닉5, 혼다 PCX)"
-                value={formData.vehicleModel}
-                onChange={(e) => setFormData({...formData, vehicleModel: e.target.value})}
-                style={{ width: '100%', padding: '8px 0', border: 'none', borderBottom: '1px solid #e5e7eb', fontSize: '14px', outline: 'none' }}
-                onFocus={(e) => e.target.style.borderBottom = '2px solid #1e293b'}
-                onBlur={(e) => e.target.style.borderBottom = '1px solid #e5e7eb'}
-              />
-              <input 
-                type="text"
-                placeholder="차량 번호 (도보/자전거 제외)"
-                value={formData.vehiclePlate}
-                onChange={(e) => setFormData({...formData, vehiclePlate: e.target.value})}
-                style={{ width: '100%', padding: '8px 0', border: 'none', borderBottom: '1px solid #e5e7eb', fontSize: '14px', outline: 'none' }}
-                onFocus={(e) => e.target.style.borderBottom = '2px solid #1e293b'}
-                onBlur={(e) => e.target.style.borderBottom = '1px solid #e5e7eb'}
-              />
+          {formData.vehicleType === 'bicycle' && (
+            <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+              <label style={{ display: 'block', fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
+                3. 배달 수단 정보 <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <input 
+                  type="text"
+                  placeholder="자전거 모델명 (선택사항)"
+                  value={formData.vehicleModel}
+                  onChange={(e) => setFormData({...formData, vehicleModel: e.target.value})}
+                  style={{ width: '100%', padding: '8px 0', border: 'none', borderBottom: '1px solid #e5e7eb', fontSize: '14px', outline: 'none' }}
+                  onFocus={(e) => e.target.style.borderBottom = '2px solid #38bdf8'}
+                  onBlur={(e) => e.target.style.borderBottom = '1px solid #e5e7eb'}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Region */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
@@ -177,9 +174,9 @@ const RiderRegistrationView = ({ onBack, onComplete }) => {
             <button 
               type="submit"
               className="btn-primary"
-              style={{ padding: '12px 24px', fontSize: '14px', borderRadius: '4px', backgroundColor: '#1e293b' }}
+              style={{ padding: '12px 24px', fontSize: '14px', borderRadius: '4px', backgroundColor: '#38bdf8' }}
             >
-              지원서 제출하기
+              주민 라이더 가입하기
             </button>
             <button 
               type="button"

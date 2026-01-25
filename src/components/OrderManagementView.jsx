@@ -4,7 +4,7 @@ import OrderDetailFullModal from './OrderDetailFullModal';
 import ReceiptModal from './ReceiptModal';
 import InquiryModal from './InquiryModal';
 
-const OrderManagementView = ({ orders, onTracking, onWriteReview, onViewReview, onBack }) => {
+const OrderManagementView = ({ orders, onTracking, onWriteReview, onCancelOrder, onViewReview, onBack }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState(null); // For "..." modal
   const [detailOrder, setDetailOrder] = useState(null);
@@ -53,7 +53,7 @@ const OrderManagementView = ({ orders, onTracking, onWriteReview, onViewReview, 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {filteredOrders.length > 0 ? (
           filteredOrders.map((order, index) => (
-            <div key={order.id} style={{ backgroundColor: 'white', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            <div key={order.id} style={{ backgroundColor: 'white', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', opacity: order.status === '주문 취소됨' ? 0.6 : 1 }}>
                {/* Header Line */}
                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                   <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>
@@ -63,10 +63,16 @@ const OrderManagementView = ({ orders, onTracking, onWriteReview, onViewReview, 
                </div>
 
                {/* Status Line */}
-               <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontWeight: '800', color: order.status === '배송 완료' ? 'var(--primary)' : '#1e293b', fontSize: '16px' }}>{order.status}</span>
-                  {order.status === '배송 완료' && <span style={{ fontSize: '12px', color: '#94a3b8' }}>{order.date.replace(/\./g, '/').slice(5)} 도착</span>}
-               </div>
+                <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                   <span style={{ 
+                     fontWeight: '800', 
+                     color: order.status === '배송 완료' ? 'var(--primary)' : 
+                            order.status === '주문 접수 중' ? '#3b82f6' :
+                            order.status === '주문 취소됨' ? '#ef4444' : '#1e293b', 
+                     fontSize: '16px' 
+                   }}>{order.status}</span>
+                   {order.status === '배송 완료' && <span style={{ fontSize: '12px', color: '#94a3b8' }}>{order.date.replace(/\./g, '/').slice(5)} 도착</span>}
+                </div>
 
                {/* Product Content */}
                <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
@@ -81,8 +87,15 @@ const OrderManagementView = ({ orders, onTracking, onWriteReview, onViewReview, 
                </div>
 
                {/* Action Buttons */}
-               <div className="order-actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-                  {order.reviewWritten ? (
+                <div className="order-actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                  {order.status === '주문 접수 중' ? (
+                    <button 
+                      onClick={() => onCancelOrder && onCancelOrder(order.id)}
+                      style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ef4444', background: 'white', color: '#ef4444', fontWeight: '800', cursor: 'pointer', fontSize: '14px' }}
+                    >
+                       주문 취소
+                    </button>
+                  ) : order.reviewWritten ? (
                     <button 
                       onClick={() => onViewReview && onViewReview(order)}
                       style={{ padding: '10px', borderRadius: '4px', border: '1px solid #cbd5e1', background: 'white', color: '#334155', fontWeight: '600', cursor: 'pointer', fontSize: '14px' }}
@@ -91,8 +104,14 @@ const OrderManagementView = ({ orders, onTracking, onWriteReview, onViewReview, 
                     </button>
                   ) : (
                     <button 
+                      disabled={order.status === '주문 취소됨'}
                       onClick={() => onWriteReview(order)}
-                      style={{ padding: '10px', borderRadius: '4px', border: '1px solid var(--primary)', background: 'white', color: 'var(--primary)', fontWeight: '700', cursor: 'pointer', fontSize: '14px' }}
+                      style={{ 
+                        padding: '10px', borderRadius: '4px', border: '1px solid var(--primary)', 
+                        background: 'white', color: 'var(--primary)', fontWeight: '700', 
+                        cursor: order.status === '주문 취소됨' ? 'not-allowed' : 'pointer', fontSize: '14px',
+                        opacity: order.status === '주문 취소됨' ? 0.5 : 1
+                      }}
                     >
                        리뷰 쓰기
                     </button>
@@ -109,7 +128,7 @@ const OrderManagementView = ({ orders, onTracking, onWriteReview, onViewReview, 
                   >
                      바로 구매하기
                   </button>
-               </div>
+                </div>
             </div>
           ))
         ) : (

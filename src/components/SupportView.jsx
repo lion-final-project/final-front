@@ -126,6 +126,11 @@ const SupportView = ({ isLoggedIn, onOpenAuth, isEmbedded = false }) => {
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>내용</label>
                 <textarea rows="6" placeholder="자세한 문의 내용을 입력해 주세요" style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid var(--border)', resize: 'none' }}></textarea>
               </div>
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>첨부 파일</label>
+                <input type="file" multiple style={{ width: '100%', fontSize: '14px', color: '#64748b' }} />
+                <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px' }}>이미지, PDF 등 최대 10MB까지 업로드 가능합니다.</p>
+              </div>
               <button type="submit" className="btn-primary" style={{ width: '100%' }}>문의 등록하기</button>
             </form>
 
@@ -146,10 +151,16 @@ const SupportView = ({ isLoggedIn, onOpenAuth, isEmbedded = false }) => {
                         {inquiry.answer}
                       </div>
                     )}
-                    <div style={{ marginTop: '12px', textAlign: 'right' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
                       <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '4px', backgroundColor: inquiry.status === '답변 완료' ? '#f0fdf4' : '#f1f5f9', color: inquiry.status === '답변 완료' ? '#16a34a' : '#64748b', fontWeight: '700' }}>
                         {inquiry.status}
                       </span>
+                      {!inquiry.answer && (
+                        <button 
+                          onClick={() => { if(window.confirm('문의를 삭제하시겠습니까?')) alert('문의가 삭제되었습니다.'); }}
+                          style={{ border: 'none', background: 'transparent', color: '#94a3b8', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}
+                        >삭제</button>
+                      )}
                     </div>
                   </div>
                 ))}

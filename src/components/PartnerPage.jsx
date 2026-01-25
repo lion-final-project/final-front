@@ -87,28 +87,6 @@ const PartnerPage = ({ onBack, onRegister }) => {
             </button>
           </div>
 
-          {/* Professional Rider Partner Card */}
-          <div style={{ backgroundColor: '#1e293b', padding: '32px', borderRadius: '32px', boxShadow: 'var(--shadow)', color: 'white', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ fontSize: '40px', marginBottom: '20px' }}>🛵</div>
-            <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '12px' }}>전문 배달 파트너</h2>
-            <p style={{ color: '#94a3b8', marginBottom: '24px', fontSize: '14px', lineHeight: '1.6', flexGrow: 1 }}>
-              원하는 시간에 원하는 만큼, <br />
-              동네 전문가로서 안정적인 수익을 만드세요.
-            </p>
-            <ul style={{ padding: 0, listStyle: 'none', marginBottom: '32px' }}>
-              {['업계 최고 수준 건당 수익', '산재/고용보험 전격 지원', '라이더 전용 앱 제공'].map((item, i) => (
-                <li key={i} style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
-                  <span style={{ color: '#38bdf8', fontWeight: 'bold' }}>✓</span> {item}
-                </li>
-              ))}
-            </ul>
-            <button 
-              onClick={() => onRegister?.('RIDER')}
-              style={{ width: '100%', padding: '16px', borderRadius: '12px', backgroundColor: '#475569', color: 'white', border: 'none', fontWeight: '800', fontSize: '14px', cursor: 'pointer' }}
-            >
-              전문 라이더 지원하기
-            </button>
-          </div>
         </div>
 
         <section style={{ backgroundColor: '#f1f5f9', padding: '60px', borderRadius: '32px', textAlign: 'center' }}>

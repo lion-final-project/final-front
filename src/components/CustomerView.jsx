@@ -10,7 +10,7 @@ import ResidentDeliveryView from './ResidentDeliveryView';
 import SupportView from './SupportView';
 import PartnerPage from './PartnerPage';
 import Footer from './Footer';
-import { orders, subscriptions, reviews, stores, addresses, paymentMethods, faqs, categories, coupons, inquiries, loyaltyPoints } from '../data/mockData';
+import { orders, subscriptions, reviews, stores, addresses, paymentMethods, faqs, categories, coupons, inquiries, loyaltyPoints, subscriptionPayments } from '../data/mockData';
 import CartModal from './CartModal';
 import StoreDetailView from './StoreDetailView';
 import StoreRegistrationView from './StoreRegistrationView';
@@ -58,6 +58,17 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
 
   const [cartItems, setCartItems] = useState([]);
   const [toast, setToast] = useState(null);
+  const [currentLocation, setCurrentLocation] = useState('역삼동 123-45');
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [orderList, setOrderList] = useState(orders);
+  const [subscriptionList, setSubscriptionList] = useState(subscriptions);
+  const [userInfo] = useState({
+    name: '사용자',
+    email: 'user@example.com',
+    phone: '010-1234-5678',
+    birth: '1995.05.20',
+    joinDate: '2024.01.01'
+  });
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -88,6 +99,8 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
 
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isTrackingOpen, setIsTrackingOpen] = useState(false);
+  const [subscriptionFilter, setSubscriptionFilter] = useState('전체'); // 전체, 구독중, 해지 예정, 해지됨
+  const [expandedSubId, setExpandedSubId] = useState(null);
 
   /* Address Management State */
   const [addressList, setAddressList] = useState(addresses);
@@ -182,8 +195,52 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
 
   const handleSaveReview = (e) => {
     e.preventDefault();
-    alert('리뷰가 등록되었습니다! 소중한 의견 감사합니다.');
+    if (viewingReview) {
+      alert('리뷰가 수정되었습니다.');
+    } else {
+      alert('리뷰가 등록되었습니다! 소중한 의견 감사합니다.');
+    }
     setIsReviewModalOpen(false);
+    setViewingReview(null);
+  };
+
+  const handleEditReview = () => {
+    setReviewForm({ rate: viewingReview.rate, content: viewingReview.content });
+    setViewingReview(null); // Switch to edit mode in the same modal
+  };
+
+  const handleDeleteReview = () => {
+    if (window.confirm('작성하신 리뷰를 삭제하시겠습니까?')) {
+      alert('리뷰가 삭제되었습니다.');
+      setIsReviewModalOpen(false);
+      setViewingReview(null);
+    }
+  };
+
+  const handleCancelOrder = (orderId) => {
+    if (window.confirm('정말 이 주문을 취소하시겠습니까?')) {
+      setOrderList(prev => prev.map(order => 
+        order.id === orderId ? { ...order, status: '주문 취소됨' } : order
+      ));
+      showToast('주문이 취소되었습니다.');
+    }
+  };
+
+  const handleCancelSubscription = (subId) => {
+    const sub = subscriptionList.find(s => s.id === subId);
+    if (!sub) return;
+
+    if (sub.nextPayment && sub.nextPayment !== '-') {
+      setSubscriptionList(prev => prev.map(item => 
+        item.id === subId ? { ...item, status: '해지 예정' } : item
+      ));
+      alert(`남은 배송 일정이 있어 ${sub.nextPayment}일에 정기 결제가 종료되며 '해지 예정' 상태로 변경되었습니다. 마지막 배송까지 정성을 다하겠습니다.`);
+    } else {
+      setSubscriptionList(prev => prev.map(item => 
+        item.id === subId ? { ...item, status: '해지됨', nextPayment: '-' } : item
+      ));
+      alert("남은 배송 일정이 없어 즉시 '해지됨' 상태로 변경되었습니다. 그동안 이용해 주셔서 감사합니다.");
+    }
   };
 
   const handleTabChange = (tab) => {
@@ -347,9 +404,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
       }
       case 'checkout':
         return <CheckoutView cartItems={cartItems} onComplete={() => { 
-          clearCart(); 
-          alert('주문이 성공적으로 완료되었습니다! 잠시 후 대시보드에서 배송 현황을 확인하실 수 있습니다.');
-          setActiveTab('home'); 
+          setIsSuccessModalOpen(true);
         }} />;
       case 'tracking':
         // Redirect to modal if tracking tab is somehow active
@@ -387,8 +442,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
             onBack={() => setActiveTab('home')} 
             onRegister={(role) => {
               if (role === 'RESIDENT') {
-                setActiveTab('mypage');
-                setMyPageTab('resident');
+                setActiveTab('rider_registration');
                 window.scrollTo(0, 0);
                 return;
               }
@@ -449,13 +503,14 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
                     { id: 'profile', label: '주문/리뷰 관리', icon: '📝' },
+                    { id: 'user_profile', label: '내 정보 관리', icon: '👤' },
                     { id: 'subscription', label: '구독 관리', icon: '📅' },
                     { id: 'address', label: '배송지 관리', icon: '📍' },
                     { id: 'payment', label: '결제 수단 관리', icon: '💳' },
                     { id: 'coupon', label: '쿠폰함', icon: '🎫' },
                     { id: 'help', label: '고객지원', icon: '📞' },
-                    { id: 'resident', label: '동네 라이더 신청', icon: '🛵' }
-                  ].map(tab => (
+                    { id: 'resident', label: '주민라이더', icon: '🛵', visible: isResidentRider || verifyStep > 0 }
+                  ].filter(tab => tab.visible !== false).map(tab => (
                     <button 
                       key={tab.id}
                       onClick={() => setMyPageTab(tab.id)}
@@ -506,7 +561,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 {myPageTab === 'profile' && (
                   <OrderManagementView 
-                    orders={orders}
+                    orders={orderList}
                     onTracking={(order) => {
                       setIsTrackingOpen(true);
                     }}
@@ -514,6 +569,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                       setViewingReview(null);
                       handleOpenReviewModal(order);
                     }}
+                    onCancelOrder={handleCancelOrder}
                     onViewReview={(order) => {
                       const review = reviews.find(r => r.store === order.store) || { 
                         rate: 5, 
@@ -528,24 +584,200 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                   />
                 )}
 
+                {myPageTab === 'user_profile' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid var(--border)' }}>
+                      <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '24px' }}>내 정보 관리</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        {[
+                          { label: '이름', value: userInfo.name },
+                          { label: '이메일', value: userInfo.email },
+                          { label: '연락처', value: userInfo.phone },
+                          { label: '생년월일', value: userInfo.birth },
+                          { label: '가입일', value: userInfo.joinDate }
+                        ].map((item, i) => (
+                          <div key={i} style={{ display: 'grid', gridTemplateColumns: '120px 1fr', alignItems: 'center' }}>
+                            <label style={{ fontSize: '14px', color: '#64748b', fontWeight: '700' }}>{item.label}</label>
+                            <input 
+                              type="text" 
+                              value={item.value} 
+                              readOnly 
+                              style={{ 
+                                padding: '12px 16px', borderRadius: '10px', border: '1px solid #f1f5f9', 
+                                backgroundColor: '#f8fafc', color: '#1e293b', fontSize: '14px', fontWeight: '600',
+                                outline: 'none'
+                              }} 
+                            />
+                          </div>
+                        ))}
+                        <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '12px' }}>* 개인정보 보호를 위해 정보 수정은 고객센터를 통해 가능합니다.</p>
+                      </div>
+                    </div>
+
+                    <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #fee2e2' }}>
+                      <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#ef4444', marginBottom: '16px' }}>회원 탈퇴</h3>
+                      <p style={{ fontSize: '14px', color: '#64748b', lineHeight: '1.6', marginBottom: '24px' }}>
+                        탈퇴 시 모든 적립금, 쿠폰, 주문 내역이 삭제되며 복구가 불가능합니다.<br />
+                        신중하게 결정해 주시기 바랍니다.
+                      </p>
+
+                      {subscriptionList.some(sub => sub.status !== '해지됨') ? (
+                        <div style={{ padding: '16px', backgroundColor: '#fff7ed', borderRadius: '12px', border: '1px solid #ffedd5', color: '#9a3412', fontSize: '13px', lineHeight: '1.6', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                           <span style={{ fontSize: '20px' }}>⚠️</span>
+                           <span>현재 이용 중이거나 해지 예정인 구독 상품이 있습니다. <strong>구독 상품을 모두 해지(종료)하신 후</strong>에만 탈퇴가 가능합니다.</span>
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => {
+                            if (window.confirm('정말 동네마켓을 떠나시겠습니까? 모든 정보가 사라집니다.')) {
+                              alert('탈퇴 처리가 완료되었습니다. 그동안 이용해주셔서 감사합니다.');
+                              onLogout();
+                            }
+                          }}
+                          style={{ padding: '12px 24px', borderRadius: '10px', background: 'white', border: '1px solid #ef4444', color: '#ef4444', fontWeight: '800', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s' }}
+                          onMouseOver={e => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.color = 'white'; }}
+                          onMouseOut={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = '#ef4444'; }}
+                        >회원 탈퇴하기</button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {myPageTab === 'subscription' && (
                   <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)' }}>
-                    <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '24px' }}>나의 구독 관리</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px' }}>
-                      {subscriptions.map((sub) => (
-                        <div key={sub.id} style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                            <div style={{ fontSize: '32px' }}>{sub.img}</div>
-                            <div style={{ backgroundColor: sub.status === '이용 중' ? '#f0fdf4' : '#f1f5f9', color: sub.status === '이용 중' ? 'var(--primary)' : 'var(--text-muted)', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '700' }}>{sub.status}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                      <h3 style={{ fontSize: '18px', fontWeight: '700' }}>나의 구독 관리</h3>
+                      <div style={{ display: 'flex', gap: '8px', backgroundColor: '#f8fafc', padding: '4px', borderRadius: '10px' }}>
+                        {['전체', '구독중', '해지 예정', '해지됨'].map(f => (
+                          <button 
+                            key={f}
+                            onClick={() => setSubscriptionFilter(f)}
+                            style={{ 
+                              padding: '6px 14px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: '700',
+                              background: subscriptionFilter === f ? 'var(--primary)' : 'transparent',
+                              color: subscriptionFilter === f ? 'white' : '#64748b', cursor: 'pointer'
+                            }}
+                          >{f}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '40px' }}>
+                      {subscriptionList.filter(s => subscriptionFilter === '전체' || s.status === subscriptionFilter).map((sub) => (
+                        <div 
+                          key={sub.id} 
+                          style={{ 
+                            background: 'white', 
+                            borderRadius: '16px', 
+                            border: '1px solid var(--border)', 
+                            overflow: 'hidden', 
+                            transition: 'all 0.3s ease'
+                          }}
+                        >
+                          {/* List Item Header */}
+                          <div 
+                            onClick={() => setExpandedSubId(expandedSubId === sub.id ? null : sub.id)}
+                            style={{ 
+                              padding: '20px 24px', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'space-between', 
+                              cursor: 'pointer',
+                              backgroundColor: expandedSubId === sub.id ? '#f8fafc' : 'white'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                              <div style={{ fontSize: '24px', width: '44px', height: '44px', backgroundColor: '#f1f5f9', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {sub.img}
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: '800', fontSize: '16px', color: '#1e293b' }}>{sub.name}</div>
+                                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{sub.period} • {sub.price}</div>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <div style={{ 
+                                 backgroundColor: sub.status === '구독중' ? 'rgba(16, 185, 129, 0.1)' : sub.status === '해지 예정' ? 'rgba(245, 158, 11, 0.1)' : '#f1f5f9', 
+                                 color: sub.status === '구독중' ? 'var(--primary)' : sub.status === '해지 예정' ? '#f59e0b' : '#94a3b8', 
+                                 padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '800', whiteSpace: 'nowrap'
+                              }}>{sub.status}</div>
+                              <span style={{ 
+                                fontSize: '18px', 
+                                color: '#94a3b8', 
+                                transform: expandedSubId === sub.id ? 'rotate(180deg)' : 'rotate(0)',
+                                transition: 'transform 0.3s'
+                              }}>▾</span>
+                            </div>
                           </div>
-                          <div style={{ fontWeight: '700', fontSize: '18px', marginBottom: '8px' }}>{sub.name}</div>
-                          <div style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '20px' }}>{sub.period} | <span style={{ color: 'var(--primary)', fontWeight: '600' }}>{sub.price}</span></div>
-                          <div style={{ display: 'flex', gap: '10px' }}>
-                            <button onClick={() => showToast('구독 구성 변경 모달을 준비 중입니다.')} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'white', fontWeight: '600', cursor: 'pointer' }}>구성 변경</button>
-                            <button onClick={() => showToast('이번 주 배송을 건너뛰었습니다.')} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'white', fontWeight: '600', cursor: 'pointer' }}>건너뛰기</button>
-                          </div>
+
+                          {/* Expandable Content (Dropdown) */}
+                          {expandedSubId === sub.id && (
+                            <div style={{ padding: '0 24px 24px', borderTop: '1px solid #f1f5f9', backgroundColor: '#f8fafc', animation: 'slideDown 0.3s ease-out' }}>
+                               <div style={{ paddingTop: '20px' }}>
+                                  {/* Plan Detail Summary */}
+                                  <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: '20px' }}>
+                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                                        <span style={{ fontSize: '14px', fontWeight: '800', color: '#1e293b' }}>구독 상품 구성</span>
+                                        <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--primary)', backgroundColor: 'rgba(46, 204, 113, 0.1)', padding: '2px 8px', borderRadius: '4px' }}>월 {sub.monthlyCount} 배송</span>
+                                     </div>
+                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                        {sub.includedItems?.map((item, idx) => (
+                                           <span key={idx} style={{ 
+                                              fontSize: '12px', padding: '6px 12px', backgroundColor: '#f1f5f9', color: '#475569', borderRadius: '8px', border: '1px solid #e2e8f0' 
+                                           }}>{item}</span>
+                                        ))}
+                                     </div>
+                                  </div>
+
+                                  {sub.status === '구독중' ? (
+                                    <>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '16px', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                         <span style={{ fontSize: '13px', color: '#64748b' }}>다음 결제 예정일</span>
+                                         <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--primary)' }}>{sub.nextPayment}</span>
+                                      </div>
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); handleCancelSubscription(sub.id); }}
+                                        style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #fee2e2', background: 'white', color: '#ef4444', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}
+                                      >구독 해지하기</button>
+                                    </>
+                                  ) : sub.status === '해지 예정' ? (
+                                    <div style={{ padding: '16px', backgroundColor: '#fff7ed', borderRadius: '12px', border: '1px solid #ffedd5', color: '#9a3412', fontSize: '13px', lineHeight: '1.6' }}>
+                                       이미 해지 신청이 완료된 상품입니다. 남은 구독 기간까지는 혜택이 유지되며, 이후 자동으로 종료됩니다.
+                                    </div>
+                                  ) : (
+                                    <div style={{ padding: '16px', backgroundColor: '#f1f5f9', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '13px', textAlign: 'center' }}>
+                                       해지된 구독 상품입니다. 다시 이용하시려면 상점에서 신청해 주세요.
+                                    </div>
+                                  )}
+                               </div>
+                            </div>
+                          )}
                         </div>
                       ))}
+                      <style>{`
+                        @keyframes slideDown {
+                          from { opacity: 0; transform: translateY(-10px); }
+                          to { opacity: 1; transform: translateY(0); }
+                        }
+                      `}</style>
+                    </div>
+
+                    <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '32px' }}>
+                       <h4 style={{ fontSize: '16px', fontWeight: '800', marginBottom: '20px' }}>구독 결제 내역</h4>
+                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          {subscriptionPayments.map(p => (
+                             <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
+                                <div>
+                                   <div style={{ fontSize: '14px', fontWeight: '700', marginBottom: '2px' }}>{p.name}</div>
+                                   <div style={{ fontSize: '12px', color: '#94a3b8' }}>{p.date} • {p.id}</div>
+                                </div>
+                                <div style={{ textAlign: 'right' }}>
+                                   <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--primary)' }}>{p.amount}</div>
+                                   <div style={{ fontSize: '11px', color: '#10b981', fontWeight: '600' }}>{p.status}</div>
+                                </div>
+                             </div>
+                          ))}
+                       </div>
                     </div>
                   </div>
                 )}
@@ -655,13 +887,20 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                               readOnly
                               style={{ flexGrow: 1, padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc', color: '#64748b' }}
                             />
-                            <button 
-                              onClick={() => {
-                                setNewAddress({ ...newAddress, address: '서울시 강남구 테헤란로 123 (역삼동)' }); // Mock address search
-                                showToast('주소가 검색되었습니다.');
-                              }}
-                              style={{ padding: '0 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontWeight: '600', cursor: 'pointer', fontSize: '13px' }}
-                            >검색</button>
+                              <button 
+                                onClick={() => {
+                                  setNewAddress({ ...newAddress, address: '서울시 강남구 테헤란로 123 (역삼동)' }); // Mock address search
+                                  showToast('주소가 검색되었습니다.');
+                                }}
+                                style={{ padding: '0 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontWeight: '600', cursor: 'pointer', fontSize: '13px' }}
+                              >검색</button>
+                              <button 
+                                onClick={() => {
+                                  setNewAddress({ ...newAddress, address: '현 위치 인증 주소 (서초동 123)' });
+                                  showToast('현 위치 인증이 완료되었습니다.');
+                                }}
+                                style={{ padding: '0 16px', borderRadius: '8px', border: '1px solid var(--primary)', background: 'rgba(46, 204, 113, 0.05)', color: 'var(--primary)', fontWeight: '700', cursor: 'pointer', fontSize: '13px', whiteSpace: 'nowrap' }}
+                              >위치 인증</button>
                           </div>
                           <input 
                             type="text" 
@@ -796,21 +1035,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                                                기본 설정
                                            </button>
                                        )}
-                                       <button 
-                                          onClick={() => handleOpenPaymentModal(pm)}
-                                          style={{ 
-                                              backgroundColor: 'rgba(255, 255, 255, 0.2)', 
-                                              color: 'white', 
-                                              border: '1px solid rgba(255,255,255,0.4)',
-                                              padding: '6px 12px', 
-                                              borderRadius: '20px', 
-                                              fontSize: '11px', 
-                                              fontWeight: '600',
-                                              cursor: 'pointer'
-                                          }}
-                                       >
-                                           수정
-                                       </button>
+                                       
                                        <button 
                                           onClick={() => handleDeletePaymentMethod(pm.id)}
                                           style={{ 
@@ -920,23 +1145,22 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
 
                       <p style={{ marginTop: '24px', color: '#94a3b8', fontSize: '14px', textAlign: 'center' }}>
                         카드를 스와이프하여 관리할 수 있습니다.<br />
-                        <span style={{ fontSize: '12px', color: '#cbd5e1' }}>(상세 수정을 위해 수정 버튼을 누르세요)</span>
+                        <span style={{ fontSize: '12px', color: '#cbd5e1' }}>(결제 수단은 삭제 후 재등록만 가능합니다)</span>
                       </p>
                     </div>
                   </div>
                 )}
-
                 {myPageTab === 'help' && (
                   <SupportView userRole={userRole} isLoggedIn={isLoggedIn} onOpenAuth={onOpenAuth} isEmbedded={true} />
                 )}
 
-                {myPageTab === 'resident' && (
+                 {myPageTab === 'resident' && (
                   <div style={{ background: 'white', padding: '40px', borderRadius: '24px', border: '1px solid var(--border)', textAlign: 'center' }}>
                     {isResidentRider ? (
                       <div>
                         <div style={{ fontSize: '64px', marginBottom: '24px' }}>🎉</div>
-                        <h3 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '16px' }}>이미 동네 라이더이시군요!</h3>
-                        <p style={{ color: '#64748b', marginBottom: '32px' }}>지금 바로 동네 마켓의 라이더가 되어 배달을 시작해보세요.</p>
+                        <h3 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '16px' }}>주민라이더 파트너님, 환영합니다!</h3>
+                        <p style={{ color: '#64748b', marginBottom: '32px' }}>지금 바로 동네 마켓의 라이더가 되어 이웃에게 배달을 시작해보세요.</p>
                         <button 
                           onClick={() => setUserRole('RIDER')}
                           style={{ padding: '16px 32px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
@@ -947,7 +1171,8 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                         {verifyStep === 0 && (
                           <div>
                             <div style={{ fontSize: '64px', marginBottom: '24px' }}>🏘️</div>
-                            <h3 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '16px' }}>우리 동네 라이더가 되어보세요</h3>
+                            <h2 style={{ fontSize: '16px', color: 'var(--primary)', fontWeight: '800', marginBottom: '12px' }}>파트너 모집</h2>
+                            <h3 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '16px' }}>주민라이더 신청</h3>
                             <p style={{ color: '#64748b', lineHeight: '1.6', marginBottom: '32px' }}>
                               근거리 배달로 이웃에게 따뜻함을 전달하고 소소한 수익도 얻어보세요.<br/>
                               오토바이가 없어도 도보나 자전거로 충분히 가능합니다!
@@ -1087,8 +1312,42 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
               <div id="store-grid-section" style={{ margin: '40px 0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                   <h2 style={{ fontSize: '24px', fontWeight: '800', margin: 0 }}>오늘의 추천 상점</h2>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    {['거리순', '평점순', '배달비순'].map(sort => (
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <input 
+                        type="text" 
+                        placeholder="상점명 검색"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        style={{
+                          padding: '7px 16px',
+                          paddingLeft: '34px',
+                          borderRadius: '20px',
+                          border: '1px solid var(--border)',
+                          fontSize: '13px',
+                          width: '160px',
+                          outline: 'none',
+                          backgroundColor: 'white',
+                          transition: 'all 0.2s'
+                        }}
+                        onFocus={(e) => e.target.style.borderColor = 'var(--primary)'}
+                        onBlur={(e) => e.target.style.borderColor = 'var(--border)'}
+                      />
+                      <span style={{ position: 'absolute', left: '12px', color: '#94a3b8', fontSize: '14px' }}>🔍</span>
+                    </div>
+                    <button 
+                      onClick={() => setIsLocationModalOpen(true)}
+                      style={{ 
+                        display: 'flex', alignItems: 'center', gap: '4px',
+                        padding: '6px 12px', borderRadius: '20px', border: '2px solid var(--primary)', 
+                        background: 'rgba(46, 204, 113, 0.05)', color: 'var(--primary)', 
+                        fontSize: '13px', fontWeight: '800', cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        whiteSpace: 'nowrap'
+                      }}>
+                      📍 {currentLocation}
+                    </button>
+                    {['주문 많은 순', '거리순', '평점순', '배달비순'].map(sort => (
                       <button 
                         key={sort} 
                         onClick={() => showToast(`${sort}으로 정렬되었습니다.`)}
@@ -1153,6 +1412,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
         cartCount={cartItems.length}
         notificationCount={notificationCount}
         isResidentRider={isResidentRider}
+        currentLocation={currentLocation}
         onLocationClick={() => setIsLocationModalOpen(true)}
       />
       
@@ -1168,6 +1428,13 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                 window.scrollTo(0, 0);
               }}
               onAddToCart={onAddToCart}
+              onSubscribeCheckout={(subProduct) => {
+                // Subscription directly goes to checkout
+                setSelectedStore(null);
+                setCartItems([{ ...subProduct, quantity: 1, storeName: selectedStore.name, isSubscription: true }]);
+                setActiveTab('checkout');
+                window.scrollTo(0, 0);
+              }}
             />
           </div>
         ) : (
@@ -1201,13 +1468,23 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                        {['매우 아쉬워요', '아쉬워요', '보통이에요', '만족해요', '최고예요'][viewingReview.rate - 1]}
                     </div>
                  </div>
-                 <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', fontSize: '15px', color: '#334155', lineHeight: '1.6', marginBottom: '24px' }}>
+                  <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', fontSize: '15px', color: '#334155', lineHeight: '1.6', marginBottom: '32px' }}>
                     {viewingReview.content}
-                 </div>
-                 <button 
-                  onClick={() => setIsReviewModalOpen(false)}
-                  style={{ width: '100%', padding: '14px', borderRadius: '12px', background: '#f1f5f9', border: 'none', fontWeight: '700', cursor: 'pointer', color: '#64748b' }}
-                >닫기</button>
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                     <button 
+                       onClick={handleEditReview}
+                       style={{ flex: 1, padding: '14px', borderRadius: '12px', background: 'white', border: '1px solid #e2e8f0', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}
+                     >리뷰 수정</button>
+                     <button 
+                       onClick={handleDeleteReview}
+                       style={{ flex: 1, padding: '14px', borderRadius: '12px', background: 'white', border: '1px solid #fee2e2', color: '#ef4444', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}
+                     >삭제하기</button>
+                  </div>
+                  <button 
+                    onClick={() => { setIsReviewModalOpen(false); setViewingReview(null); }}
+                    style={{ width: '100%', marginTop: '16px', padding: '14px', background: 'transparent', border: 'none', color: '#94a3b8', fontWeight: '700', cursor: 'pointer' }}
+                  >닫기</button>
                </>
             ) : (
                // Write View
@@ -1334,10 +1611,77 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
       <LocationModal 
         isOpen={isLocationModalOpen}
         onClose={() => setIsLocationModalOpen(false)}
-        currentLocation="역삼동 123-45"
-        onSetLocation={(loc) => showToast(`주소가 '${loc}'으로 설정되었습니다.`)}
+        currentLocation={currentLocation}
+        onSetLocation={(loc) => {
+          setCurrentLocation(loc);
+          showToast(`주소가 '${loc}'으로 설정되었습니다.`);
+        }}
       />
 
+      <PaymentSuccessModal 
+        isOpen={isSuccessModalOpen}
+        onClose={() => {
+          setIsSuccessModalOpen(false);
+          clearCart();
+          setActiveTab('home');
+        }}
+        onViewOrder={() => {
+          setIsSuccessModalOpen(false);
+          clearCart();
+          setActiveTab('mypage');
+          setMyPageTab('profile');
+        }}
+      />
+
+    </div>
+  );
+};
+
+const PaymentSuccessModal = ({ isOpen, onClose, onViewOrder }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 3000, backdropFilter: 'blur(8px)', animation: 'fadeIn 0.3s ease-out'
+    }} onClick={onClose}>
+      <div style={{
+        background: 'white', width: '90%', maxWidth: '400px', borderRadius: '32px',
+        padding: '40px', textAlign: 'center', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+        position: 'relative', animation: 'slideUp 0.3s ease-out'
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{
+          width: '80px', height: '80px', borderRadius: '50%', background: '#f0fdf4',
+          margin: '0 auto 24px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '40px'
+        }}>🎉</div>
+        
+        <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '12px', color: '#1e293b' }}>결제가 완료되었습니다!</h2>
+        <p style={{ color: '#64748b', lineHeight: '1.6', marginBottom: '32px' }}>
+          주문하신 상품이 곧 준비될 예정입니다.<br />
+          잠시만 기다려주세요!
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <button 
+            onClick={onViewOrder}
+            style={{ 
+              padding: '16px', borderRadius: '16px', background: 'var(--primary)', 
+              color: 'white', border: 'none', fontWeight: '800', fontSize: '16px', 
+              cursor: 'pointer', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)' 
+            }}
+          >주문서 확인하기</button>
+          <button 
+            onClick={onClose}
+            style={{ 
+              padding: '16px', borderRadius: '16px', background: '#f1f5f9', 
+              color: '#475569', border: 'none', fontWeight: '800', fontSize: '16px', 
+              cursor: 'pointer' 
+            }}
+          >홈으로 이동</button>
+        </div>
+      </div>
     </div>
   );
 };

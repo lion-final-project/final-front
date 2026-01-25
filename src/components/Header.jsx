@@ -12,7 +12,8 @@ const Header = ({
   onOpenNotifications,
   isResidentRider,
   onLogout,
-  onLocationClick
+  onLocationClick,
+  currentLocation
 }) => {
   return (
     <header className="header-glass" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -42,31 +43,8 @@ const Header = ({
               }}>HOT</span>
             </a>
           </nav>
-          <div className="location-selector" onClick={onLocationClick} style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '6px', 
-            padding: '8px 12px', 
-            backgroundColor: '#f1f5f9', 
-            borderRadius: '12px',
-            fontSize: '14px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            marginLeft: '20px'
-          }}>
-            📍 역삼동 123-45
-          </div>
         </div>
         <div className="header-right">
-          <div className="search-wrapper">
-            <input 
-              type="text" 
-              placeholder="식품 검색" 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="search-input"
-            />
-          </div>
           <div className="header-icons">
             {/* Notifications */}
             <div style={{ position: 'relative', cursor: 'pointer' }} onClick={onOpenNotifications}>
@@ -210,21 +188,6 @@ const Header = ({
           justify-content: flex-end;
           min-width: 0;
         }
-        .search-wrapper {
-          position: relative;
-          max-width: 300px;
-          min-width: 150px;
-          width: 100%;
-          flex-shrink: 1;
-        }
-        .search-input {
-          width: 100%;
-          padding: 10px 16px;
-          border-radius: 20px;
-          border: 1px solid var(--border);
-          background: #f1f5f9;
-          font-size: 14px;
-        }
         .header-icons {
           display: flex;
           gap: 16px;
@@ -252,9 +215,6 @@ const Header = ({
           .header-right {
             width: 100%;
             justify-content: center;
-          }
-          .search-wrapper {
-            max-width: 100%;
           }
           .header-glass {
             padding: 8px 0;
