@@ -13,6 +13,7 @@ const StoreDashboard = () => {
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [selectedSettlementPeriod, setSelectedSettlementPeriod] = useState('2026년 1월');
   const [isPeriodSelectorOpen, setIsPeriodSelectorOpen] = useState(false);
+  const [stockAdjustValues, setStockAdjustValues] = useState({});
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -245,6 +246,34 @@ const StoreDashboard = () => {
     ));
   };
 
+  const handleStockAdjust = (id, amount) => {
+    setProducts(prev => prev.map(p => {
+      if (p.id === id) {
+        const newStock = Math.max(0, p.stock + amount);
+        // Add to history
+        const historyItem = {
+          id: Date.now(),
+          productId: id,
+          productName: p.name,
+          type: amount > 0 ? '입고' : '출고',
+          amount: Math.abs(amount),
+          date: new Date().toLocaleString(),
+          remaining: newStock
+        };
+        setInventoryHistory(prevH => [historyItem, ...prevH].slice(0, 50));
+        return { ...p, stock: newStock, isSoldOut: newStock === 0 ? true : p.isSoldOut };
+      }
+      return p;
+    }));
+  };
+
+  const [inventoryHistory, setInventoryHistory] = useState([
+    { id: 101, productId: 1, productName: '대추토마토 500g', type: '입고', amount: 20, date: '2026.01.23 09:00', remaining: 35 },
+    { id: 102, productId: 2, productName: '유기농 우유 1L', type: '출고', amount: 5, date: '2026.01.23 10:30', remaining: 3 },
+    { id: 103, productId: 3, productName: '신선란 10구', type: '입고', amount: 50, date: '2026.01.23 11:00', remaining: 70 },
+    { id: 104, productId: 4, productName: '꿀사과 3입', type: '출고', amount: 10, date: '2026.01.23 13:15', remaining: 5 }
+  ]);
+
   // Auto-transition logic
   useEffect(() => {
     const activeTimers = orders
@@ -348,7 +377,10 @@ const StoreDashboard = () => {
     price: '',
     stock: '',
     category: '채소',
-    img: '📦'
+    origin: '',
+    description: '',
+    discountRate: 0,
+    img: ''
   });
 
   const handleOpenProductModal = (product = null) => {
@@ -362,7 +394,10 @@ const StoreDashboard = () => {
         price: '',
         stock: '',
         category: '채소',
-        img: '📦',
+        origin: '',
+        description: '',
+        discountRate: 0,
+        img: '',
         imageFile: null,
         imagePreview: null
       });
@@ -791,10 +826,10 @@ const StoreDashboard = () => {
                     overflow: 'hidden',
                     backgroundColor: '#f8fafc'
                   }}>
-                    {product.img && product.img.startsWith('data:image') || product.img.startsWith('http') ? (
+                    {product.img && (product.img.startsWith('data:image') || product.img.startsWith('http')) ? (
                       <img src={product.img} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (
-                      <span style={{ fontSize: '48px' }}>{product.img}</span>
+                      <span style={{ fontSize: '32px', color: '#cbd5e1' }}>📦</span>
                     )}
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>{product.category}</div>
@@ -850,6 +885,177 @@ const StoreDashboard = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        );
+      case 'inventory':
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+            {/* Inventory Overview */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
+              {[
+                { label: '전체 상품 수', value: `${products.length}종`, icon: '📦', color: '#1e293b' },
+                { label: '품절 상품', value: `${products.filter(p => p.isSoldOut).length}종`, icon: '🚫', color: '#ef4444' },
+                { label: '재고 부족', value: `${products.filter(p => !p.isSoldOut && (p.stock / p.capacity) * 100 < lowStockThreshold).length}종`, icon: '⚠️', color: '#f59e0b' },
+                { label: '당일 입고/출고', value: `${inventoryHistory.filter(h => h.date.includes('2026.01.23')).length}건`, icon: '🔄', color: '#3b82f6' },
+              ].map((stat, i) => (
+                <div key={i} style={{ background: 'white', padding: '24px', borderRadius: '20px', border: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '20px' }}>
+                  <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>{stat.icon}</div>
+                  <div>
+                    <div style={{ fontSize: '13px', color: '#64748b', fontWeight: '600', marginBottom: '4px' }}>{stat.label}</div>
+                    <div style={{ fontSize: '20px', fontWeight: '800', color: stat.color }}>{stat.value}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '32px' }}>
+              {/* Stock Management Table */}
+              <div style={{ background: 'white', padding: '32px', borderRadius: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                  <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0 }}>재고 조정 및 현황</h2>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <input type="text" placeholder="상품명 검색..." style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '14px' }} />
+                  </div>
+                </div>
+                <div className="table-responsive">
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ textAlign: 'left', borderBottom: '2px solid #f1f5f9', color: '#64748b', fontSize: '13px' }}>
+                        <th style={{ padding: '12px' }}>상품</th>
+                        <th style={{ padding: '12px' }}>현재고</th>
+                        <th style={{ padding: '12px' }}>재고율</th>
+                        <th style={{ padding: '12px' }}>수량 조정</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {products.map(product => {
+                        const stockRatio = (product.stock / product.capacity) * 100;
+                        const isLow = stockRatio < lowStockThreshold;
+                        return (
+                          <tr key={product.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '12px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <span style={{ fontSize: '24px' }}>{product.img}</span>
+                                <div style={{ fontWeight: '700' }}>{product.name}</div>
+                              </div>
+                            </td>
+                            <td style={{ padding: '12px' }}>
+                              <span style={{ fontWeight: '800', color: isLow ? '#ef4444' : '#1e293b' }}>{product.stock}개</span>
+                              <span style={{ color: '#94a3b8', fontSize: '12px' }}> / {product.capacity}</span>
+                            </td>
+                            <td style={{ padding: '12px' }}>
+                              <div style={{ width: '100px', height: '6px', backgroundColor: '#f1f5f9', borderRadius: '3px', overflow: 'hidden', marginTop: '4px' }}>
+                                <div style={{ width: `${Math.min(100, stockRatio)}%`, height: '100%', backgroundColor: isLow ? '#ef4444' : '#10b981' }}></div>
+                              </div>
+                            </td>
+                            <td style={{ padding: '12px' }}>
+                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                <input 
+                                  type="number" 
+                                  min="1"
+                                  value={stockAdjustValues[product.id] || ''}
+                                  onChange={(e) => setStockAdjustValues({ ...stockAdjustValues, [product.id]: e.target.value })}
+                                  placeholder="수량"
+                                  style={{ 
+                                    width: '60px', 
+                                    padding: '6px 8px', 
+                                    borderRadius: '6px', 
+                                    border: '1px solid #e2e8f0', 
+                                    fontSize: '13px',
+                                    outline: 'none'
+                                  }}
+                                />
+                                <button 
+                                  onClick={() => {
+                                    const amount = parseInt(stockAdjustValues[product.id]);
+                                    if (isNaN(amount) || amount <= 0) {
+                                      alert('올바른 수량을 입력해주세요.');
+                                      return;
+                                    }
+                                    handleStockAdjust(product.id, amount);
+                                    setStockAdjustValues({ ...stockAdjustValues, [product.id]: '' });
+                                  }}
+                                  style={{ 
+                                    padding: '6px 16px', 
+                                    borderRadius: '8px', 
+                                    background: 'var(--primary)', 
+                                    color: 'white', 
+                                    border: 'none', 
+                                    fontWeight: '700', 
+                                    fontSize: '13px',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                  }}
+                                >입고</button>
+                                <button 
+                                  onClick={() => {
+                                    const amount = parseInt(stockAdjustValues[product.id]);
+                                    if (isNaN(amount) || amount <= 0) {
+                                      alert('올바른 수량을 입력해주세요.');
+                                      return;
+                                    }
+                                    if (amount > product.stock) {
+                                      alert('현재고보다 많은 수량을 출고할 수 없습니다.');
+                                      return;
+                                    }
+                                    handleStockAdjust(product.id, -amount);
+                                    setStockAdjustValues({ ...stockAdjustValues, [product.id]: '' });
+                                  }}
+                                  style={{ 
+                                    padding: '6px 12px', 
+                                    borderRadius: '8px', 
+                                    background: 'white', 
+                                    color: '#64748b', 
+                                    border: '1px solid #e2e8f0', 
+                                    fontWeight: '700', 
+                                    fontSize: '13px',
+                                    cursor: 'pointer'
+                                  }}
+                                >출고</button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Inventory History */}
+              <div style={{ background: 'white', padding: '32px', borderRadius: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                <h2 style={{ fontSize: '20px', fontWeight: '800', margin: '0 0 24px 0' }}>최근 입출고 내역</h2>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '500px', overflowY: 'auto', paddingRight: '8px' }}>
+                  {inventoryHistory.length > 0 ? inventoryHistory.map(item => (
+                    <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '16px', borderBottom: '1px solid #f8fafc' }}>
+                      <div style={{ display: 'flex', gap: '12px' }}>
+                        <div style={{ 
+                          width: '36px', height: '36px', borderRadius: '10px', 
+                          backgroundColor: item.type === '입고' ? '#ecfdf5' : '#fff1f2',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          color: item.type === '입고' ? '#10b981' : '#ef4444',
+                          fontSize: '18px'
+                        }}>
+                          {item.type === '입고' ? '📥' : '📤'}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '14px', fontWeight: '700' }}>{item.productName}</div>
+                          <div style={{ fontSize: '12px', color: '#94a3b8' }}>{item.date}</div>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '14px', fontWeight: '800', color: item.type === '입고' ? '#10b981' : '#ef4444' }}>
+                          {item.type === '입고' ? '+' : '-'}{item.amount}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>잔고: {item.remaining}개</div>
+                      </div>
+                    </div>
+                  )) : (
+                    <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px' }}>내역이 없습니다.</div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         );
@@ -1198,7 +1404,7 @@ const StoreDashboard = () => {
               <div style={{ background: 'white', padding: '24px', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                   <h2 style={{ fontSize: '18px', fontWeight: '800', margin: 0 }}>재고 부족 알림</h2>
-                  <button onClick={() => setActiveTab('products')} style={{ color: '#ef4444', border: 'none', background: 'transparent', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>관리</button>
+                  <button onClick={() => setActiveTab('inventory')} style={{ color: '#ef4444', border: 'none', background: 'transparent', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>관리</button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   {products.filter(p => (p.stock / p.capacity) * 100 < lowStockThreshold).map((product) => (
@@ -1235,7 +1441,7 @@ const StoreDashboard = () => {
                     </div>
                   ))}
                   <button 
-                    onClick={() => setActiveTab('products')}
+                    onClick={() => setActiveTab('inventory')}
                     style={{ marginTop: '10px', padding: '12px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: '700', color: '#475569', cursor: 'pointer' }}>전체 상품 현황 보기</button>
                 </div>
               </div>
@@ -1270,6 +1476,7 @@ const StoreDashboard = () => {
           { id: 'dashboard', label: '대시보드', icon: '🏠' },
           { id: 'orders', label: '주문 관리', icon: '📦' },
           { id: 'products', label: '상품 관리', icon: '🍎' },
+          { id: 'inventory', label: '재고 관리', icon: '📊' },
           { id: 'subscriptions', label: '구독 관리', icon: '💎' },
           { id: 'settlements', label: '매출 및 정산', icon: '📈' },
           { id: 'settings', label: '운영 설정', icon: '⚙️' }
@@ -1507,7 +1714,6 @@ const StoreDashboard = () => {
                     <img src={productForm.imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
                     <>
-                      <span style={{ fontSize: '32px', marginBottom: '8px' }}>📸</span>
                       <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '600' }}>이미지 업로드 (클릭)</span>
                     </>
                   )}
@@ -1553,7 +1759,19 @@ const StoreDashboard = () => {
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>초기 재고</label>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>할인율 (%)</label>
+                  <input 
+                    type="number" 
+                    value={productForm.discountRate}
+                    onChange={e => setProductForm({...productForm, discountRate: parseInt(e.target.value) || 0})}
+                    placeholder="0"
+                    style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1' }} 
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>재고</label>
                   <input 
                     required
                     type="number" 
@@ -1562,8 +1780,6 @@ const StoreDashboard = () => {
                     style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1' }} 
                   />
                 </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
                   <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>카테고리</label>
                   <select 
@@ -1576,15 +1792,27 @@ const StoreDashboard = () => {
                     ))}
                   </select>
                 </div>
-                <div>
-                   <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>대표 이모지</label>
-                   <input 
-                     type="text" 
-                     value={productForm.img}
-                     onChange={e => setProductForm({...productForm, img: e.target.value})}
-                     style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1', textAlign: 'center', fontSize: '20px' }} 
-                   />
-                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>원산지</label>
+                <input 
+                  required
+                  type="text" 
+                  value={productForm.origin}
+                  onChange={e => setProductForm({...productForm, origin: e.target.value})}
+                  placeholder="예: 국내산, 칠레산 등"
+                  style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1' }} 
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>상품 설명</label>
+                <textarea 
+                  required
+                  value={productForm.description}
+                  onChange={e => setProductForm({...productForm, description: e.target.value})}
+                  placeholder="상품에 대한 상세 정보를 입력해주세요."
+                  style={{ width: '100%', height: '100px', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1', resize: 'none' }} 
+                />
               </div>
               <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
                 <button 
@@ -1622,7 +1850,6 @@ const StoreDashboard = () => {
                     <img src={subscriptionForm.imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
                     <>
-                      <span style={{ fontSize: '32px', marginBottom: '8px' }}>📸</span>
                       <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '600' }}>이미지 업로드 (클릭)</span>
                     </>
                   )}

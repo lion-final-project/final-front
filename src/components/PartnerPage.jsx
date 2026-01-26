@@ -1,6 +1,14 @@
 import React from 'react';
 
-const PartnerPage = ({ onBack, onRegister }) => {
+const PartnerPage = ({ onBack, onRegister, isLoggedIn, onOpenAuth }) => {
+  const handleRegister = (type) => {
+    if (!isLoggedIn) {
+      if (onOpenAuth) onOpenAuth();
+      return;
+    }
+    onRegister?.(type);
+  };
+
   return (
     <div className="partner-page" style={{ padding: '60px 0', minHeight: '100vh', backgroundColor: '#f8fafc' }}>
       <div className="container" style={{ maxWidth: '1000px', margin: '0 auto' }}>
@@ -56,7 +64,7 @@ const PartnerPage = ({ onBack, onRegister }) => {
               ))}
             </ul>
             <button 
-              onClick={() => onRegister?.('STORE_APPLICATION')}
+              onClick={() => handleRegister('STORE_APPLICATION')}
               style={{ width: '100%', padding: '16px', borderRadius: '12px', backgroundColor: 'var(--primary)', color: 'white', border: 'none', fontWeight: '800', fontSize: '14px', cursor: 'pointer' }}
             >
               상점 입점 신청하기
@@ -80,7 +88,7 @@ const PartnerPage = ({ onBack, onRegister }) => {
               ))}
             </ul>
             <button 
-              onClick={() => onRegister?.('RESIDENT')}
+              onClick={() => handleRegister('RESIDENT')}
               style={{ width: '100%', padding: '16px', borderRadius: '12px', backgroundColor: '#38bdf8', color: 'white', border: 'none', fontWeight: '800', fontSize: '14px', cursor: 'pointer' }}
             >
               주민 라이더 시작하기

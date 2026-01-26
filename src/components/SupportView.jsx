@@ -124,7 +124,7 @@ const SupportView = ({ isLoggedIn, onOpenAuth, isEmbedded = false }) => {
               </div>
               <div style={{ marginBottom: '24px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>내용</label>
-                <textarea rows="6" placeholder="자세한 문의 내용을 입력해 주세요" style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid var(--border)', resize: 'none' }}></textarea>
+                <textarea rows="6" placeholder="자세한 문의 내용을 입력해 주세요. (비속어, 타인 비방 등 부적절한 언어 사용 시 서비스 이용에 제재를 받을 수 있습니다.)" style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid var(--border)', resize: 'none' }}></textarea>
               </div>
               <div style={{ marginBottom: '24px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>첨부 파일</label>

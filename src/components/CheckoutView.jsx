@@ -92,6 +92,7 @@ const CheckoutView = ({ cartItems, onComplete }) => {
   const [selectedAddress, setSelectedAddress] = useState(addresses.find(a => a.isDefault) || addresses[0]);
   const [selectedPayment, setSelectedPayment] = useState(paymentMethods.find(p => p.isDefault) || paymentMethods[0]);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [deliveryTime, setDeliveryTime] = useState('8~11시 사이');
   const [deliveryRequest, setDeliveryRequest] = useState('');
   const [customRequest, setCustomRequest] = useState(false);
   const [requestInput, setRequestInput] = useState('');
@@ -121,10 +122,18 @@ const CheckoutView = ({ cartItems, onComplete }) => {
 
   const handlePayment = () => {
     setIsProcessing(true);
-    // Simulate payment process
+    // Simulate payment process (80% success rate)
     setTimeout(() => {
       setIsProcessing(false);
-      onComplete();
+      const isSuccess = Math.random() > 0.2;
+      if (isSuccess) {
+        alert('결제가 성공적으로 실시간 완료되었습니다! 장바구니가 비워집니다.');
+        onComplete(true);
+      } else {
+        if (window.confirm('결제에 실패하였습니다. 장바구니에 담긴 상품을 유지하시겠습니까?\n(취소 시 장바구니를 다시 구성하실 수 있습니다)')) {
+          onComplete(false); // Signal failure but keep items or handle as needed
+        }
+      }
     }, 1500);
   };
 
@@ -138,12 +147,6 @@ const CheckoutView = ({ cartItems, onComplete }) => {
           <section style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
               <h3 style={{ fontSize: '18px', fontWeight: '700' }}>배송지 정보</h3>
-              <button 
-                onClick={() => setIsAddressModalOpen(true)}
-                style={{ border: 'none', background: 'transparent', color: 'var(--primary)', fontWeight: '700', cursor: 'pointer' }}
-              >
-                변경
-              </button>
             </div>
             <div style={{ padding: '16px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
@@ -154,6 +157,32 @@ const CheckoutView = ({ cartItems, onComplete }) => {
               </div>
               <div style={{ fontSize: '15px', color: '#1e293b', marginBottom: '4px' }}>{selectedAddress.address}</div>
               <div style={{ fontSize: '14px', color: '#64748b' }}>{selectedAddress.detail}</div>
+            </div>
+
+            {/* Delivery Time Selection */}
+            <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#f0fdf4', borderRadius: '12px', border: '1px solid #dcfce7' }}>
+              <label style={{ display: 'block', fontSize: '14px', fontWeight: '800', marginBottom: '8px', color: '#166534' }}>🚚 배송 희망 시간</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+                {['8~11시 사이', '11~14시 사이', '14~17시 사이', '17~20시 사이'].map(slot => (
+                  <button
+                    key={slot}
+                    onClick={() => setDeliveryTime(slot)}
+                    style={{
+                      padding: '10px',
+                      borderRadius: '8px',
+                      border: `2px solid ${deliveryTime === slot ? 'var(--primary)' : '#e2e8f0'}`,
+                      backgroundColor: deliveryTime === slot ? 'white' : 'white',
+                      color: deliveryTime === slot ? 'var(--primary)' : '#64748b',
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {slot}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Delivery Request Box */}
@@ -207,14 +236,34 @@ const CheckoutView = ({ cartItems, onComplete }) => {
             currentAddressId={selectedAddress.id}
           />
 
-          {/* Order Summary Section */}
+          {/* Order Summary Section - Grouped by Store */}
           <section style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '16px' }}>주문 상품</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {cartItems.map(item => (
-                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-                  <span style={{ color: '#475569' }}>{item.name} x {item.quantity}</span>
-                  <span style={{ fontWeight: '600' }}>{(item.price * item.quantity).toLocaleString()}원</span>
+            <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '16px' }}>주문 예상 상품</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {Object.entries(cartItems.reduce((acc, item) => {
+                const store = item.storeName || '우리 동네 마트';
+                if (!acc[store]) acc[store] = [];
+                acc[store].push(item);
+                return acc;
+              }, {})).map(([storeName, items]) => (
+                <div key={storeName} style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
+                  <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--primary)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    🏪 {storeName}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {items.map(item => (
+                      <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                        <span style={{ color: '#475569' }}>{item.name} x {item.quantity}</span>
+                        <span style={{ fontWeight: '600' }}>{(item.price * item.quantity).toLocaleString()}원</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '12px', color: '#94a3b8' }}>배송료 3,000원 대기</span>
+                    <span style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>
+                      소계: {(items.reduce((s, i) => s + i.price * i.quantity, 0) + 3000).toLocaleString()}원
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>

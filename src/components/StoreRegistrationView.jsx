@@ -3,14 +3,26 @@ import React, { useState } from 'react';
 const StoreRegistrationView = ({ onBack, status, setStatus }) => {
   const [formData, setFormData] = useState({
     category: '',
-    products: '',
-    businessName: '',
-    businessNumber: '',
+    companyName: '', // 사업자명
+    storeName: '',   // 상호명
+    repName: '',     // 대표자명
+    contact: '',     // 연락처
+    businessNumber: '', // 사업자등록증 번호
+    mailOrderNumber: '', // 통신 판매업 신고번호
+    bankName: '',
+    accountNumber: '',
+    accountHolder: '',
     offDays: [],
     weekdayHours: { open: '09:00', close: '22:00' },
     weekendHours: { open: '10:00', close: '21:00' },
     weekdayLastOrder: '21:30',
     weekendLastOrder: '20:30'
+  });
+
+  const [files, setFiles] = useState({
+    businessRegistration: null,
+    bankbook: null,
+    mailOrderCertificate: null
   });
 
   const toggleOffDay = (day) => {
@@ -22,12 +34,34 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
     }));
   };
 
+  const handleFileChange = (e, field) => {
+    if (e.target.files && e.target.files[0]) {
+      setFiles({ ...files, [field]: e.target.files[0] });
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formData.category || !formData.businessName || !formData.businessNumber) {
-      alert('필수 항목을 모두 입력해주세요.');
+    
+    // Check if all text fields are filled
+    const requiredFields = [
+      'category', 'companyName', 'storeName', 'repName', 'contact', 
+      'businessNumber', 'mailOrderNumber', 'bankName', 'accountNumber', 'accountHolder'
+    ];
+    
+    for (const field of requiredFields) {
+      if (!formData[field]) {
+        alert('모든 필수 텍스트 항목을 입력해주세요.');
+        return;
+      }
+    }
+
+    // Check if all files are uploaded
+    if (!files.businessRegistration || !files.bankbook || !files.mailOrderCertificate) {
+      alert('모든 증빙 서류를 첨부해주세요.');
       return;
     }
+
     // Simulate submission
     setTimeout(() => {
       setStatus('PENDING');
@@ -61,11 +95,10 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
         ) : (
           <div style={{ padding: '20px', backgroundColor: '#f8fafc', borderRadius: '12px', fontSize: '14px', color: '#475569' }}>
             <div style={{ fontWeight: '700', marginBottom: '8px' }}>신청 정보</div>
-            <div>{formData.businessName} ({formData.category})</div>
+            <div>{formData.storeName} ({formData.category})</div>
           </div>
         )}
         
-        {/* Demo Helper Button */}
         {status === 'PENDING' && (
           <div style={{ marginTop: '40px', borderTop: '1px dashed #cbd5e1', paddingTop: '20px' }}>
             <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>[데모용 관리자 기능]</p>
@@ -91,6 +124,44 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
     return renderStatusView();
   }
 
+  const InputSection = ({ label, field, placeholder, type = "text" }) => (
+    <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+      <label style={{ display: 'block', fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
+        {label} <span style={{ color: '#ef4444' }}>*</span>
+      </label>
+      <input 
+        type={type}
+        required
+        placeholder={placeholder || "내 답변"}
+        value={formData[field]}
+        onChange={(e) => setFormData({...formData, [field]: e.target.value})}
+        style={{ width: '100%', padding: '8px 0', border: 'none', borderBottom: '1px solid #e5e7eb', fontSize: '14px', outline: 'none' }}
+        onFocus={(e) => e.target.style.borderBottom = '2px solid var(--primary)'}
+        onBlur={(e) => e.target.style.borderBottom = '1px solid #e5e7eb'}
+      />
+    </div>
+  );
+
+  const FileSection = ({ label, field, hint }) => (
+    <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+      <label style={{ display: 'block', fontSize: '16px', fontWeight: '600', marginBottom: '8px' }}>
+        {label} <span style={{ color: '#ef4444' }}>*</span>
+      </label>
+      {hint && <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '16px' }}>{hint}</p>}
+      <input 
+        type="file" 
+        required
+        onChange={(e) => handleFileChange(e, field)}
+        style={{ width: '100%', fontSize: '14px', color: '#64748b' }} 
+      />
+      {files[field] && (
+        <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--primary)', fontWeight: '600' }}>
+          ✓ {files[field].name} 등록됨
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f0f2f5', padding: '40px 20px' }}>
       <div style={{ maxWidth: '640px', margin: '0 auto' }}>
@@ -99,20 +170,20 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
           <h1 style={{ fontSize: '32px', fontWeight: '700', marginBottom: '12px' }}>상점 입점 신청</h1>
           <p style={{ color: '#475569', fontSize: '14px', lineHeight: '1.5' }}>
             동네마켓과 함께 성장할 사장님의 참여를 기다립니다.<br/>
-            아래 정보를 입력해주시면 담당가 확인 후 연락드리겠습니다.
+            모든 입점 서류를 정확하게 입력 및 첨부해주세요. 담당자 확인 후 연락드리겠습니다.
           </p>
-          <div style={{ marginTop: '16px', fontSize: '12px', color: '#ef4444' }}>* 필수 항목</div>
+          <div style={{ marginTop: '16px', fontSize: '12px', color: '#ef4444' }}>* 모든 항목은 필수작성 사항입니다.</div>
         </div>
 
         {/* Form Form */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           
-          {/* Category */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
             <label style={{ display: 'block', fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
-              1. 입점 제안 상품 카테고리 (대표 상품 카테고리로 선택) <span style={{ color: '#ef4444' }}>*</span>
+              카테고리 선택 <span style={{ color: '#ef4444' }}>*</span>
             </label>
             <select 
+              required
               value={formData.category}
               onChange={(e) => setFormData({...formData, category: e.target.value})}
               style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '14px' }}
@@ -127,58 +198,39 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
             </select>
           </div>
 
-          {/* Business Name */}
-          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-            <label style={{ display: 'block', fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
-              2. 사업자명 (상호명) <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <input 
-              type="text"
-              placeholder="내 답변"
-              value={formData.businessName}
-              onChange={(e) => setFormData({...formData, businessName: e.target.value})}
-              style={{ width: '100%', padding: '8px 0', border: 'none', borderBottom: '1px solid #e5e7eb', fontSize: '14px', outline: 'none' }}
-              onFocus={(e) => e.target.style.borderBottom = '2px solid var(--primary)'}
-              onBlur={(e) => e.target.style.borderBottom = '1px solid #e5e7eb'}
-            />
-          </div>
+          <InputSection label="사업자명" field="companyName" placeholder="사업자등록증상의 사업자명을 입력해주세요" />
+          <InputSection label="상호명" field="storeName" placeholder="동네마켓 앱에 노출될 상호명을 입력해주세요" />
+          <InputSection label="대표자명" field="repName" />
+          <InputSection label="연락처" field="contact" placeholder="010-0000-0000" />
+          
+          <InputSection label="사업자등록번호" field="businessNumber" placeholder="000-00-00000 (- 포함)" />
+          <FileSection label="사업자등록증 첨부" field="businessRegistration" hint="사업자등록증 원본 스캔본 또는 사진" />
+          
+          <InputSection label="통신판매업 신고번호" field="mailOrderNumber" placeholder="제 2024-서울강남-0000 호" />
+          <FileSection label="통신판매업 신고증 첨부" field="mailOrderCertificate" />
 
-          {/* Products */}
-          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-            <label style={{ display: 'block', fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
-              3. 주요 취급 / 대표 상품 (최대 5개)
-            </label>
-            <input 
-              type="text"
-              placeholder="내 답변"
-              value={formData.products}
-              onChange={(e) => setFormData({...formData, products: e.target.value})}
-              style={{ width: '100%', padding: '8px 0', border: 'none', borderBottom: '1px solid #e5e7eb', fontSize: '14px', outline: 'none' }}
-              onFocus={(e) => e.target.style.borderBottom = '2px solid var(--primary)'}
-              onBlur={(e) => e.target.style.borderBottom = '1px solid #e5e7eb'}
-            />
+          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginTop: '12px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>정산 계좌 정보</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>은행명 <span style={{ color: '#ef4444' }}>*</span></label>
+                <input required type="text" value={formData.bankName} onChange={(e)=>setFormData({...formData, bankName: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #e2e8f0' }} placeholder="OO은행" />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>계좌번호 <span style={{ color: '#ef4444' }}>*</span></label>
+                <input required type="text" value={formData.accountNumber} onChange={(e)=>setFormData({...formData, accountNumber: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #e2e8f0' }} placeholder="- 없이 입력" />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>예금주 <span style={{ color: '#ef4444' }}>*</span></label>
+                <input required type="text" value={formData.accountHolder} onChange={(e)=>setFormData({...formData, accountHolder: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #e2e8f0' }} />
+              </div>
+            </div>
           </div>
+          <FileSection label="통장 사본 첨부" field="bankbook" hint="본인 명의(또는 사업자 명의) 통장 사본" />
 
-          {/* Business Number */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
             <label style={{ display: 'block', fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
-              4. 사업자번호 (- 기호 포함하여 작성) <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <input 
-              type="text"
-              placeholder="내 답변"
-              value={formData.businessNumber}
-              onChange={(e) => setFormData({...formData, businessNumber: e.target.value})}
-              style={{ width: '100%', padding: '8px 0', border: 'none', borderBottom: '1px solid #e5e7eb', fontSize: '14px', outline: 'none' }}
-              onFocus={(e) => e.target.style.borderBottom = '2px solid var(--primary)'}
-              onBlur={(e) => e.target.style.borderBottom = '1px solid #e5e7eb'}
-            />
-          </div>
-
-          {/* Regular Off-days */}
-          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-            <label style={{ display: 'block', fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
-              5. 정기 휴무일 (중복 선택 가능)
+              정기 휴무일
             </label>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               {['월', '화', '수', '목', '금', '토', '일'].map(day => (
@@ -198,51 +250,27 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
             </div>
           </div>
 
-          {/* Operating Hours & Last Order */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
             <label style={{ display: 'block', fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
-              6. 운영 시간 및 라스트 오더 <span style={{ color: '#ef4444' }}>*</span>
+              운영 시간 <span style={{ color: '#ef4444' }}>*</span>
             </label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#64748b', marginBottom: '8px' }}>평일 운영 시간</div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#64748b', marginBottom: '8px' }}>평일</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                       <input type="time" value={formData.weekdayHours.open} onChange={(e) => setFormData({...formData, weekdayHours: {...formData.weekdayHours, open: e.target.value}})} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }} />
-                       <span style={{ color: '#94a3b8' }}>~</span>
-                       <input type="time" value={formData.weekdayHours.close} onChange={(e) => setFormData({...formData, weekdayHours: {...formData.weekdayHours, close: e.target.value}})} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }} />
+                       <input type="time" required value={formData.weekdayHours.open} onChange={(e) => setFormData({...formData, weekdayHours: {...formData.weekdayHours, open: e.target.value}})} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }} />
+                       <input type="time" required value={formData.weekdayHours.close} onChange={(e) => setFormData({...formData, weekdayHours: {...formData.weekdayHours, close: e.target.value}})} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }} />
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#64748b', marginBottom: '8px' }}>주말 운영 시간</div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#64748b', marginBottom: '8px' }}>주말</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                       <input type="time" value={formData.weekendHours.open} onChange={(e) => setFormData({...formData, weekendHours: {...formData.weekendHours, open: e.target.value}})} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }} />
-                       <span style={{ color: '#94a3b8' }}>~</span>
-                       <input type="time" value={formData.weekendHours.close} onChange={(e) => setFormData({...formData, weekendHours: {...formData.weekendHours, close: e.target.value}})} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }} />
+                       <input type="time" required value={formData.weekendHours.open} onChange={(e) => setFormData({...formData, weekendHours: {...formData.weekendHours, open: e.target.value}})} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }} />
+                       <input type="time" required value={formData.weekendHours.close} onChange={(e) => setFormData({...formData, weekendHours: {...formData.weekendHours, close: e.target.value}})} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }} />
                     </div>
                   </div>
                </div>
-               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#8b5cf6', marginBottom: '8px' }}>평일 라스트 오더</div>
-                    <input 
-                      type="time" 
-                      value={formData.weekdayLastOrder} 
-                      onChange={(e) => setFormData({...formData, weekdayLastOrder: e.target.value})} 
-                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #8b5cf6', fontSize: '13px', color: '#8b5cf6', fontWeight: '700' }} 
-                    />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#8b5cf6', marginBottom: '8px' }}>주말 라스트 오더</div>
-                    <input 
-                      type="time" 
-                      value={formData.weekendLastOrder} 
-                      onChange={(e) => setFormData({...formData, weekendLastOrder: e.target.value})} 
-                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #8b5cf6', fontSize: '13px', color: '#8b5cf6', fontWeight: '700' }} 
-                    />
-                  </div>
-               </div>
-               <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px' }}>* 영업 종료 전 배달 및 준비를 위해 주문을 마감하는 시간입니다.</div>
             </div>
           </div>
 
@@ -250,19 +278,16 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
             <button 
               type="submit"
               className="btn-primary"
-              style={{ padding: '12px 24px', fontSize: '14px', borderRadius: '4px' }}
+              style={{ padding: '16px 32px', fontSize: '16px', borderRadius: '12px', fontWeight: '800' }}
             >
-              제출하기
+              입점 신청서 제출하기
             </button>
             <button 
               type="button"
               onClick={() => {
-                setFormData({ 
-                  category: '', products: '', businessName: '', businessNumber: '',
-                  offDays: [], weekdayHours: { open: '09:00', close: '22:00' },
-                  weekendHours: { open: '10:00', close: '21:00' }, 
-                  weekdayLastOrder: '21:30', weekendLastOrder: '20:30'
-                });
+                if(window.confirm('작성 중인 내용이 모두 사라집니다. 초기화하시겠습니까?')){
+                  window.location.reload();
+                }
               }}
               style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
             >

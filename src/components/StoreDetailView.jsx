@@ -3,6 +3,14 @@ import React, { useState } from 'react';
 const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) => {
   const [activeSubTab, setActiveSubTab] = useState('menu');
   const [reviewSort, setReviewSort] = useState('latest');
+  const [selectedDeliveryTime, setSelectedDeliveryTime] = useState('8~11시 사이');
+
+  const deliveryTimeSlots = [
+    '8~11시 사이',
+    '11~14시 사이',
+    '14~17시 사이',
+    '17~20시 사이'
+  ];
   
   // Review Management State
   const [reviews, setReviews] = useState([
@@ -15,6 +23,8 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
   const [editingReviewId, setEditingReviewId] = useState(null);
   const [editContent, setEditContent] = useState('');
   const [selectedSubForDetail, setSelectedSubForDetail] = useState(null);
+  const [selectedProductForDetail, setSelectedProductForDetail] = useState(null);
+  const [selectedProductCategory, setSelectedProductCategory] = useState('전체');
 
   // Edit/Delete Handlers
   const handleDeleteReview = (id) => {
@@ -104,96 +114,77 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
                </div>
             </div>
 
-            {Object.entries(
-              store.products.reduce((acc, p) => {
-                if (!acc[p.category]) acc[p.category] = [];
-                acc[p.category].push(p);
-                return acc;
-              }, {})
-            ).map(([category, products]) => (
-              <div key={category} style={{ marginBottom: '50px' }}>
-                <h3 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px', color: '#1e293b' }}>
-                  {category}
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '24px', rowGap: '40px' }}>
-                  {products.map((product, i) => {
-                    // Randomly mock out of stock for 1/5 products for demo
-                    const isOutOfStock = i === 3 || i === 7; 
-                    
-                    return (
-                    <div key={product.id} style={{ display: 'flex', flexDirection: 'column', opacity: isOutOfStock ? 0.7 : 1 }}>
-                      <div style={{ position: 'relative', marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-                        <img src={product.img} alt={product.name} style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', transition: 'transform 0.3s', filter: isOutOfStock ? 'grayscale(100%)' : 'none' }} />
-                        
-                        {isOutOfStock ? (
-                          <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                             <span style={{ color: 'white', fontWeight: '800', fontSize: '18px', border: '2px solid white', padding: '8px 16px', borderRadius: '8px' }}>SOLD OUT</span>
-                          </div>
-                        ) : (
-                          <div style={{ position: 'absolute', bottom: '12px', right: '12px' }}>
-                             <button 
-                               style={{ 
-                                 width: '48px', height: '48px', borderRadius: '50%', 
-                                 backgroundColor: 'rgba(255, 255, 255, 0.95)', border: 'none',
-                                 fontSize: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                 cursor: 'pointer', color: '#333', boxShadow: '0 4px 10px rgba(0,0,0,0.1)'
-                              }}
-                               onClick={() => handleAdd(product)}
-                             >
-                               🛒
-                             </button>
-                          </div>
-                        )}
-                      </div>
-                      
-                      <button 
-                        onClick={() => !isOutOfStock && handleAdd(product)}
-                        disabled={isOutOfStock}
-                        style={{ 
-                          width: '100%', 
-                          padding: '12px', 
-                          borderRadius: '8px', 
-                          border: isOutOfStock ? '1px solid #e2e8f0' : '1px solid #e2e8f0', 
-                          background: isOutOfStock ? '#f1f5f9' : 'white', 
-                          color: isOutOfStock ? '#94a3b8' : '#333', 
-                          fontWeight: '700', 
-                          marginBottom: '14px',
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center', 
-                          gap: '6px',
-                          cursor: isOutOfStock ? 'not-allowed' : 'pointer',
-                          fontSize: '15px'
-                        }}
-                      >
-                         <span>{isOutOfStock ? '품절' : '🛍️ 담기'}</span>
-                      </button>
+            {/* Product Category Tabs */}
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '32px', overflowX: 'auto', paddingBottom: '8px', borderBottom: '1px solid #f1f5f9' }}>
+               {['전체', ...new Set(store.products.map(p => p.category))].map(cat => (
+                 <button 
+                  key={cat}
+                  onClick={() => setSelectedProductCategory(cat)}
+                  style={{
+                    padding: '8px 20px', borderRadius: '20px', border: 'none',
+                    backgroundColor: selectedProductCategory === cat ? 'var(--primary)' : '#f8fafc',
+                    color: selectedProductCategory === cat ? 'white' : '#64748b',
+                    fontWeight: '800', fontSize: '14px', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s'
+                  }}
+                 >{cat}</button>
+               ))}
+            </div>
 
-                      <div style={{ padding: '0 4px' }}>
-                        {i % 2 === 0 && !isOutOfStock && (
-                           <div style={{ marginBottom: '8px' }}>
-                             <span style={{ fontSize: '11px', color: '#5f0080', border: '1px solid #5f0080', padding: '3px 6px', borderRadius: '4px', fontWeight: '700' }}>Kurly Only</span>
-                           </div>
-                        )}
-                        <div style={{ fontSize: '17px', fontWeight: '500', color: isOutOfStock ? '#94a3b8' : '#1e293b', marginBottom: '8px', lineHeight: '1.4' }}>{product.name}</div>
-                        <div style={{ marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontSize: '18px', fontWeight: '900', color: isOutOfStock ? '#94a3b8' : '#fa622f' }}>10%</span>
-                          <span style={{ fontSize: '18px', fontWeight: '800', color: isOutOfStock ? '#94a3b8' : '#1e293b' }}>{product.price.toLocaleString()}원</span>
-                        </div>
-                        <div style={{ fontSize: '14px', color: '#94a3b8', textDecoration: 'line-through', marginBottom: '10px' }}>{(product.price * 1.1).toLocaleString().split('.')[0]}원</div>
-                        
-                        <div style={{ fontSize: '12px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '500' }}>
-                           <span style={{ color: '#64748b' }}>후기 1,234</span>
-                           <span style={{ width: '1px', height: '10px', background: '#e2e8f0' }}></span>
-                           <span>평점 4.8</span>
-                        </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '24px', rowGap: '40px' }}>
+              {store.products
+                .filter(p => selectedProductCategory === '전체' || p.category === selectedProductCategory)
+                .map((product, i) => {
+                const isOutOfStock = product.stock <= 0; 
+                const isLowStock = product.stock > 0 && product.stock <= 5;
+                
+                return (
+                <div key={product.id} style={{ display: 'flex', flexDirection: 'column', opacity: isOutOfStock ? 0.7 : 1 }}>
+                  <div 
+                    onClick={() => !isOutOfStock && setSelectedProductForDetail(product)}
+                    style={{ position: 'relative', marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', cursor: isOutOfStock ? 'default' : 'pointer' }}
+                  >
+                    <img src={product.img} alt={product.name} style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', transition: 'transform 0.3s', filter: isOutOfStock ? 'grayscale(100%)' : 'none' }} />
+                    
+                    {isOutOfStock && (
+                      <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <span style={{ color: 'white', fontWeight: '800', fontSize: '18px', border: '2px solid white', padding: '8px 16px', borderRadius: '8px' }}>SOLD OUT</span>
                       </div>
+                    )}
+                    {isLowStock && (
+                      <div style={{ position: 'absolute', bottom: '12px', right: '12px', background: '#ef4444', color: 'white', padding: '4px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: '800', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
+                        품절임박: {product.stock}개 남음
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div style={{ padding: '0 4px' }}>
+                    {(i % 2 === 0 && !isOutOfStock) && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <span style={{ fontSize: '11px', color: '#ef4444', border: '1px solid #ef4444', padding: '3px 6px', borderRadius: '4px', fontWeight: '700' }}>특가 상품</span>
+                        </div>
+                    )}
+                    <div 
+                      onClick={() => !isOutOfStock && setSelectedProductForDetail(product)}
+                      style={{ fontSize: '17px', fontWeight: '500', color: isOutOfStock ? '#94a3b8' : '#1e293b', marginBottom: '8px', lineHeight: '1.4', cursor: isOutOfStock ? 'default' : 'pointer' }}
+                    >
+                      {product.name}
                     </div>
-                  );
-                  })}
+                    <div style={{ marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '18px', fontWeight: '900', color: isOutOfStock ? '#94a3b8' : '#fa622f' }}>10%</span>
+                      <span style={{ fontSize: '18px', fontWeight: '800', color: isOutOfStock ? '#94a3b8' : '#1e293b' }}>{product.price.toLocaleString()}원</span>
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#94a3b8', textDecoration: 'line-through', marginBottom: '10px' }}>{(product.price * 1.1).toLocaleString().split('.')[0]}원</div>
+                    
+                    <div style={{ fontSize: '12px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '500' }}>
+                        <span style={{ color: '#64748b' }}>후기 1,234</span>
+                        <span style={{ width: '1px', height: '10px', background: '#e2e8f0' }}></span>
+                        <span>평점 4.8</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+              })}
+            </div>
           </div>
         );
       case 'reviews':
@@ -255,7 +246,7 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
               <div key={re.id} style={{ padding: '30px', background: 'white', borderRadius: '24px', border: '1px solid var(--border)', marginBottom: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontWeight: '700', fontSize: '16px' }}>{re.user}</span>
+                    <span style={{ fontWeight: '700', fontSize: '16px' }}>{re.user.charAt(0)}**</span>
                     <div style={{ color: '#f59e0b', fontSize: '14px' }}>{'★'.repeat(re.rate)}{'☆'.repeat(5-re.rate)}</div>
                     {re.isEdited && <span style={{ fontSize: '12px', color: '#94a3b8' }}>(수정됨)</span>}
                   </div>
@@ -367,6 +358,39 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
              </div>
           </div>
         );
+      case 'subscription':
+        return (
+          <div style={{ border: '1px solid #fce7f3', padding: '40px', borderRadius: '24px', background: 'linear-gradient(to bottom, #fff, #fff5f8)' }}>
+             <h3 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '12px', color: '#be185d' }}>오늘 주문하면 주 1회 배송!</h3>
+             <p style={{ color: '#db2777', marginBottom: '40px' }}>단골 마트의 상품을 매주 집 앞으로 편하게 받아보세요.</p>
+             
+             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '30px' }}>
+                {subscriptionProducts.map(product => (
+                  <div key={product.id} style={{ background: 'white', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 10px 15px -3px rgba(190, 24, 93, 0.05)', border: '1px solid #fce7f3' }}>
+                     <div style={{ height: '240px', overflow: 'hidden' }}>
+                       <img src={product.img} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                     </div>
+                     <div style={{ padding: '30px' }}>
+                       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                          <span style={{ fontSize: '12px', background: '#be185d', color: 'white', padding: '4px 10px', borderRadius: '8px', fontWeight: '700' }}>무료 배송</span>
+                          <span style={{ fontSize: '12px', background: '#fdf2f8', color: '#be185d', padding: '4px 10px', borderRadius: '8px', fontWeight: '700', border: '1px solid #fce7f3' }}>{product.deliveryFrequency}</span>
+                       </div>
+                       <h4 style={{ fontSize: '19px', fontWeight: '800', marginBottom: '12px' }}>{product.name}</h4>
+                       <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '24px', lineHeight: '1.6' }}>{product.desc}</p>
+                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+                          <span style={{ fontSize: '22px', fontWeight: '900', color: '#be185d' }}>{product.price.toLocaleString()}원</span>
+                          <span style={{ fontSize: '13px', color: '#94a3b8' }}>/ 월 정기 결제</span>
+                       </div>
+                       <button 
+                         onClick={() => handleSubscribe(product)}
+                         style={{ width: '100%', padding: '16px', borderRadius: '16px', background: '#be185d', color: 'white', border: 'none', fontWeight: '800', fontSize: '16px', cursor: 'pointer' }}
+                       >구독하기</button>
+                     </div>
+                  </div>
+                ))}
+             </div>
+          </div>
+        );
       default: return null;
     }
   };
@@ -434,16 +458,48 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
               </div>
             </div>
           </div>
-          <div style={{ textAlign: 'right', background: 'white', padding: '20px', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-             <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '4px' }}>예상 배달 시간</div>
-             <div style={{ fontSize: '24px', fontWeight: '900', color: '#1e293b' }}>{store.time}</div>
+          <div style={{ textAlign: 'right', background: 'white', padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05)', minWidth: '220px' }}>
+             <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '12px', fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+               <span style={{ color: 'var(--primary)' }}>●</span> 배송 시간 선택
+             </div>
+             <div style={{ position: 'relative' }}>
+               <select 
+                 value={selectedDeliveryTime}
+                 onChange={(e) => setSelectedDeliveryTime(e.target.value)}
+                 style={{ 
+                   width: '100%', 
+                   padding: '12px 16px', 
+                   borderRadius: '14px', 
+                   border: '2px solid #f1f5f9', 
+                   backgroundColor: '#f8fafc',
+                   fontSize: '16px',
+                   fontWeight: '800',
+                   color: '#1e293b',
+                   cursor: 'pointer',
+                   outline: 'none',
+                   appearance: 'none',
+                   textAlign: 'center',
+                   transition: 'all 0.2s'
+                 }}
+                 onMouseOver={e => e.currentTarget.style.borderColor = 'var(--primary-light)'}
+                 onMouseOut={e => e.currentTarget.style.borderColor = '#f1f5f9'}
+               >
+                 {deliveryTimeSlots.map(slot => (
+                   <option key={slot} value={slot}>{slot}</option>
+                 ))}
+               </select>
+               <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#94a3b8' }}>▾</div>
+             </div>
+             <div style={{ marginTop: '12px', fontSize: '12px', color: '#94a3b8', fontWeight: '500' }}>
+               예상 소요시간: <span style={{ color: '#1e293b', fontWeight: '700' }}>{store.time}</span>
+             </div>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', marginBottom: '40px', position: 'sticky', top: '80px', backgroundColor: 'var(--bg-main)', zIndex: 10, paddingTop: '10px' }}>
-        {['menu', 'reviews', 'info'].map((tab) => (
+        {['menu', 'reviews', 'subscription', 'info'].map((tab) => (
           <button 
             key={tab}
             onClick={() => setActiveSubTab(tab)}
@@ -457,10 +513,11 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
               color: activeSubTab === tab ? 'var(--primary)' : '#94a3b8',
               cursor: 'pointer',
               position: 'relative',
-              transition: 'all 0.2s'
+              transition: 'all 0.2s',
+              whiteSpace: 'nowrap'
             }}
           >
-            {tab === 'menu' ? '메뉴' : tab === 'reviews' ? '리뷰' : '가게정보'}
+            {tab === 'menu' ? '메뉴' : tab === 'reviews' ? '리뷰' : tab === 'subscription' ? '구독상품' : '가게정보'}
             {activeSubTab === tab && <div style={{ position: 'absolute', bottom: '-1px', left: 0, right: 0, height: '4px', backgroundColor: 'var(--primary)', borderRadius: '4px 4px 0 0' }}></div>}
           </button>
         ))}
@@ -471,6 +528,12 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
         {renderSubTabContent()}
       </div>
 
+      <ProductDetailModal 
+        product={selectedProductForDetail}
+        onClose={() => setSelectedProductForDetail(null)}
+        onAddToCart={onAddToCart}
+      />
+
       <SubscriptionDetailModal 
         subscription={selectedSubForDetail} 
         onClose={() => setSelectedSubForDetail(null)} 
@@ -479,6 +542,91 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
           setSelectedSubForDetail(null);
         }}
       />
+    </div>
+  );
+};
+
+const ProductDetailModal = ({ product, onClose, onAddToCart }) => {
+  const [quantity, setQuantity] = useState(1);
+  if (!product) return null;
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', 
+      display: 'flex', alignItems: 'center', justifyContent: 'center', 
+      zIndex: 2000, backdropFilter: 'blur(8px)', animation: 'fadeIn 0.3s ease-out'
+    }} onClick={onClose}>
+      <div style={{
+        background: 'white', width: '90%', maxWidth: '800px', borderRadius: '32px',
+        display: 'grid', gridTemplateColumns: '1fr 1fr', overflow: 'hidden',
+        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+        position: 'relative', animation: 'slideUp 0.3s ease-out'
+      }} onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} style={{ position: 'absolute', top: '24px', right: '24px', border: 'none', background: 'white', width: '40px', height: '40px', borderRadius: '50%', fontSize: '20px', cursor: 'pointer', color: '#94a3b8', zIndex: 1, boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>✕</button>
+        
+        <div style={{ width: '100%', aspectRatio: '1/1', overflow: 'hidden' }}>
+          <img src={product.img} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </div>
+
+        <div style={{ padding: '40px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ fontSize: '14px', color: 'var(--primary)', fontWeight: '800', marginBottom: '8px' }}>{product.category}</div>
+          <h2 style={{ fontSize: '28px', fontWeight: '900', color: '#1e293b', marginBottom: '12px' }}>{product.name}</h2>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
+            <div style={{ fontSize: '14px', color: '#64748b' }}>
+              <span style={{ fontWeight: '700', marginRight: '8px' }}>원산지</span>
+              <span>{product.origin || '정보 없음'}</span>
+            </div>
+            <div style={{ fontSize: '14px', color: '#64748b', lineHeight: '1.6' }}>
+              <span style={{ fontWeight: '700', marginRight: '8px' }}>상품설명</span>
+              <span>{product.description || product.desc || '정보 없음'}</span>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '32px' }}>
+            {product.discountRate > 0 && (
+              <div style={{ fontSize: '14px', color: '#94a3b8', textDecoration: 'line-through', marginBottom: '4px' }}>
+                {Math.floor(product.price / (1 - product.discountRate / 100)).toLocaleString()}원
+              </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              {product.discountRate > 0 && <span style={{ fontSize: '24px', fontWeight: '900', color: '#fa622f' }}>{product.discountRate}%</span>}
+              <span style={{ fontSize: '32px', fontWeight: '900', color: '#1e293b' }}>{product.price.toLocaleString()}원</span>
+            </div>
+          </div>
+
+          <div style={{ backgroundColor: '#f8fafc', padding: '24px', borderRadius: '24px', marginBottom: '32px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+               <span style={{ fontWeight: '700', color: '#475569' }}>수량</span>
+               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', backgroundColor: 'white', padding: '8px 16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <button onClick={() => setQuantity(Math.max(1, quantity - 1))} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', color: '#94a3b8' }}>-</button>
+                  <span style={{ width: '30px', textAlign: 'center', fontWeight: '800' }}>{quantity}</span>
+                  <button onClick={() => setQuantity(quantity + 1)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', color: '#94a3b8' }}>+</button>
+               </div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '20px' }}>
+               <span style={{ color: '#64748b', fontWeight: '700' }}>총 합계 금액</span>
+               <span style={{ fontSize: '28px', fontWeight: '900', color: 'var(--primary)' }}>{(product.price * quantity).toLocaleString()}원</span>
+            </div>
+            <button 
+              onClick={() => {
+                onAddToCart(product, store);
+                onClose();
+              }}
+              style={{ 
+                width: '100%', padding: '20px', borderRadius: '16px', background: 'var(--primary)', 
+                color: 'white', border: 'none', fontWeight: '800', fontSize: '18px', 
+                cursor: 'pointer', boxShadow: '0 8px 20px rgba(46, 204, 113, 0.3)'
+              }}
+            >
+              장바구니 담기
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

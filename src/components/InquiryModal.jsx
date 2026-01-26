@@ -66,7 +66,7 @@ const InquiryModal = ({ isOpen, onClose, order }) => {
              <textarea 
                required
                value={content} onChange={(e) => setContent(e.target.value)}
-               placeholder="문의하실 내용을 자세히 적어주세요."
+               placeholder="문의하실 내용을 자세히 적어주세요. (비속어, 타인 비방 등 부적절한 언어 사용 시 서비스 이용에 제재를 받을 수 있습니다.)"
                style={{ width: '100%', height: '120px', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '14px', outline: 'none', resize: 'none' }}
              />
            </div>

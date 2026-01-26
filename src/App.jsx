@@ -7,6 +7,7 @@ import RiderDashboard from './components/RiderDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import NotificationPanel from './components/NotificationPanel';
 import AuthModal from './components/AuthModal';
+import { Agentation } from "agentation";
 
 function App() {
   const [userRole, setUserRole] = useState('CUSTOMER'); // CUSTOMER, STORE, RIDER, ADMIN
@@ -148,6 +149,7 @@ function App() {
         onClose={() => setIsAuthModalOpen(false)} 
         onLoginSuccess={handleLoginSuccess} 
       />
+      {process.env.NODE_ENV === "development" && <Agentation />}
     </div>
   );
 }

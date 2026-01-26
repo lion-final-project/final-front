@@ -73,9 +73,9 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
   useEffect(() => {
     if (isLoggedIn) {
       setCartItems([
-        { id: 101, storeName: '성수동 햇살 청과', name: '꿀사과 5kg', price: 23400, quantity: 1, img: 'https://images.unsplash.com/photo-1488459711615-de61859233bd?w=100&q=80' },
-        { id: 102, storeName: '성수동 햇살 청과', name: '흙당근 1kg', price: 4500, quantity: 1, img: 'https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?w=100&q=80' },
-        { id: 201, storeName: '망원시장 싱싱 정육', name: '1++ 한우 국거리 300g', price: 18000, quantity: 2, img: 'https://images.unsplash.com/photo-1607623273573-599d75b03519?w=100&q=80' }
+        { id: 101, storeName: '성수동 햇살 청과', name: '꿀사과 5kg', price: 23400, quantity: 1, img: 'https://images.unsplash.com/photo-1488459711615-de61859233bd?w=100&q=80', stock: 10 },
+        { id: 102, storeName: '성수동 햇살 청과', name: '흙당근 1kg', price: 4500, quantity: 1, img: 'https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?w=100&q=80', stock: 0 },
+        { id: 201, storeName: '망원시장 싱싱 정육', name: '1++ 한우 국거리 300g', price: 18000, quantity: 2, img: 'https://images.unsplash.com/photo-1607623273573-599d75b03519?w=100&q=80', stock: 1 }
       ]);
     } else {
       setCartItems([]);
@@ -98,9 +98,14 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
   const [verifyStep, setVerifyStep] = useState(0); // 0: intro, 1: location, 2: id, 3: success
 
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [localSearchTerm, setLocalSearchTerm] = useState('');
   const [isTrackingOpen, setIsTrackingOpen] = useState(false);
   const [subscriptionFilter, setSubscriptionFilter] = useState('전체'); // 전체, 구독중, 해지 예정, 해지됨
   const [expandedSubId, setExpandedSubId] = useState(null);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [cancellingOrderId, setCancellingOrderId] = useState(null);
+  const [cancelReason, setCancelReason] = useState('simple_change');
+  const [cancelDetail, setCancelDetail] = useState('');
 
   /* Address Management State */
   const [addressList, setAddressList] = useState(addresses);
@@ -185,14 +190,19 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
     });
   };
 
+  const handleSetDefaultAddress = (id) => {
+    setAddressList(prev => prev.map(addr => ({
+      ...addr,
+      isDefault: addr.id === id
+    })));
+    showToast('기본 배송지로 변경되었습니다.');
+  };
+
   const handleOpenReviewModal = (order) => {
     setSelectedOrderForReview(order);
     setReviewForm({ rate: 5, content: '' });
     setIsReviewModalOpen(true);
   };
-/* ... existing code ... */
-
-
   const handleSaveReview = (e) => {
     e.preventDefault();
     if (viewingReview) {
@@ -217,13 +227,24 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
     }
   };
 
+
   const handleCancelOrder = (orderId) => {
-    if (window.confirm('정말 이 주문을 취소하시겠습니까?')) {
-      setOrderList(prev => prev.map(order => 
-        order.id === orderId ? { ...order, status: '주문 취소됨' } : order
-      ));
-      showToast('주문이 취소되었습니다.');
+    setCancellingOrderId(orderId);
+    setCancelReason('simple_change');
+    setCancelDetail('');
+    setIsCancelModalOpen(true);
+  };
+
+  const submitCancelOrder = () => {
+    if (!cancelReason) {
+      alert('취소 사유를 선택해주세요.');
+      return;
     }
+    setOrderList(prev => prev.map(order => 
+      order.id === cancellingOrderId ? { ...order, status: '주문 취소됨' } : order
+    ));
+    setIsCancelModalOpen(false);
+    showToast('주문이 성공적으로 취소되었습니다.');
   };
 
   const handleCancelSubscription = (subId) => {
@@ -241,6 +262,13 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
       ));
       alert("남은 배송 일정이 없어 즉시 '해지됨' 상태로 변경되었습니다. 그동안 이용해 주셔서 감사합니다.");
     }
+  };
+
+  const resumeSubscription = (subId) => {
+    setSubscriptionList(prev => prev.map(item => 
+      item.id === subId ? { ...item, status: '구독중' } : item
+    ));
+    showToast('구독 해지가 취소되었습니다. 계속해서 혜택을 누리실 수 있습니다!');
   };
 
   const handleTabChange = (tab) => {
@@ -403,8 +431,15 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
         return null;
       }
       case 'checkout':
-        return <CheckoutView cartItems={cartItems} onComplete={() => { 
-          setIsSuccessModalOpen(true);
+        return <CheckoutView cartItems={cartItems} onComplete={(success) => { 
+          if (success) {
+            setIsSuccessModalOpen(true);
+            // clearCart() will be called when modal closes or immediately
+            clearCart();
+          } else {
+            setActiveTab('home');
+            showToast('결제에 실패하였습니다. 장바구니 상품이 유지됩니다.');
+          }
         }} />;
       case 'tracking':
         // Redirect to modal if tracking tab is somehow active
@@ -440,6 +475,8 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
         return (
           <PartnerPage 
             onBack={() => setActiveTab('home')} 
+            isLoggedIn={isLoggedIn}
+            onOpenAuth={onOpenAuth}
             onRegister={(role) => {
               if (role === 'RESIDENT') {
                 setActiveTab('rider_registration');
@@ -621,24 +658,25 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                         신중하게 결정해 주시기 바랍니다.
                       </p>
 
-                      {subscriptionList.some(sub => sub.status !== '해지됨') ? (
-                        <div style={{ padding: '16px', backgroundColor: '#fff7ed', borderRadius: '12px', border: '1px solid #ffedd5', color: '#9a3412', fontSize: '13px', lineHeight: '1.6', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                           <span style={{ fontSize: '20px' }}>⚠️</span>
-                           <span>현재 이용 중이거나 해지 예정인 구독 상품이 있습니다. <strong>구독 상품을 모두 해지(종료)하신 후</strong>에만 탈퇴가 가능합니다.</span>
-                        </div>
-                      ) : (
-                        <button 
-                          onClick={() => {
-                            if (window.confirm('정말 동네마켓을 떠나시겠습니까? 모든 정보가 사라집니다.')) {
+                      <button 
+                        onClick={() => {
+                          const hasActiveSub = subscriptionList.some(sub => sub.status !== '해지됨');
+                          if (hasActiveSub) {
+                            alert('현재 이용 중이거나 해지 예정인 구독 상품이 있습니다. 구독 상품을 모두 해지(종료)하신 후에만 탈퇴가 가능합니다.');
+                            return;
+                          }
+                          
+                          if (window.confirm('탈퇴 시 모든 적립금, 쿠폰, 주문 내역이 즉시 삭제되며 복구가 불가능합니다. 정말 탈퇴하시겠습니까?')) {
+                            if (window.confirm('마지막 확인입니다. 동네마켓을 탈퇴하시겠습니까?')) {
                               alert('탈퇴 처리가 완료되었습니다. 그동안 이용해주셔서 감사합니다.');
                               onLogout();
                             }
-                          }}
-                          style={{ padding: '12px 24px', borderRadius: '10px', background: 'white', border: '1px solid #ef4444', color: '#ef4444', fontWeight: '800', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s' }}
-                          onMouseOver={e => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.color = 'white'; }}
-                          onMouseOut={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = '#ef4444'; }}
-                        >회원 탈퇴하기</button>
-                      )}
+                          }
+                        }}
+                        style={{ padding: '12px 24px', borderRadius: '10px', background: 'white', border: '1px solid #ef4444', color: '#ef4444', fontWeight: '800', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s' }}
+                        onMouseOver={e => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.color = 'white'; }}
+                        onMouseOut={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = '#ef4444'; }}
+                      >회원 탈퇴하기</button>
                     </div>
                   </div>
                 )}
@@ -741,8 +779,14 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                                       >구독 해지하기</button>
                                     </>
                                   ) : sub.status === '해지 예정' ? (
-                                    <div style={{ padding: '16px', backgroundColor: '#fff7ed', borderRadius: '12px', border: '1px solid #ffedd5', color: '#9a3412', fontSize: '13px', lineHeight: '1.6' }}>
-                                       이미 해지 신청이 완료된 상품입니다. 남은 구독 기간까지는 혜택이 유지되며, 이후 자동으로 종료됩니다.
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                      <div style={{ padding: '16px', backgroundColor: '#fff7ed', borderRadius: '12px', border: '1px solid #ffedd5', color: '#9a3412', fontSize: '13px', lineHeight: '1.6' }}>
+                                         이미 해지 신청이 완료된 상품입니다. 남은 구독 기간까지는 혜택이 유지되며, 이후 자동으로 종료됩니다.
+                                      </div>
+                                      <button 
+                                        onClick={() => resumeSubscription(sub.id)}
+                                        style={{ width: '100%', padding: '14px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '800', fontSize: '14px', cursor: 'pointer' }}
+                                      >구독 유지하기 (다시 구독)</button>
                                     </div>
                                   ) : (
                                     <div style={{ padding: '16px', backgroundColor: '#f1f5f9', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '13px', textAlign: 'center' }}>
@@ -816,20 +860,39 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                       {addressList.map(addr => (
-                        <div key={addr.id} style={{ padding: '20px', borderRadius: '16px', border: '1px solid #f1f5f9', backgroundColor: addr.isDefault ? 'rgba(46, 204, 113, 0.02)' : 'white' }}>
+                        <div 
+                          key={addr.id} 
+                          onClick={() => !addr.isDefault && handleSetDefaultAddress(addr.id)}
+                          style={{ 
+                            padding: '20px', 
+                            borderRadius: '16px', 
+                            border: `1px solid ${addr.isDefault ? 'var(--primary)' : '#f1f5f9'}`, 
+                            backgroundColor: addr.isDefault ? 'rgba(46, 204, 113, 0.05)' : 'white',
+                            cursor: addr.isDefault ? 'default' : 'pointer',
+                            transition: 'all 0.2s',
+                            position: 'relative'
+                          }}
+                          onMouseOver={e => { if(!addr.isDefault) e.currentTarget.style.borderColor = 'var(--primary-light)'; }}
+                          onMouseOut={e => { if(!addr.isDefault) e.currentTarget.style.borderColor = '#f1f5f9'; }}
+                        >
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <span style={{ fontWeight: '800', fontSize: '16px' }}>{addr.label}</span>
                               {addr.isDefault && <span style={{ fontSize: '10px', backgroundColor: 'var(--primary)', color: 'white', padding: '2px 6px', borderRadius: '4px', fontWeight: '800' }}>기본배송지</span>}
                             </div>
                             <div style={{ display: 'flex', gap: '12px', fontSize: '13px', color: '#94a3b8' }}>
-                              <span onClick={() => handleOpenAddressModal(addr)} style={{ cursor: 'pointer' }}>수정</span>
-                              <span onClick={() => {
+                              <span onClick={(e) => { e.stopPropagation(); handleOpenAddressModal(addr); }} style={{ cursor: 'pointer', zIndex: 1 }}>수정</span>
+                              <span onClick={(e) => {
+                                e.stopPropagation();
                                 if (window.confirm('정말 삭제하시겠습니까?')) {
+                                  if (addressList.length <= 1) {
+                                    alert('최소 1개의 배송지는 등록되어 있어야 합니다.');
+                                    return;
+                                  }
                                   setAddressList(prev => prev.filter(a => a.id !== addr.id));
                                   showToast('배송지가 삭제되었습니다.');
                                 }
-                              }} style={{ cursor: 'pointer' }}>삭제</span>
+                              }} style={{ cursor: 'pointer', color: addressList.length <= 1 ? '#cbd5e1' : '#ef4444' }}>삭제</span>
                             </div>
                           </div>
                           <div style={{ fontSize: '15px', color: '#1e293b', marginBottom: '4px' }}>{addr.address}</div>
@@ -894,13 +957,6 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                                 }}
                                 style={{ padding: '0 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontWeight: '600', cursor: 'pointer', fontSize: '13px' }}
                               >검색</button>
-                              <button 
-                                onClick={() => {
-                                  setNewAddress({ ...newAddress, address: '현 위치 인증 주소 (서초동 123)' });
-                                  showToast('현 위치 인증이 완료되었습니다.');
-                                }}
-                                style={{ padding: '0 16px', borderRadius: '8px', border: '1px solid var(--primary)', background: 'rgba(46, 204, 113, 0.05)', color: 'var(--primary)', fontWeight: '700', cursor: 'pointer', fontSize: '13px', whiteSpace: 'nowrap' }}
-                              >위치 인증</button>
                           </div>
                           <input 
                             type="text" 
@@ -1298,43 +1354,45 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
               onPromoClick={() => setActiveTab('special')} 
             />
             
-            {searchQuery ? (
-              <SearchResultsView 
-                query={searchQuery} 
-                stores={stores} 
-                categories={categories}
-                onStoreClick={(store) => {
-                  setSelectedStore(store);
-                  window.scrollTo(0, 0);
-                }}
-              />
-            ) : (
-              <div id="store-grid-section" style={{ margin: '40px 0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                  <h2 style={{ fontSize: '24px', fontWeight: '800', margin: 0 }}>오늘의 추천 상점</h2>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                      <input 
-                        type="text" 
-                        placeholder="상점명 검색"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        style={{
-                          padding: '7px 16px',
-                          paddingLeft: '34px',
-                          borderRadius: '20px',
-                          border: '1px solid var(--border)',
-                          fontSize: '13px',
-                          width: '160px',
-                          outline: 'none',
-                          backgroundColor: 'white',
-                          transition: 'all 0.2s'
-                        }}
-                        onFocus={(e) => e.target.style.borderColor = 'var(--primary)'}
-                        onBlur={(e) => e.target.style.borderColor = 'var(--border)'}
-                      />
-                      <span style={{ position: 'absolute', left: '12px', color: '#94a3b8', fontSize: '14px' }}>🔍</span>
-                    </div>
+            <div id="store-grid-section" style={{ margin: '80px 0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+                <h2 style={{ fontSize: '28px', fontWeight: '800', margin: 0 }}>오늘의 추천 상점</h2>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input 
+                      type="text" 
+                      placeholder="가게명, 상품명 검색"
+                      value={localSearchTerm}
+                      onChange={(e) => {
+                        if (e.target.value.length <= 8) {
+                          setLocalSearchTerm(e.target.value);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          setSearchQuery(localSearchTerm);
+                          showToast(`'${localSearchTerm}' 검색 결과입니다.`);
+                        }
+                      }}
+                      style={{
+                        padding: '10px 16px',
+                        paddingLeft: '38px',
+                        borderRadius: '24px',
+                        border: '2px solid var(--border)',
+                        fontSize: '14px',
+                        width: '200px',
+                        outline: 'none',
+                        backgroundColor: 'white',
+                        transition: 'all 0.2s',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = 'var(--primary)'}
+                      onBlur={(e) => e.target.style.borderColor = 'var(--border)'}
+                    />
+                    <span style={{ position: 'absolute', left: '14px', color: '#94a3b8', fontSize: '16px' }}>🔍</span>
+                  </div>
+
+                  {isLoggedIn && (
                     <button 
                       onClick={() => setIsLocationModalOpen(true)}
                       style={{ 
@@ -1343,32 +1401,32 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                         background: 'rgba(46, 204, 113, 0.05)', color: 'var(--primary)', 
                         fontSize: '13px', fontWeight: '800', cursor: 'pointer',
                         transition: 'all 0.2s',
-                        whiteSpace: 'nowrap'
+                        whiteSpace: 'nowrap',
+                        animation: addressList.length === 0 ? 'pulse-highlight 2s infinite' : 'none',
+                        boxShadow: addressList.length === 0 ? '0 0 0 0 rgba(46, 204, 113, 0.7)' : 'none'
                       }}>
-                      📍 {currentLocation}
+                      📍 {addressList.find(a => a.isDefault)?.address || currentLocation || '배송지 등록하기'}
                     </button>
-                    {['주문 많은 순', '거리순', '평점순', '배달비순'].map(sort => (
-                      <button 
-                        key={sort} 
-                        onClick={() => showToast(`${sort}으로 정렬되었습니다.`)}
-                        style={{ padding: '6px 12px', borderRadius: '20px', border: '1px solid var(--border)', background: 'white', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>{sort}</button>
-                    ))}
-                  </div>
-                </div>
-                <div className="main-layout" style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1fr) 4fr', gap: '30px' }}>
-                  <CategorySidebar 
-                    selectedCategory={selectedCategory} 
-                    setSelectedCategory={setSelectedCategory} 
-                  />
-                  <StoreGrid selectedCategory={selectedCategory} searchQuery={searchQuery} onAddToCart={onAddToCart} onStoreClick={(store) => {
-                    setSelectedStore(store);
-                    window.scrollTo(0, 0);
-                  }} />
+                  )}
+                  {['주문 많은 순', '거리순', '평점순', '배달비순'].map(sort => (
+                    <button 
+                      key={sort} 
+                      onClick={() => showToast(`${sort}으로 정렬되었습니다.`)}
+                      style={{ padding: '6px 12px', borderRadius: '20px', border: '1px solid var(--border)', background: 'white', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>{sort}</button>
+                  ))}
                 </div>
               </div>
-            )}
-
-            {/* Dashboard widgets removed as per request */}
+              <div className="main-layout" style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1fr) 4fr', gap: '30px' }}>
+                <CategorySidebar 
+                  selectedCategory={selectedCategory} 
+                  setSelectedCategory={setSelectedCategory} 
+                />
+                <StoreGrid selectedCategory={selectedCategory} searchQuery={searchQuery} onAddToCart={onAddToCart} onStoreClick={(store) => {
+                  setSelectedStore(store);
+                  window.scrollTo(0, 0);
+                }} />
+              </div>
+            </div>
           </div>
         );
     }
@@ -1401,9 +1459,62 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
         </div>
       )}
 
+      {/* Order Cancel Modal */}
+      {isCancelModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, backdropFilter: 'blur(4px)' }} onClick={() => setIsCancelModalOpen(false)}>
+          <div style={{ background: 'white', width: '90%', maxWidth: '450px', borderRadius: '24px', padding: '32px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '8px' }}>주문 취소</h2>
+            <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '24px' }}>주문을 취소하시는 사유를 알려주세요.</p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>취소 사유 선택</label>
+                <select 
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0', outline: 'none' }}
+                >
+                  <option value="simple_change">단순 변심</option>
+                  <option value="delivery_delay">배송 지연</option>
+                  <option value="product_out_of_stock">상품 품절</option>
+                  <option value="wrong_order">주문 실수</option>
+                  <option value="other">직접 입력</option>
+                </select>
+              </div>
+
+              {cancelReason === 'other' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>사유 직접 입력</label>
+                  <textarea 
+                    value={cancelDetail}
+                    onChange={(e) => setCancelDetail(e.target.value)}
+                    placeholder="취소 사유를 자세히 입력해주세요. (부적절한 언어 사용 시 제재될 수 있습니다.)"
+                    style={{ width: '100%', height: '100px', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0', outline: 'none', resize: 'none' }}
+                  />
+                </div>
+              )}
+
+              <div style={{ padding: '16px', backgroundColor: '#f8fafc', borderRadius: '12px', fontSize: '13px', color: '#64748b', lineHeight: '1.6' }}>
+                • 취소 완료 후 결제 수단에 따라 환불까지 1~3영업일이 소요될 수 있습니다.<br/>
+                • 일부 상품의 경우 발주 단계에 따라 취소가 거절될 수 있습니다.
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button 
+                  onClick={() => setIsCancelModalOpen(false)}
+                  style={{ flex: 1, padding: '14px', borderRadius: '12px', background: '#f1f5f9', border: 'none', fontWeight: '700', cursor: 'pointer' }}
+                >닫기</button>
+                <button 
+                  onClick={submitCancelOrder}
+                  style={{ flex: 1, padding: '14px', borderRadius: '12px', background: '#ef4444', color: 'white', border: 'none', fontWeight: '800', cursor: 'pointer' }}
+                >취소 확정</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Header 
-        searchQuery={searchQuery} 
-        setSearchQuery={setSearchQuery} 
         activeTab={activeTab}
         onTabChange={handleTabChange}
         isLoggedIn={isLoggedIn}
@@ -1412,8 +1523,6 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
         cartCount={cartItems.length}
         notificationCount={notificationCount}
         isResidentRider={isResidentRider}
-        currentLocation={currentLocation}
-        onLocationClick={() => setIsLocationModalOpen(true)}
       />
       
       <div style={{ minHeight: 'calc(100vh - 200px)' }}>
@@ -1444,6 +1553,11 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
           @keyframes fadeInLayer {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes pulse-highlight {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(46, 204, 113, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
           }
         `}</style>
       </div>
@@ -1514,7 +1628,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                       required
                       value={reviewForm.content}
                       onChange={e => setReviewForm({ ...reviewForm, content: e.target.value })}
-                      placeholder="다른 고객들에게 도움이 될 수 있도록 솔직한 리뷰를 남겨주세요."
+                      placeholder="다른 고객들에게 도움이 될 수 있도록 솔직한 리뷰를 남겨주세요. (비속어, 타인 비방 등 부적절한 언어 사용 시 서비스 이용에 제재를 받을 수 있습니다.)"
                       style={{ width: '100%', height: '120px', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1', resize: 'none', fontSize: '14px' }}
                     ></textarea>
                   </div>

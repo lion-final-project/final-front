@@ -3,11 +3,33 @@ import React, { useState, useEffect } from 'react';
 const CartModal = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveFromCart, onCheckout, isLoggedIn, onOpenAuth, onGoHome }) => {
   const [selectedStores, setSelectedStores] = useState(new Set());
 
-  // Initialize selected stores when cartItems change or modal opens
+  // Automatically select new stores that appear in the cart
   useEffect(() => {
-    if (isOpen && cartItems.length > 0) {
-      const stores = new Set(cartItems.map(item => item.storeName));
-      setSelectedStores(stores);
+    if (isOpen) {
+      const currentItemStores = new Set(cartItems.map(item => item.storeName));
+      setSelectedStores(prev => {
+        const next = new Set(prev);
+        // Only add stores that aren't already there (to avoid overwriting manual unselection)
+        // and remove stores that no longer exist in cartItems
+        let changed = false;
+        
+        // Remove stale stores
+        for (const store of next) {
+          if (!currentItemStores.has(store)) {
+            next.delete(store);
+            changed = true;
+          }
+        }
+        
+        // Add new stores (optional: could just leave them unselected, but usually better to select them)
+        // If it's the first time opening with items, select all
+        if (prev.size === 0 && currentItemStores.size > 0) {
+           currentItemStores.forEach(s => next.add(s));
+           changed = true;
+        }
+
+        return changed ? next : prev;
+      });
     }
   }, [isOpen, cartItems]);
 
@@ -34,8 +56,16 @@ const CartModal = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveFromC
   // Calculate totals for SELECTED stores
   const selectedItems = cartItems.filter(item => selectedStores.has(item.storeName));
   const productPrice = selectedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const shippingPrice = selectedStores.size * 3000; // Assuming 3000 per store
+  
+  // Only pay shipping for stores that actually HAVE selected items
+  const activeSelectedStoreCount = new Set(selectedItems.map(i => i.storeName)).size;
+  const shippingPrice = activeSelectedStoreCount * 3000;
   const totalPrice = productPrice + shippingPrice;
+
+  const hasOutOfStockInSelection = selectedItems.some(item => {
+    const stock = item.stock ?? 999; // Assume in stock if property missing
+    return stock <= 0 || item.quantity > stock;
+  });
 
   return (
     <div style={{
@@ -105,10 +135,21 @@ const CartModal = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveFromC
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'space-between' }}>
                           <button onClick={() => onRemoveFromCart(item.id)} style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}>✕</button>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#f1f5f9', padding: '4px 8px', borderRadius: '24px' }}>
-                            <button onClick={() => onUpdateQuantity(item.id, -1)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontWeight: '800', width: '20px' }}>-</button>
+                          {item.stock <= 0 ? (
+                            <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: '800', background: '#fef2f2', padding: '2px 8px', borderRadius: '4px', border: '1px solid #fee2e2' }}>품절</div>
+                          ) : item.quantity > item.stock ? (
+                            <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: '800', background: '#fffbeb', padding: '2px 8px', borderRadius: '4px', border: '1px solid #fef3c7' }}>재고 {item.stock}개 남음</div>
+                          ) : null}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#f1f5f9', padding: '4px 8px', borderRadius: '24px', opacity: item.stock <= 0 ? 0.5 : 1 }}>
+                            <button 
+                              disabled={item.stock <= 0}
+                              onClick={() => onUpdateQuantity(item.id, -1)} 
+                              style={{ border: 'none', background: 'transparent', cursor: item.stock <= 0 ? 'not-allowed' : 'pointer', fontWeight: '800', width: '20px' }}>-</button>
                             <span style={{ fontWeight: '700', fontSize: '13px', width: '16px', textAlign: 'center' }}>{item.quantity}</span>
-                            <button onClick={() => onUpdateQuantity(item.id, 1)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontWeight: '800', width: '20px' }}>+</button>
+                            <button 
+                              disabled={item.stock <= 0 || item.quantity >= item.stock}
+                              onClick={() => onUpdateQuantity(item.id, 1)} 
+                              style={{ border: 'none', background: 'transparent', cursor: (item.stock <= 0 || item.quantity >= item.stock) ? 'not-allowed' : 'pointer', fontWeight: '800', width: '20px' }}>+</button>
                           </div>
                         </div>
                       </div>
@@ -137,22 +178,26 @@ const CartModal = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveFromC
             </div>
             <button 
               onClick={() => { 
-                if (selectedStores.size === 0) {
-                  alert('결제할 상점을 선택해주세요.');
+                if (activeSelectedStoreCount === 0) {
+                  alert('결제할 상품이 포함된 상점을 선택해주세요.');
+                  return;
+                }
+                if (hasOutOfStockInSelection) {
+                  alert('품절되었거나 재고가 부족한 상품이 포함되어 있습니다. 해당 상품을 삭제하거나 수량을 조절해 주세요.');
                   return;
                 }
                 onClose(); 
-                onCheckout(selectedItems); // Pass selected items if backend needs it (logic update)
+                onCheckout(selectedItems); 
               }}
               style={{ 
                 width: '100%', padding: '16px', borderRadius: '12px', 
-                background: selectedStores.size > 0 ? 'var(--primary)' : '#cbd5e1', 
+                background: (activeSelectedStoreCount > 0 && !hasOutOfStockInSelection) ? 'var(--primary)' : '#cbd5e1', 
                 color: 'white', border: 'none', fontWeight: '700', fontSize: '16px', 
-                cursor: selectedStores.size > 0 ? 'pointer' : 'not-allowed', 
-                boxShadow: selectedStores.size > 0 ? '0 4px 14px rgba(16, 185, 129, 0.4)' : 'none' 
+                cursor: (activeSelectedStoreCount > 0 && !hasOutOfStockInSelection) ? 'pointer' : 'not-allowed', 
+                boxShadow: (activeSelectedStoreCount > 0 && !hasOutOfStockInSelection) ? '0 4px 14px rgba(16, 185, 129, 0.4)' : 'none' 
               }}
             >
-              {selectedStores.size}개 상점 결제하기
+              {hasOutOfStockInSelection ? '품절 상품 포함됨' : `${activeSelectedStoreCount}개 상점 결제하기`}
             </button>
           </div>
         )}

@@ -1,8 +1,6 @@
 import React from 'react';
 
 const Header = ({ 
-  searchQuery, 
-  setSearchQuery, 
   activeTab, 
   onTabChange, 
   onOpenAuth, 
@@ -11,9 +9,7 @@ const Header = ({
   notificationCount, 
   onOpenNotifications,
   isResidentRider,
-  onLogout,
-  onLocationClick,
-  currentLocation
+  onLogout
 }) => {
   return (
     <header className="header-glass" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -46,6 +42,7 @@ const Header = ({
         </div>
         <div className="header-right">
           <div className="header-icons">
+
             {/* Notifications */}
             <div style={{ position: 'relative', cursor: 'pointer' }} onClick={onOpenNotifications}>
               <span style={{ fontSize: '20px' }}>🔔</span>
@@ -223,6 +220,8 @@ const Header = ({
              display: none;
           }
         }
+
+
       `}</style>
     </header>
   );
