@@ -6,6 +6,9 @@ const SearchResultsView = ({ query, stores, categories, onStoreClick }) => {
   
   // Filter logic unified with StoreGrid + additional sidebar filters
   const filteredStores = stores.filter(store => {
+    // Hidden if status is '중지됨' (suspended) or '비활성' (inactive)
+    if (store.status === '중지됨' || store.status === '비활성') return false;
+
     const matchesSearch = 
       store.name.toLowerCase().includes(query.toLowerCase()) ||
       store.products.some(p => p.name.toLowerCase().includes(query.toLowerCase()));

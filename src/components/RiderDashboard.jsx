@@ -59,7 +59,6 @@ const MapSimulator = ({ status }) => {
     </div>
   );
 };
-
 const RiderDashboard = ({ isResidentRider, riderInfo }) => {
   const [activeTab, setActiveTab] = useState('main');
   const [isOnline, setIsOnline] = useState(true);
@@ -67,6 +66,9 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
   const [earnings, setEarnings] = useState({ today: 48500, weekly: 342000 });
   const [showMsgModal, setShowMsgModal] = useState(false);
   const [completionNotification, setCompletionNotification] = useState(null); // { fee: 3500 }
+  const [showPhotoUploadModal, setShowPhotoUploadModal] = useState(false);
+  const [uploadingDeliveryId, setUploadingDeliveryId] = useState(null);
+  const [deliveryPhoto, setDeliveryPhoto] = useState(null);
   
   const [verificationStatus /* , setVerificationStatus */] = useState('verified'); // unverified, pending, verified
   const [vehicleInfo, setVehicleInfo] = useState({ 
@@ -90,6 +92,24 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
   ]);
   const [activeVehicleId, setActiveVehicleId] = useState(1);
   const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
+  const [statusPopup, setStatusPopup] = useState(null); // { type: 'online' | 'offline' | 'error', message: string }
+
+  const handleToggleOnline = () => {
+    if (isOnline) {
+      if (activeDeliveries.length > 0) {
+        setStatusPopup({
+          type: 'error',
+          message: '진행 중인 배달이 있습니다.\n모두 완료 후 운행을 종료해주세요.'
+        });
+        return;
+      }
+      setIsOnline(false);
+      setStatusPopup({ type: 'offline', message: '오늘도 고생하셨습니다!\n운행을 종료합니다.' });
+    } else {
+      setIsOnline(true);
+      setStatusPopup({ type: 'online', message: '오늘 하루도 화이팅!\n운행을 시작합니다.' });
+    }
+  };
 
   const handleDeleteVehicle = (id, e) => {
     e.stopPropagation();
@@ -122,13 +142,43 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
       } else if (delivery.status === 'pickup') {
         return prev.map(d => d.id === id ? { ...d, status: 'delivering' } : d);
       } else if (delivery.status === 'delivering') {
-        setEarnings(e => ({ ...e, today: e.today + delivery.fee }));
-        setCompletionNotification({ fee: delivery.fee });
-        setTimeout(() => setCompletionNotification(null), 4000); // Auto close after 4s
-        return prev.filter(d => d.id !== id);
+        // Require photo proof before completing
+        setUploadingDeliveryId(id);
+        setShowPhotoUploadModal(true);
+        return prev;
       }
       return prev;
     });
+  };
+
+  const handleCompleteDelivery = () => {
+    if (!uploadingDeliveryId) return;
+    
+    setActiveDeliveries(prev => {
+      const delivery = prev.find(d => d.id === uploadingDeliveryId);
+      if (delivery) {
+         setEarnings(e => ({ ...e, today: e.today + delivery.fee }));
+         setCompletionNotification({ fee: delivery.fee });
+         setTimeout(() => setCompletionNotification(null), 4000); 
+         return prev.filter(d => d.id !== uploadingDeliveryId);
+      }
+      return prev;
+    });
+    
+    setUploadingDeliveryId(null);
+    setShowPhotoUploadModal(false);
+    setDeliveryPhoto(null);
+  };
+
+  const handlePhotoSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setDeliveryPhoto(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const toggleHistoryExpand = (id) => {
@@ -158,12 +208,18 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
                <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '4px' }}>이번 주 정산 예정 금액</div>
                <div style={{ fontSize: '28px', fontWeight: '900', color: '#10b981' }}>{earnings.weekly.toLocaleString()}원</div>
                <div style={{ color: '#64748b', fontSize: '12px', marginTop: '6px' }}>정산일: 매주 수요일</div>
+               <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #334155', fontSize: '13px', display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#94a3b8' }}>정산 계좌</span>
+                  <span style={{ color: '#cbd5e1', fontWeight: '600' }}>카카오뱅크 3333-**-******</span>
+               </div>
             </div>
             <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '16px' }}>최근 정산 기록</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {[
-                { date: '2026.01.20', amount: '50,000원', status: '입금완료', type: '정산', details: '1월 3주차 배달 수수료 (14건)' },
-                { date: '2026.01.13', amount: '120,000원', status: '입금완료', type: '정산', details: '1월 2주차 배달 수수료 (32건)' }
+                { date: '2026-01-19 ~ 2026-01-25', amount: '50,000원', status: '입금완료', type: '정산', details: '1월 4주차 배달 건수 (14건)' },
+                { date: '2026-01-12 ~ 2026-01-18', amount: '120,000원', status: '입금완료', type: '정산', details: '1월 3주차 배달 건수 (32건)' },
+                { date: '2026-01-05 ~ 2026-01-11', amount: '85,000원', status: '입금완료', type: '정산', details: '1월 2주차 배달 건수 (24건)' },
+                { date: '2025-12-28 ~ 2026-01-04', amount: '92,000원', status: '입금완료', type: '정산', details: '1월 1주차 배달 건수 (26건)' }
               ].map((item, i) => (
                 <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div 
@@ -292,7 +348,7 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
       case 'account':
         return (
           <div style={{ padding: '20px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '24px' }}>계정 및 차량 관리</h2>
+            <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '24px' }}>계정 및 서류 관리</h2>
             
             <div style={{ backgroundColor: '#1e293b', padding: '24px', borderRadius: '20px', marginBottom: '24px', border: '1px solid #334155' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -314,70 +370,6 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
               </div>
             </div>
 
-            <div style={{ backgroundColor: '#1e293b', padding: '24px', borderRadius: '20px', border: '1px solid #334155', marginBottom: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h3 style={{ fontSize: '16px', fontWeight: '700' }}>보유 운송 수단</h3>
-                <button 
-                  onClick={() => setShowAddVehicleModal(true)}
-                  style={{ background: 'var(--primary)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}
-                >+ 추가하기</button>
-              </div>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {registeredVehicles.map(v => (
-                  <div 
-                    key={v.id}
-                    onClick={() => setActiveVehicleId(v.id)}
-                    style={{ 
-                      padding: '16px', 
-                      borderRadius: '12px', 
-                      backgroundColor: activeVehicleId === v.id ? 'rgba(56, 189, 248, 0.1)' : '#0f172a', 
-                      border: activeVehicleId === v.id ? '2px solid #38bdf8' : '1px solid #334155',
-                      cursor: 'pointer',
-                      transition: '0.2s'
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: v.model ? '8px' : '0' }}>
-                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '18px' }}>
-                            {v.type === 'walking' ? '🏃' : v.type === 'bicycle' ? '🚲' : v.type === 'motorcycle' ? '🛵' : '🚗'}
-                          </span>
-                          <span style={{ fontWeight: '700', fontSize: '14px' }}>
-                            {v.type === 'walking' ? '도보' : v.type === 'bicycle' ? '자전거' : v.type === 'motorcycle' ? '오토바이' : '자동차'}
-                          </span>
-                          {activeVehicleId === v.id && (
-                            <span style={{ fontSize: '10px', backgroundColor: '#38bdf8', color: 'white', padding: '2px 6px', borderRadius: '4px', fontWeight: '900' }}>운행 중</span>
-                          )}
-                       </div>
-                        {activeVehicleId !== v.id && (
-                          <button 
-                            onClick={(e) => handleDeleteVehicle(v.id, e)}
-                            style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '18px', cursor: 'pointer', padding: '4px' }}
-                          >✕</button>
-                        )}
-                     </div>
-                    {v.model && (
-                      <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-                        {v.model} {v.plate && `(${v.plate})`}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ backgroundColor: '#1e293b', padding: '20px', borderRadius: '20px', border: '1px solid rgba(241, 196, 15, 0.3)' }}>
-               <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                  <span style={{ fontSize: '20px' }}>📢</span>
-                  <div>
-                     <div style={{ fontSize: '14px', fontWeight: '700', color: '#f1c40f', marginBottom: '4px' }}>면허 필요 수단 추가 안내</div>
-                     <div style={{ fontSize: '12px', color: '#94a3b8', lineHeight: '1.6' }}>
-                        오토바이, 승용차 등 면허가 필요한 운송 수단은 서류 확인이 필요합니다. <br/>
-                        <span style={{ color: '#38bdf8', fontWeight: '700', cursor: 'pointer' }} onClick={() => alert('상담사 채팅으로 이동합니다.')}>[상담사 문의]</span>를 통해 신청해 주세요.
-                     </div>
-                  </div>
-               </div>
-            </div>
 
             <div style={{ marginTop: '24px', textAlign: 'center' }}>
               <button style={{ background: 'transparent', border: 'none', color: '#ef4444', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>로그아웃</button>
@@ -545,8 +537,17 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
       color: 'white',
       fontFamily: 'sans-serif',
       paddingBottom: '80px',
-      position: 'relative'
+      position: 'relative',
+      overflowX: 'hidden'
     }}>
+      <style>{`
+        .rider-dashboard::-webkit-scrollbar { display: none; }
+        .rider-dashboard { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes popup-in {
+          0% { transform: scale(0.9); opacity: 0; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
       <header style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -575,7 +576,7 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
             <span style={{ fontWeight: '700', color: isOnline ? 'white' : '#ef4444' }}>{isOnline ? '운행 중' : '운행 불가'}</span>
           </div>
           <button 
-            onClick={() => setIsOnline(!isOnline)}
+            onClick={handleToggleOnline}
             style={{
               width: '50px',
               height: '26px',
@@ -632,6 +633,56 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
               onClick={() => setShowMsgModal(false)}
               style={{ width: '100%', marginTop: '20px', padding: '14px', border: 'none', background: 'transparent', color: '#94a3b8', fontWeight: '700', cursor: 'pointer' }}>
               닫기
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Photo Upload Modal */}
+      {showPhotoUploadModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ backgroundColor: '#1e293b', borderRadius: '24px', width: '100%', maxWidth: '360px', padding: '24px', textAlign: 'center' }}>
+            <h3 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '8px' }}>배달 완료 인증</h3>
+            <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '24px' }}>반드시 배송 완료 사진을 촬영해 첨부해야 합니다.</p>
+            
+            <div style={{ 
+              backgroundColor: '#0f172a', borderRadius: '16px', height: '200px', marginBottom: '24px', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px dashed #334155',
+              overflow: 'hidden', position: 'relative'
+            }}>
+              {deliveryPhoto ? (
+                <img src={deliveryPhoto} alt="Delivery Proof" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <div style={{ color: '#64748b', fontSize: '14px', flexDirection: 'column', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '24px' }}>📷</span>
+                  <span style={{ fontWeight: '700' }}>사진을 등록해주세요</span>
+                </div>
+              )}
+              <input 
+                type="file" 
+                accept="image/*" 
+                onChange={handlePhotoSelect}
+                style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+              />
+            </div>
+            
+            <button 
+              onClick={handleCompleteDelivery}
+              disabled={!deliveryPhoto}
+              style={{ 
+                width: '100%', padding: '16px', borderRadius: '16px', 
+                backgroundColor: deliveryPhoto ? '#38bdf8' : '#334155', 
+                color: deliveryPhoto ? 'white' : '#64748b', 
+                border: 'none', fontWeight: '900', fontSize: '16px', 
+                cursor: deliveryPhoto ? 'pointer' : 'not-allowed',
+                transition: 'all 0.2s'
+              }}>
+              배송 완료 제출
+            </button>
+            <button 
+              onClick={() => { setShowPhotoUploadModal(false); setDeliveryPhoto(null); setUploadingDeliveryId(null); }}
+              style={{ background: 'transparent', border: 'none', color: '#94a3b8', marginTop: '16px', fontWeight: '700', cursor: 'pointer' }}>
+              취소
             </button>
           </div>
         </div>
@@ -735,7 +786,7 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
           { icon: '🏠', label: '홈', tab: 'main' },
           { icon: '📋', label: '히스토리', tab: 'history' },
           { icon: '💰', label: '정산', tab: 'earnings' },
-          { icon: '👤', label: '계정/차량', tab: 'account' }
+          { icon: '👤', label: '마이페이지', tab: 'account' }
         ].map(item => (
           <div 
             key={item.tab}
@@ -787,6 +838,34 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
           <button 
             onClick={() => setCompletionNotification(null)}
             style={{ background: 'none', border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer', padding: '4px' }}>✕</button>
+        </div>
+      )}
+
+      {/* Status Change Popup (Mobile Styled) */}
+      {statusPopup && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+          <div style={{ 
+            backgroundColor: '#1e293b', padding: '32px', borderRadius: '28px', width: '100%', maxWidth: '320px', textAlign: 'center',
+            border: `1px solid ${statusPopup.type === 'error' ? '#ef4444' : statusPopup.type === 'online' ? '#10b981' : '#38bdf8'}`,
+            animation: 'popup-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '20px' }}>
+              {statusPopup.type === 'online' ? '🚀' : statusPopup.type === 'offline' ? '🏡' : '⚠️'}
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: '800', lineHeight: '1.5', whiteSpace: 'pre-line', marginBottom: '24px' }}>
+              {statusPopup.message}
+            </div>
+            {statusPopup.type === 'online' && (
+              <div style={{ marginBottom: '24px', padding: '12px', backgroundColor: '#0f172a', borderRadius: '12px', fontSize: '12px', color: '#94a3b8' }}>
+                📍 현재 위치 확인 완료<br/>서울시 강남구 삼성동
+              </div>
+            )}
+            <button 
+              onClick={() => setStatusPopup(null)}
+              style={{ width: '100%', padding: '16px', borderRadius: '16px', backgroundColor: statusPopup.type === 'error' ? '#ef4444' : '#38bdf8', color: 'white', border: 'none', fontWeight: '900', fontSize: '16px', cursor: 'pointer' }}>
+              확인
+            </button>
+          </div>
         </div>
       )}
 

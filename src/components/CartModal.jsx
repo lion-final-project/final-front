@@ -145,7 +145,20 @@ const CartModal = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveFromC
                               disabled={item.stock <= 0}
                               onClick={() => onUpdateQuantity(item.id, -1)} 
                               style={{ border: 'none', background: 'transparent', cursor: item.stock <= 0 ? 'not-allowed' : 'pointer', fontWeight: '800', width: '20px' }}>-</button>
-                            <span style={{ fontWeight: '700', fontSize: '13px', width: '16px', textAlign: 'center' }}>{item.quantity}</span>
+                            <input 
+                              type="number" 
+                              min="1"
+                              max={item.stock}
+                              value={item.quantity}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value) || 1;
+                                const diff = val - item.quantity;
+                                if (val > 0 && val <= (item.stock || 999)) {
+                                  onUpdateQuantity(item.id, diff);
+                                }
+                              }}
+                              style={{ width: '30px', textAlign: 'center', fontWeight: '700', border: 'none', background: 'transparent', fontSize: '13px', outline: 'none' }}
+                            />
                             <button 
                               disabled={item.stock <= 0 || item.quantity >= item.stock}
                               onClick={() => onUpdateQuantity(item.id, 1)} 

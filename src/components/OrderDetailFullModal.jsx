@@ -96,6 +96,23 @@ const OrderDetailFullModal = ({ isOpen, onClose, order }) => {
             </div>
           </div>
 
+          {/* Delivery Proof Photo */}
+          {order.status === '배송 완료' && (
+            <div style={{ marginBottom: '24px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '16px', color: '#334155' }}>배송 완료 사진</h3>
+              <div style={{ 
+                width: '100%', height: '200px', backgroundColor: '#f1f5f9', borderRadius: '12px', 
+                overflow: 'hidden', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                {/* Placeholder for actual photo logic. In a real app, order would have a proofPhotoUrl field */}
+                <span style={{ fontSize: '40px' }}>📦</span>
+              </div>
+              <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '8px', textAlign: 'center' }}>
+                라이더가 배송 완료 시 촬영한 사진입니다.
+              </p>
+            </div>
+          )}
+
         </div>
       </div>
     </div>

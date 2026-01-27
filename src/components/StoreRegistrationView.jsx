@@ -7,6 +7,8 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
     storeName: '',   // 상호명
     repName: '',     // 대표자명
     contact: '',     // 연락처
+    martContact: '', // 마트연락처
+    martIntro: '',   // 마트소개
     businessNumber: '', // 사업자등록증 번호
     mailOrderNumber: '', // 통신 판매업 신고번호
     bankName: '',
@@ -18,6 +20,8 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
     weekdayLastOrder: '21:30',
     weekendLastOrder: '20:30'
   });
+
+  const [errors, setErrors] = useState({});
 
   const [files, setFiles] = useState({
     businessRegistration: null,
@@ -42,26 +46,37 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+    const newErrors = {};
+
     // Check if all text fields are filled
     const requiredFields = [
-      'category', 'companyName', 'storeName', 'repName', 'contact', 
+      'category', 'companyName', 'storeName', 'repName', 'contact',
       'businessNumber', 'mailOrderNumber', 'bankName', 'accountNumber', 'accountHolder'
     ];
     
-    for (const field of requiredFields) {
+    requiredFields.forEach(field => {
       if (!formData[field]) {
-        alert('모든 필수 텍스트 항목을 입력해주세요.');
-        return;
+        newErrors[field] = '필수 입력 항목입니다.';
       }
-    }
+    });
 
     // Check if all files are uploaded
-    if (!files.businessRegistration || !files.bankbook || !files.mailOrderCertificate) {
-      alert('모든 증빙 서류를 첨부해주세요.');
+    if (!files.businessRegistration) newErrors.businessRegistration = '사업자등록증을 첨부해주세요.';
+    if (!files.bankbook) newErrors.bankbook = '통장 사본을 첨부해주세요.';
+    if (!files.mailOrderCertificate) newErrors.mailOrderCertificate = '통신판매업 신고증을 첨부해주세요.';
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      // Find the first error element and scroll to it
+      const firstError = Object.keys(newErrors)[0];
+      const element = document.getElementById(`error-${firstError}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
+    setErrors({});
     // Simulate submission
     setTimeout(() => {
       setStatus('PENDING');
@@ -124,26 +139,34 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
     return renderStatusView();
   }
 
-  const InputSection = ({ label, field, placeholder, type = "text" }) => (
-    <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+  const InputSection = ({ label, field, placeholder, type = "text", required = true }) => (
+    <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: errors[field] ? '1px solid #ef4444' : 'none' }}>
       <label style={{ display: 'block', fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
-        {label} <span style={{ color: '#ef4444' }}>*</span>
+        {label} {required && <span style={{ color: '#ef4444' }}>*</span>}
       </label>
       <input 
         type={type}
-        required
-        placeholder={placeholder || "내 답변"}
+        required={required}
+        placeholder={placeholder || (required ? "필수 입력" : "내 답변 (선택)")}
         value={formData[field]}
-        onChange={(e) => setFormData({...formData, [field]: e.target.value})}
-        style={{ width: '100%', padding: '8px 0', border: 'none', borderBottom: '1px solid #e5e7eb', fontSize: '14px', outline: 'none' }}
-        onFocus={(e) => e.target.style.borderBottom = '2px solid var(--primary)'}
-        onBlur={(e) => e.target.style.borderBottom = '1px solid #e5e7eb'}
+        onChange={(e) => {
+          setFormData({...formData, [field]: e.target.value});
+          if (errors[field]) setErrors({...errors, [field]: null});
+        }}
+        style={{ width: '100%', padding: '8px 0', border: 'none', borderBottom: errors[field] ? '2px solid #ef4444' : '1px solid #e5e7eb', fontSize: '14px', outline: 'none' }}
+        onFocus={(e) => e.target.style.borderBottom = errors[field] ? '2px solid #ef4444' : '2px solid var(--primary)'}
+        onBlur={(e) => e.target.style.borderBottom = errors[field] ? '2px solid #ef4444' : '1px solid #e5e7eb'}
       />
+      {errors[field] && (
+        <div id={`error-${field}`} style={{ color: '#ef4444', fontSize: '12px', marginTop: '8px', fontWeight: '600' }}>
+          {errors[field]}
+        </div>
+      )}
     </div>
   );
 
   const FileSection = ({ label, field, hint }) => (
-    <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+    <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: errors[field] ? '1px solid #ef4444' : 'none' }}>
       <label style={{ display: 'block', fontSize: '16px', fontWeight: '600', marginBottom: '8px' }}>
         {label} <span style={{ color: '#ef4444' }}>*</span>
       </label>
@@ -151,9 +174,17 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
       <input 
         type="file" 
         required
-        onChange={(e) => handleFileChange(e, field)}
+        onChange={(e) => {
+          handleFileChange(e, field);
+          if (errors[field]) setErrors({...errors, [field]: null});
+        }}
         style={{ width: '100%', fontSize: '14px', color: '#64748b' }} 
       />
+      {errors[field] && (
+        <div id={`error-${field}`} style={{ color: '#ef4444', fontSize: '12px', marginTop: '8px', fontWeight: '600' }}>
+          {errors[field]}
+        </div>
+      )}
       {files[field] && (
         <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--primary)', fontWeight: '600' }}>
           ✓ {files[field].name} 등록됨
@@ -178,15 +209,18 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
         {/* Form Form */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           
-          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: errors.category ? '1px solid #ef4444' : 'none' }}>
             <label style={{ display: 'block', fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
               카테고리 선택 <span style={{ color: '#ef4444' }}>*</span>
             </label>
             <select 
               required
               value={formData.category}
-              onChange={(e) => setFormData({...formData, category: e.target.value})}
-              style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '14px' }}
+              onChange={(e) => {
+                setFormData({...formData, category: e.target.value});
+                if (errors.category) setErrors({...errors, category: null});
+              }}
+              style={{ width: '100%', padding: '12px', borderRadius: '4px', border: errors.category ? '1px solid #ef4444' : '1px solid #d1d5db', fontSize: '14px' }}
             >
               <option value="">선택</option>
               <option value="fruit">과일/채소</option>
@@ -196,12 +230,32 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
               <option value="snack">간식/베이커리</option>
               <option value="other">기타</option>
             </select>
+            {errors.category && (
+              <div id="error-category" style={{ color: '#ef4444', fontSize: '12px', marginTop: '8px', fontWeight: '600' }}>
+                {errors.category}
+              </div>
+            )}
           </div>
 
           <InputSection label="사업자명" field="companyName" placeholder="사업자등록증상의 사업자명을 입력해주세요" />
           <InputSection label="상호명" field="storeName" placeholder="동네마켓 앱에 노출될 상호명을 입력해주세요" />
           <InputSection label="대표자명" field="repName" />
-          <InputSection label="연락처" field="contact" placeholder="010-0000-0000" />
+          <InputSection label="대표자 연락처" field="contact" placeholder="010-0000-0000" />
+          <InputSection label="마트 연락처" field="martContact" placeholder="02-000-0000 또는 010-0000-0000" required={false} />
+          
+          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+            <label style={{ display: 'block', fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
+              마트 소개
+            </label>
+            <textarea 
+              placeholder="마트에 대한 간단한 소개를 입력해주세요 (선택)"
+              value={formData.martIntro}
+              onChange={(e) => setFormData({...formData, martIntro: e.target.value})}
+              style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '14px', minHeight: '100px', outline: 'none' }}
+              onFocus={(e) => e.target.style.border = '2px solid var(--primary)'}
+              onBlur={(e) => e.target.style.border = '1px solid #d1d5db'}
+            />
+          </div>
           
           <InputSection label="사업자등록번호" field="businessNumber" placeholder="000-00-00000 (- 포함)" />
           <FileSection label="사업자등록증 첨부" field="businessRegistration" hint="사업자등록증 원본 스캔본 또는 사진" />
@@ -214,15 +268,18 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>은행명 <span style={{ color: '#ef4444' }}>*</span></label>
-                <input required type="text" value={formData.bankName} onChange={(e)=>setFormData({...formData, bankName: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #e2e8f0' }} placeholder="OO은행" />
+                <input required type="text" value={formData.bankName} onChange={(e)=>{setFormData({...formData, bankName: e.target.value}); if(errors.bankName) setErrors({...errors, bankName: null});}} style={{ width: '100%', padding: '10px', borderRadius: '4px', border: errors.bankName ? '1px solid #ef4444' : '1px solid #e2e8f0' }} placeholder="OO은행" />
+                {errors.bankName && <div id="error-bankName" style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px', fontWeight: '600' }}>{errors.bankName}</div>}
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>계좌번호 <span style={{ color: '#ef4444' }}>*</span></label>
-                <input required type="text" value={formData.accountNumber} onChange={(e)=>setFormData({...formData, accountNumber: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #e2e8f0' }} placeholder="- 없이 입력" />
+                <input required type="text" value={formData.accountNumber} onChange={(e)=>{setFormData({...formData, accountNumber: e.target.value}); if(errors.accountNumber) setErrors({...errors, accountNumber: null});}} style={{ width: '100%', padding: '10px', borderRadius: '4px', border: errors.accountNumber ? '1px solid #ef4444' : '1px solid #e2e8f0' }} placeholder="- 없이 입력" />
+                {errors.accountNumber && <div id="error-accountNumber" style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px', fontWeight: '600' }}>{errors.accountNumber}</div>}
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>예금주 <span style={{ color: '#ef4444' }}>*</span></label>
-                <input required type="text" value={formData.accountHolder} onChange={(e)=>setFormData({...formData, accountHolder: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #e2e8f0' }} />
+                <input required type="text" value={formData.accountHolder} onChange={(e)=>{setFormData({...formData, accountHolder: e.target.value}); if(errors.accountHolder) setErrors({...errors, accountHolder: null});}} style={{ width: '100%', padding: '10px', borderRadius: '4px', border: errors.accountHolder ? '1px solid #ef4444' : '1px solid #e2e8f0' }} />
+                {errors.accountHolder && <div id="error-accountHolder" style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px', fontWeight: '600' }}>{errors.accountHolder}</div>}
               </div>
             </div>
           </div>

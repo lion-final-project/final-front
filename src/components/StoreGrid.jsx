@@ -6,8 +6,12 @@ import { stores } from '../data/mockData';
 const StoreGrid = ({ selectedCategory, searchQuery, onStoreClick }) => {
   const [visibleCount, setVisibleCount] = useState(4);
   const [loading, setLoading] = useState(false);
+  const triggerRef = React.useRef(null);
 
   const filteredStores = stores.filter(store => {
+    // Hidden if status is '중지됨' (suspended) or '비활성' (inactive)
+    if (store.status === '중지됨' || store.status === '비활성') return false;
+
     // 3km radius filter
     const isWithinRadius = store.distance <= 3;
     if (!isWithinRadius) return false;
@@ -22,23 +26,26 @@ const StoreGrid = ({ selectedCategory, searchQuery, onStoreClick }) => {
     return matchesCategory && matchesSearch;
   });
 
-  // Infinite Scroll Logic
+  // Intersection Observer for Infinite Scroll
   useEffect(() => {
-    const handleScroll = () => {
-      if (window.innerHeight + document.documentElement.scrollTop + 100 >= document.documentElement.offsetHeight) {
-        if (visibleCount < filteredStores.length && !loading) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && visibleCount < filteredStores.length && !loading) {
           setLoading(true);
-          // Simulate loading delay
           setTimeout(() => {
             setVisibleCount(prev => prev + 4);
             setLoading(false);
-          }, 600);
+          }, 800);
         }
-      }
-    };
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    if (triggerRef.current) observer.observe(triggerRef.current);
+
+    return () => {
+      if (triggerRef.current) observer.unobserve(triggerRef.current);
+    };
   }, [visibleCount, filteredStores.length, loading]);
 
   // Reset visibleCount when search or category changes
@@ -161,22 +168,38 @@ const StoreGrid = ({ selectedCategory, searchQuery, onStoreClick }) => {
         )}
       </div>
 
+      {/* Infinite Scroll Trigger */}
+      <div ref={triggerRef} style={{ height: '20px', margin: '10px 0' }}></div>
+
       {loading && (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--primary)', fontWeight: '700' }}>
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '60px 0', 
+          color: 'var(--primary)', 
+          fontWeight: '700',
+          fontSize: '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          <div className="loading-spinner" style={{
+            width: '30px',
+            height: '30px',
+            border: '3px solid rgba(46, 204, 113, 0.1)',
+            borderTop: '3px solid var(--primary)',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite'
+          }}></div>
           🛒 새로운 마트 정보를 불러오고 있습니다...
         </div>
       )}
 
-      {visibleCount < filteredStores.length && !loading && (
-        <div style={{ textAlign: 'center', padding: '40px 0' }}>
-          <button 
-            onClick={() => setVisibleCount(prev => prev + 4)}
-            style={{ padding: '12px 24px', borderRadius: '24px', border: '1px solid #e2e8f0', background: 'white', color: '#64748b', fontWeight: '700', cursor: 'pointer' }}
-          >더보기</button>
-        </div>
-      )}
-
       <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
         .store-card:hover {
           transform: translateY(-8px);
           box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);

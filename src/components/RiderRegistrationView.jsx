@@ -4,19 +4,19 @@ const RiderRegistrationView = ({ onBack, onComplete }) => {
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
-    vehicleType: 'walking',
-    vehicleModel: '',
-    vehiclePlate: '',
-    region: '서울시 강남구'
+    idCardImg: null,
+    bankName: '',
+    accountNumber: '',
+    accountHolder: '',
+    bankbookImg: null
   });
 
   const [status, setStatus] = useState('NONE'); // NONE, PENDING, APPROVED
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const needsVehicleInfo = !['walking', 'bicycle'].includes(formData.vehicleType);
-    if (!formData.name || !formData.phone || (needsVehicleInfo && !formData.vehicleModel)) {
-      alert('필수 항목을 모두 입력해주세요.');
+    if (!formData.name || !formData.phone || !formData.idCardImg || !formData.bankName || !formData.accountNumber || !formData.accountHolder || !formData.bankbookImg) {
+      alert('필수 항목을 모두 입력하고 서류를 첨부해주세요.');
       return;
     }
     setStatus('PENDING');
@@ -50,7 +50,8 @@ const RiderRegistrationView = ({ onBack, onComplete }) => {
           ) : (
             <div style={{ padding: '20px', backgroundColor: '#f8fafc', borderRadius: '12px', fontSize: '14px', color: '#475569' }}>
               <div style={{ fontWeight: '700', marginBottom: '8px' }}>신청 정보</div>
-              <div>{formData.name} 라이더님 ({formData.vehicleModel})</div>
+              <div>{formData.name} 라이더님</div>
+              <div style={{ marginTop: '4px', fontSize: '12px', color: '#94a3b8' }}>정산 계좌: {formData.bankName} {formData.accountNumber}</div>
             </div>
           )}
           
@@ -85,7 +86,7 @@ const RiderRegistrationView = ({ onBack, onComplete }) => {
           <h1 style={{ fontSize: '32px', fontWeight: '700', marginBottom: '12px' }}>주민 라이더 지원</h1>
           <p style={{ color: '#475569', fontSize: '14px', lineHeight: '1.5' }}>
             동네마켓의 주민 배달 파트너가 되어 우리 동네 이웃들에게 행복을 배달하세요.<br/>
-            초기 가입 시에는 빠른 활동을 위해 <strong>도보</strong> 및 <strong>자전거</strong>만 선택 가능합니다.
+            제출해주신 서류를 바탕으로 신속하게 심사를 진행하겠습니다.
           </p>
           <div style={{ marginTop: '16px', fontSize: '12px', color: '#ef4444' }}>* 필수 항목</div>
         </div>
@@ -113,61 +114,101 @@ const RiderRegistrationView = ({ onBack, onComplete }) => {
                 onChange={(e) => setFormData({...formData, phone: e.target.value})}
                 style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '14px' }}
               />
-            </div>
-          </div>
-
-          {/* Vehicle Type */}
-          <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-            <label style={{ display: 'block', fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
-              2. 배달 운송 수단 <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <select 
-              value={formData.vehicleType}
-              onChange={(e) => setFormData({...formData, vehicleType: e.target.value})}
-              style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '14px' }}
-            >
-              <option value="walking">도보</option>
-              <option value="bicycle">자전거</option>
-            </select>
-            <div style={{ marginTop: '12px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-               <p style={{ fontSize: '12px', color: '#64748b', margin: 0, lineHeight: '1.5' }}>
-                 💡 <strong>오토바이</strong> 및 <strong>승용차</strong> 배달은 라이더 승인 후, <br />
-                 라이더 마이페이지 내 <strong>'전문 수단 인증'</strong> 섹션에서 면허/보험 서류 확인 후 활성화됩니다.
-               </p>
-            </div>
-          </div>
-
-          {/* Vehicle Details */}
-          {formData.vehicleType === 'bicycle' && (
-            <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-              <label style={{ display: 'block', fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
-                3. 배달 수단 정보 <span style={{ color: '#ef4444' }}>*</span>
-              </label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <input 
-                  type="text"
-                  placeholder="자전거 모델명 (선택사항)"
-                  value={formData.vehicleModel}
-                  onChange={(e) => setFormData({...formData, vehicleModel: e.target.value})}
-                  style={{ width: '100%', padding: '8px 0', border: 'none', borderBottom: '1px solid #e5e7eb', fontSize: '14px', outline: 'none' }}
-                  onFocus={(e) => e.target.style.borderBottom = '2px solid #38bdf8'}
-                  onBlur={(e) => e.target.style.borderBottom = '1px solid #e5e7eb'}
-                />
+              
+              <div style={{ marginTop: '8px' }}>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#475569' }}>
+                  신분증 첨부 (주민등록증 또는 운전면허증) <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <div style={{ 
+                  border: '2px dashed #cbd5e1', 
+                  borderRadius: '16px', 
+                  padding: '24px', 
+                  textAlign: 'center', 
+                  cursor: 'pointer',
+                  backgroundColor: formData.idCardImg ? '#f0fdf4' : '#f8fafc',
+                  transition: 'all 0.2s ease'
+                }} onClick={() => document.getElementById('idcard-upload').click()}>
+                  <input 
+                    id="idcard-upload"
+                    type="file" 
+                    hidden 
+                    onChange={(e) => setFormData({...formData, idCardImg: e.target.files[0]})}
+                  />
+                  {formData.idCardImg ? (
+                    <div style={{ color: '#16a34a', fontSize: '14px', fontWeight: '700' }}>
+                      <span style={{ fontSize: '20px', display: 'block', marginBottom: '4px' }}>💳</span>
+                      ✓ {formData.idCardImg.name}
+                    </div>
+                  ) : (
+                    <div style={{ color: '#94a3b8', fontSize: '14px' }}>
+                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>🛂</div>
+                      신분증 정면 사진을 업로드해주세요
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          )}
+          </div>
 
-          {/* Region */}
+
+          {/* Settlement Account Info */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
             <label style={{ display: 'block', fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
-              4. 희망 활동 지역
+              2. 정산 계좌 정보 <span style={{ color: '#ef4444' }}>*</span>
             </label>
-            <input 
-              type="text"
-              readOnly
-              value={formData.region}
-              style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '14px', backgroundColor: '#f8fafc', color: '#64748b' }}
-            />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <input 
+                  type="text"
+                  placeholder="은행명"
+                  value={formData.bankName}
+                  onChange={(e) => setFormData({...formData, bankName: e.target.value})}
+                  style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '14px' }}
+                />
+                <input 
+                  type="text"
+                  placeholder="예금주"
+                  value={formData.accountHolder}
+                  onChange={(e) => setFormData({...formData, accountHolder: e.target.value})}
+                  style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '14px' }}
+                />
+              </div>
+              <input 
+                type="text"
+                placeholder="계좌번호 (- 없이 입력)"
+                value={formData.accountNumber}
+                onChange={(e) => setFormData({...formData, accountNumber: e.target.value})}
+                style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '14px' }}
+              />
+              <div>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#475569' }}>
+                  통장사본 첨부 <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <div style={{ 
+                  border: '2px dashed #cbd5e1', 
+                  borderRadius: '8px', 
+                  padding: '20px', 
+                  textAlign: 'center', 
+                  cursor: 'pointer',
+                  backgroundColor: formData.bankbookImg ? '#f0fdf4' : '#f8fafc'
+                }} onClick={() => document.getElementById('bankbook-upload').click()}>
+                  <input 
+                    id="bankbook-upload"
+                    type="file" 
+                    hidden 
+                    onChange={(e) => setFormData({...formData, bankbookImg: e.target.files[0]})}
+                  />
+                  {formData.bankbookImg ? (
+                    <div style={{ color: '#16a34a', fontSize: '14px', fontWeight: '700' }}>✓ {formData.bankbookImg.name}</div>
+                  ) : (
+                    <div style={{ color: '#94a3b8', fontSize: '14px' }}>
+                      <div style={{ fontSize: '24px', marginBottom: '8px' }}>📸</div>
+                      클릭하여 통장사본 사진 업로드
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
@@ -181,7 +222,7 @@ const RiderRegistrationView = ({ onBack, onComplete }) => {
             <button 
               type="button"
               onClick={() => {
-                 setFormData({ name: '', phone: '', vehicleType: 'bicycle', vehicleModel: '', vehiclePlate: '', region: '서울시 강남구' });
+                 setFormData({ name: '', phone: '', idCardImg: null, bankName: '', accountNumber: '', accountHolder: '', bankbookImg: null });
               }}
               style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
             >

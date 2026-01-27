@@ -120,6 +120,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
       alert('회원가입이 완료되었습니다! 반갑습니다.');
     } else if (mode === 'social-extra') {
       if (!name || !phone) return alert('이름과 휴대폰 번호를 모두 입력해주세요.');
+      if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.');
       alert('추가 정보 입력이 완료되었습니다.');
     }
     // Simulate authentication
@@ -263,13 +264,38 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
 
 
 
-              {/* Phone Section */}
+              {/* Phone with Verification */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>휴대폰 번호</label>
-                <input 
-                  type="tel" placeholder="010-1234-5678" required value={phone} onChange={(e) => setPhone(e.target.value)}
-                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }} 
-                />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input 
+                    type="tel" placeholder="01012345678" required value={phone} disabled={isPhoneVerified} onChange={(e) => setPhone(e.target.value)}
+                    style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: isPhoneVerified ? '2px solid #10b981' : '1px solid #e2e8f0', fontSize: '15px' }} 
+                  />
+                  {!isPhoneVerified && (
+                    <button type="button" onClick={handleSendVerifyCode} style={{
+                      padding: '0 16px', borderRadius: '12px', border: 'none', background: '#334155', color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
+                    }}>
+                      {isPhoneSent ? '재발송' : '인증요청'}
+                    </button>
+                  )}
+                </div>
+                {isPhoneSent && !isPhoneVerified && (
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px', alignItems: 'center' }}>
+                    <div style={{ position: 'relative', flex: 1 }}>
+                      <input 
+                        type="text" placeholder="인증번호 4자리" value={verifyCode} onChange={(e) => setVerifyCode(e.target.value)}
+                        style={{ width: '100%', padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px' }} 
+                      />
+                      <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: '#ef4444', fontWeight: '700' }}>
+                        {formatTime(timeLeft)}
+                      </span>
+                    </div>
+                    <button type="button" onClick={handleVerifyCode} style={{
+                      padding: '0 16px', height: '38px', borderRadius: '10px', border: 'none', background: '#10b981', color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
+                    }}>인증확인</button>
+                  </div>
+                )}
               </div>
             </>
           )}

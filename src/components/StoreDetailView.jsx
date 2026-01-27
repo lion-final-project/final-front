@@ -61,8 +61,21 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
     setSelectedSubForDetail(product);
   };
 
+  const [reportingReviewId, setReportingReviewId] = useState(null);
+  const [reportReason, setReportReason] = useState('');
+
   const handleReport = (id) => {
-    alert('해당 리뷰를 신고하였습니다.');
+    setReportingReviewId(id);
+  };
+
+  const submitReport = () => {
+    if (!reportReason.trim()) {
+      alert('신고 내용을 입력해주세요.');
+      return;
+    }
+    alert(`해당 리뷰(#${reportingReviewId})에 대한 신고가 접수되었습니다.\n사유: ${reportReason}`);
+    setReportingReviewId(null);
+    setReportReason('');
   };
 
   const renderSubTabContent = () => {
@@ -458,40 +471,9 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
               </div>
             </div>
           </div>
-          <div style={{ textAlign: 'right', background: 'white', padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05)', minWidth: '220px' }}>
-             <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '12px', fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
-               <span style={{ color: 'var(--primary)' }}>●</span> 배송 시간 선택
-             </div>
-             <div style={{ position: 'relative' }}>
-               <select 
-                 value={selectedDeliveryTime}
-                 onChange={(e) => setSelectedDeliveryTime(e.target.value)}
-                 style={{ 
-                   width: '100%', 
-                   padding: '12px 16px', 
-                   borderRadius: '14px', 
-                   border: '2px solid #f1f5f9', 
-                   backgroundColor: '#f8fafc',
-                   fontSize: '16px',
-                   fontWeight: '800',
-                   color: '#1e293b',
-                   cursor: 'pointer',
-                   outline: 'none',
-                   appearance: 'none',
-                   textAlign: 'center',
-                   transition: 'all 0.2s'
-                 }}
-                 onMouseOver={e => e.currentTarget.style.borderColor = 'var(--primary-light)'}
-                 onMouseOut={e => e.currentTarget.style.borderColor = '#f1f5f9'}
-               >
-                 {deliveryTimeSlots.map(slot => (
-                   <option key={slot} value={slot}>{slot}</option>
-                 ))}
-               </select>
-               <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#94a3b8' }}>▾</div>
-             </div>
-             <div style={{ marginTop: '12px', fontSize: '12px', color: '#94a3b8', fontWeight: '500' }}>
-               예상 소요시간: <span style={{ color: '#1e293b', fontWeight: '700' }}>{store.time}</span>
+          <div style={{ textAlign: 'right', background: 'white', padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05)', minWidth: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+             <div style={{ fontSize: '15px', color: '#64748b', fontWeight: '500' }}>
+               예상 소요시간 <span style={{ color: '#10b981', fontWeight: '900', fontSize: '20px', marginLeft: '8px' }}>{store.time}</span>
              </div>
           </div>
         </div>
@@ -542,6 +524,29 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
           setSelectedSubForDetail(null);
         }}
       />
+
+      {reportingReviewId && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+          <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '24px', width: '90%', maxWidth: '400px' }}>
+            <h3 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '16px' }}>리뷰 신고하기</h3>
+            <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '20px' }}>신고 사유를 구체적으로 입력해주세요.</p>
+            <textarea 
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              placeholder="신고 내용을 입력하세요..."
+              style={{ width: '100%', minHeight: '120px', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '24px', resize: 'none', fontSize: '14px' }}
+            />
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button 
+                onClick={() => setReportingReviewId(null)}
+                style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', fontWeight: '700', cursor: 'pointer' }}>취소</button>
+              <button 
+                onClick={submitReport}
+                style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: '#ef4444', color: 'white', fontWeight: '700', cursor: 'pointer' }}>신고 접수</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -599,9 +604,15 @@ const ProductDetailModal = ({ product, onClose, onAddToCart }) => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                <span style={{ fontWeight: '700', color: '#475569' }}>수량</span>
                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', backgroundColor: 'white', padding: '8px 16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                  <button onClick={() => setQuantity(Math.max(1, quantity - 1))} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', color: '#94a3b8' }}>-</button>
-                  <span style={{ width: '30px', textAlign: 'center', fontWeight: '800' }}>{quantity}</span>
-                  <button onClick={() => setQuantity(quantity + 1)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', color: '#94a3b8' }}>+</button>
+                   <button onClick={() => setQuantity(Math.max(1, quantity - 1))} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', color: '#94a3b8' }}>-</button>
+                   <input 
+                     type="number" 
+                     min="1"
+                     value={quantity}
+                     onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                     style={{ width: '40px', textAlign: 'center', fontWeight: '800', border: 'none', outline: 'none', fontSize: '16px', backgroundColor: 'transparent' }} 
+                   />
+                   <button onClick={() => setQuantity(quantity + 1)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', color: '#94a3b8' }}>+</button>
                </div>
             </div>
           </div>
