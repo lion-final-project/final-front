@@ -159,31 +159,7 @@ const CheckoutView = ({ cartItems, onComplete }) => {
               <div style={{ fontSize: '14px', color: '#64748b' }}>{selectedAddress.detail}</div>
             </div>
 
-            {/* Delivery Time Selection */}
-            <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#f0fdf4', borderRadius: '12px', border: '1px solid #dcfce7' }}>
-              <label style={{ display: 'block', fontSize: '14px', fontWeight: '800', marginBottom: '8px', color: '#166534' }}>🚚 배송 희망 시간</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
-                {['8~11시 사이', '11~14시 사이', '14~17시 사이', '17~20시 사이'].map(slot => (
-                  <button
-                    key={slot}
-                    onClick={() => setDeliveryTime(slot)}
-                    style={{
-                      padding: '10px',
-                      borderRadius: '8px',
-                      border: `2px solid ${deliveryTime === slot ? 'var(--primary)' : '#e2e8f0'}`,
-                      backgroundColor: deliveryTime === slot ? 'white' : 'white',
-                      color: deliveryTime === slot ? 'var(--primary)' : '#64748b',
-                      fontSize: '13px',
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    {slot}
-                  </button>
-                ))}
-              </div>
-            </div>
+
 
             {/* Delivery Request Box */}
             <div style={{ marginTop: '20px' }}>
@@ -354,7 +330,7 @@ const CheckoutView = ({ cartItems, onComplete }) => {
                 ))}
                 <SwiperSlide key="add-new">
                   <div 
-                    onClick={() => alert('새 결제 수단 추가 페이지로 이동합니다.')}
+                    onClick={() => alert('토스페이먼츠 연동 창이 활성화됩니다.\n카드 번호를 입력하거나 앱에서 결제를 승인해주세요.')}
                     style={{ 
                       width: '100%',
                       height: '180px',
@@ -369,9 +345,9 @@ const CheckoutView = ({ cartItems, onComplete }) => {
                       cursor: 'pointer',
                       boxSizing: 'border-box'
                     }}>
-                    <div style={{ fontSize: '32px', marginBottom: '8px', opacity: 0.5 }}>+</div>
-                    <div style={{ fontWeight: '800', fontSize: '16px' }}>결제 수단 추가</div>
-                    <div style={{ fontSize: '12px', marginTop: '4px', opacity: 0.6 }}>새 카드 등록하기</div>
+                    <div style={{ fontSize: '32px', marginBottom: '8px', opacity: 0.5 }}>📱</div>
+                    <div style={{ fontWeight: '800', fontSize: '16px' }}>Toss 스타일 간편결제</div>
+                    <div style={{ fontSize: '12px', marginTop: '4px', opacity: 0.6 }}>토스페이 / 카드 빠른 등록</div>
                   </div>
                 </SwiperSlide>
               </Swiper>

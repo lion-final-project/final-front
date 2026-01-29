@@ -8,14 +8,15 @@ const RiderRegistrationView = ({ onBack, onComplete }) => {
     bankName: '',
     accountNumber: '',
     accountHolder: '',
-    bankbookImg: null
+    bankbookImg: null,
+    address: ''
   });
 
   const [status, setStatus] = useState('NONE'); // NONE, PENDING, APPROVED
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.phone || !formData.idCardImg || !formData.bankName || !formData.accountNumber || !formData.accountHolder || !formData.bankbookImg) {
+    if (!formData.name || !formData.phone || !formData.address || !formData.idCardImg || !formData.bankName || !formData.accountNumber || !formData.accountHolder || !formData.bankbookImg) {
       alert('필수 항목을 모두 입력하고 서류를 첨부해주세요.');
       return;
     }
@@ -50,7 +51,7 @@ const RiderRegistrationView = ({ onBack, onComplete }) => {
           ) : (
             <div style={{ padding: '20px', backgroundColor: '#f8fafc', borderRadius: '12px', fontSize: '14px', color: '#475569' }}>
               <div style={{ fontWeight: '700', marginBottom: '8px' }}>신청 정보</div>
-              <div>{formData.name} 라이더님</div>
+              <div>{formData.name} 라이더님 ({formData.address})</div>
               <div style={{ marginTop: '4px', fontSize: '12px', color: '#94a3b8' }}>정산 계좌: {formData.bankName} {formData.accountNumber}</div>
             </div>
           )}
@@ -112,6 +113,13 @@ const RiderRegistrationView = ({ onBack, onComplete }) => {
                 placeholder="연락처 (010-0000-0000)"
                 value={formData.phone}
                 onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '14px' }}
+              />
+              <input 
+                type="text"
+                placeholder="상세 주소 (배달 활동 지역)"
+                value={formData.address}
+                onChange={(e) => setFormData({...formData, address: e.target.value})}
                 style={{ width: '100%', padding: '12px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '14px' }}
               />
               
@@ -222,7 +230,7 @@ const RiderRegistrationView = ({ onBack, onComplete }) => {
             <button 
               type="button"
               onClick={() => {
-                 setFormData({ name: '', phone: '', idCardImg: null, bankName: '', accountNumber: '', accountHolder: '', bankbookImg: null });
+                 setFormData({ name: '', phone: '', address: '', idCardImg: null, bankName: '', accountNumber: '', accountHolder: '', bankbookImg: null });
               }}
               style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
             >

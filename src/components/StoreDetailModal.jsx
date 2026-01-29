@@ -100,7 +100,7 @@ const StoreDetailModal = ({ store, onClose, onAddToCart }) => {
                 </div>
                 <div style={{ color: '#f59e0b', fontSize: '12px', marginBottom: '8px' }}>{'★'.repeat(re.rate)}{'☆'.repeat(5-re.rate)}</div>
                 <p style={{ fontSize: '14px', color: '#475569', lineHeight: '1.6', margin: 0 }}>{re.content}</p>
-                {re.img && <img src={re.img} alt="review" style={{ width: '80px', height: '80px', borderRadius: '8px', marginTop: '12px', objectFit: 'cover' }} />}
+
               </div>
             ))}
           </div>

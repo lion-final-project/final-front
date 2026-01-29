@@ -38,6 +38,7 @@
 |------|------|
 | Frontend | React 19, Vite 7 |
 | Styling | Plain CSS, CSS Custom Properties |
+| UI Library | Swiper 12 (캐러셀/슬라이드) |
 | State | React useState (Props drilling) |
 | Build | Vite, ESLint |
 
@@ -45,26 +46,39 @@
 
 ```
 src/
-├── App.jsx                 # 메인 앱 (역할별 라우팅, 전역 상태)
-├── main.jsx                # 엔트리 포인트
-├── components/
-│   ├── Header.jsx          # 공통 헤더
-│   ├── Footer.jsx          # 공통 푸터
-│   ├── Hero.jsx            # 랜딩 히어로 섹션
-│   ├── AuthModal.jsx       # 로그인/회원가입 모달
-│   ├── CustomerView.jsx    # 고객 메인 뷰
-│   ├── StoreDashboard.jsx  # 마트 대시보드
-│   ├── RiderDashboard.jsx  # 배달원 대시보드
-│   ├── AdminDashboard.jsx  # 관리자 대시보드
-│   ├── StoreGrid.jsx       # 마트 목록 그리드
-│   ├── StoreDetailModal.jsx# 마트 상세 모달
-│   ├── CheckoutView.jsx    # 결제 페이지
-│   ├── OrderTrackingView.jsx # 주문 추적
+├── App.jsx                    # 메인 앱 (역할별 라우팅, 전역 상태)
+├── main.jsx                   # 엔트리 포인트
+├── components/                # 28개 컴포넌트
+│   │
+│   │  # 공통 UI
+│   ├── Header.jsx             # 공통 헤더
+│   ├── Footer.jsx             # 공통 푸터
+│   ├── Hero.jsx               # 랜딩 히어로 섹션 (Swiper)
+│   ├── AuthModal.jsx          # 로그인/회원가입 모달
+│   ├── LocationModal.jsx      # 배송지 선택 모달
+│   │
+│   │  # 고객 뷰
+│   ├── CustomerView.jsx       # 고객 메인 뷰
+│   ├── StoreGrid.jsx          # 마트 목록 그리드
+│   ├── StoreDetailView.jsx    # 마트 상세 페이지
+│   ├── CartModal.jsx          # 장바구니 모달
+│   ├── CheckoutView.jsx       # 결제 페이지
+│   ├── OrderTrackingView.jsx  # 주문 추적
+│   ├── OrderManagementView.jsx # 주문 관리
+│   │
+│   │  # 역할별 대시보드
+│   ├── StoreDashboard.jsx     # 마트 대시보드
+│   ├── RiderDashboard.jsx     # 배달원 대시보드
+│   ├── AdminDashboard.jsx     # 관리자 대시보드
+│   │
+│   │  # 가입/등록
+│   ├── StoreRegistrationView.jsx  # 마트 등록
+│   ├── RiderRegistrationView.jsx  # 배달원 가입
 │   └── ...
 ├── data/
-│   └── mockData.js         # 목업 데이터
+│   └── mockData.js            # 목업 데이터
 └── styles/
-    └── global.css          # 전역 스타일, 디자인 토큰
+    └── global.css             # 전역 스타일, 디자인 토큰
 ```
 
 ## 시작하기
@@ -116,23 +130,34 @@ CSS Custom Properties 기반 디자인 토큰:
 
 ## 프로젝트 문서
 
+```
+doc/
+├── v1.0/    # 기존 문서 (보관)
+└── v2.0/    # 최신 문서
+```
+
+### v2.0 (최신)
 | 문서 | 설명 |
 |------|------|
-| [PRD](doc/동네마켓_PRD_v1.0.md) | 제품 요구사항 정의서 |
-| [SRS](doc/동네마켓_SRS_v1.0.md) | 소프트웨어 요구사항 명세서 |
-| [ERD](doc/ERD.md) | 데이터베이스 설계 (Mermaid) |
-| [기술명세서](doc/기술명세서.md) | 백엔드 기술 스택 및 아키텍처 |
+| [ERD 엔티티 설명서](doc/v2.0/ERD_엔티티_설명서.md) | 37개 테이블 상세 명세 |
+
+### v1.0 (보관)
+| 문서 | 설명 |
+|------|------|
+| [PRD](doc/v1.0/동네마켓_PRD_v1.0.md) | 제품 요구사항 정의서 |
+| [SRS](doc/v1.0/동네마켓_SRS_v1.0.md) | 소프트웨어 요구사항 명세서 |
+| [ERD](doc/v1.0/ERD.md) | 데이터베이스 설계 (구버전) |
+| [기술명세서](doc/v1.0/기술명세서.md) | 백엔드 기술 스택 및 아키텍처 |
+| [유스케이스](doc/v1.0/유스케이스.md) | 시스템 유스케이스 다이어그램 |
 
 ## 스크린샷
 
-### 고객 화면
-<!-- 스크린샷 추가 예정 -->
+> 스크린샷은 추후 추가 예정입니다.
 
-### 마트 대시보드
-<!-- 스크린샷 추가 예정 -->
-
-### 배달원 대시보드
-<!-- 스크린샷 추가 예정 -->
+- 고객 화면 (마트 목록, 장바구니, 결제, 주문 추적)
+- 마트 대시보드 (상품 관리, 주문 처리, 매출 통계)
+- 배달원 대시보드 (배달 수락, 네비게이션, 수익 확인)
+- 관리자 대시보드 (플랫폼 모니터링, 사용자 관리)
 
 ## 라이선스
 

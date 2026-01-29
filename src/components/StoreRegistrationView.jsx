@@ -11,6 +11,7 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
     martIntro: '',   // 마트소개
     businessNumber: '', // 사업자등록증 번호
     mailOrderNumber: '', // 통신 판매업 신고번호
+    address: '',      // 매장 주소
     bankName: '',
     accountNumber: '',
     accountHolder: '',
@@ -26,7 +27,8 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
   const [files, setFiles] = useState({
     businessRegistration: null,
     bankbook: null,
-    mailOrderCertificate: null
+    mailOrderCertificate: null,
+    storeImage: null
   });
 
   const toggleOffDay = (day) => {
@@ -51,7 +53,7 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
     // Check if all text fields are filled
     const requiredFields = [
       'category', 'companyName', 'storeName', 'repName', 'contact',
-      'businessNumber', 'mailOrderNumber', 'bankName', 'accountNumber', 'accountHolder'
+      'businessNumber', 'mailOrderNumber', 'address', 'bankName', 'accountNumber', 'accountHolder'
     ];
     
     requiredFields.forEach(field => {
@@ -64,6 +66,7 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
     if (!files.businessRegistration) newErrors.businessRegistration = '사업자등록증을 첨부해주세요.';
     if (!files.bankbook) newErrors.bankbook = '통장 사본을 첨부해주세요.';
     if (!files.mailOrderCertificate) newErrors.mailOrderCertificate = '통신판매업 신고증을 첨부해주세요.';
+    if (!files.storeImage) newErrors.storeImage = '마트 대표 사진을 첨부해주세요.';
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -239,6 +242,7 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
 
           <InputSection label="사업자명" field="companyName" placeholder="사업자등록증상의 사업자명을 입력해주세요" />
           <InputSection label="상호명" field="storeName" placeholder="동네마켓 앱에 노출될 상호명을 입력해주세요" />
+          <InputSection label="매장 주소" field="address" placeholder="매장의 정확한 위치를 입력해주세요" />
           <InputSection label="대표자명" field="repName" />
           <InputSection label="대표자 연락처" field="contact" placeholder="010-0000-0000" />
           <InputSection label="마트 연락처" field="martContact" placeholder="02-000-0000 또는 010-0000-0000" required={false} />
@@ -256,6 +260,8 @@ const StoreRegistrationView = ({ onBack, status, setStatus }) => {
               onBlur={(e) => e.target.style.border = '1px solid #d1d5db'}
             />
           </div>
+
+          <FileSection label="마트 대표 사진 첨부" field="storeImage" hint="매장 전경이나 간판이 잘 보이는 사진" />
           
           <InputSection label="사업자등록번호" field="businessNumber" placeholder="000-00-00000 (- 포함)" />
           <FileSection label="사업자등록증 첨부" field="businessRegistration" hint="사업자등록증 원본 스캔본 또는 사진" />

@@ -116,6 +116,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
     if (mode === 'signup') {
       if (!isEmailChecked) return alert('이메일 중복 확인이 필요합니다.');
       if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.');
+      if (!address || !addressDetail) return alert('주소를 입력해주세요.');
       if (!agreements.service || !agreements.privacy) return alert('필수 약관에 동의해주세요.');
       alert('회원가입이 완료되었습니다! 반갑습니다.');
     } else if (mode === 'social-extra') {
@@ -225,6 +226,26 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
                     }}>인증확인</button>
                   </div>
                 )}
+              </div>
+
+              {/* Address Section */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>주소</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input 
+                    type="text" placeholder="주소를 검색해주세요" required readOnly value={address}
+                    style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px', backgroundColor: '#f8fafc', color: '#64748b' }} 
+                  />
+                  <button type="button" onClick={handleSearchAddress} style={{
+                    padding: '0 16px', borderRadius: '12px', border: 'none', background: '#334155', color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
+                  }}>
+                    검색
+                  </button>
+                </div>
+                <input 
+                  type="text" placeholder="상세 주소를 입력해주세요" required value={addressDetail} onChange={(e) => setAddressDetail(e.target.value)}
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }} 
+                />
               </div>
 
               {/* Agreements Section */}

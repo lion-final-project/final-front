@@ -100,7 +100,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [localSearchTerm, setLocalSearchTerm] = useState('');
   const [isTrackingOpen, setIsTrackingOpen] = useState(false);
-  const [subscriptionFilter, setSubscriptionFilter] = useState('전체'); // 전체, 구독중, 해지 예정, 해지됨
+  const [subscriptionFilter, setSubscriptionFilter] = useState('전체'); // 전체, 구독중, 해지 예정
   const [expandedSubId, setExpandedSubId] = useState(null);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [cancellingOrderId, setCancellingOrderId] = useState(null);
@@ -244,6 +244,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
       order.id === cancellingOrderId ? { ...order, status: '주문 취소됨' } : order
     ));
     setIsCancelModalOpen(false);
+    alert('취소가 완료되었습니다.');
     showToast('주문이 성공적으로 취소되었습니다.');
   };
 
@@ -687,7 +688,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                       <h3 style={{ fontSize: '18px', fontWeight: '700' }}>나의 구독 관리</h3>
                       <div style={{ display: 'flex', gap: '8px', backgroundColor: '#f8fafc', padding: '4px', borderRadius: '10px' }}>
-                        {['전체', '구독중', '해지 예정', '해지됨'].map(f => (
+                        {['전체', '구독중', '해지 예정'].map(f => (
                           <button 
                             key={f}
                             onClick={() => setSubscriptionFilter(f)}
@@ -898,13 +899,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                           </div>
                           <div style={{ fontSize: '15px', color: '#1e293b', marginBottom: '4px' }}>{addr.address}</div>
                           <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '4px' }}>{addr.detail}</div>
-                          <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>{addr.contact}</div>
-                          <div style={{ display: 'flex', gap: '8px', marginTop: '8px', padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', fontSize: '12px' }}>
-                            <span style={{ color: '#64748b', fontWeight: '700' }}>출입 정보:</span>
-                            <span style={{ color: '#1e293b', fontWeight: '600' }}>
-                              {addr.entranceType === 'FREE' ? '자율 출입 가능' : `공동현관 (#${addr.entrancePassword})`}
-                            </span>
-                          </div>
+                          <div style={{ fontSize: '13px', color: '#94a3b8' }}>{addr.contact}</div>
                         </div>
                       ))}
                     </div>
@@ -967,32 +962,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                             style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
                           />
                         </div>
-                        
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                           <div>
-                              <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>출입 방법</label>
-                              <select 
-                                value={newAddress.entranceType}
-                                onChange={(e) => setNewAddress({ ...newAddress, entranceType: e.target.value })}
-                                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
-                              >
-                                 <option value="FREE">자율 출입 가능</option>
-                                 <option value="LOCKED">공동현관 비밀번호</option>
-                              </select>
-                           </div>
-                           {newAddress.entranceType === 'LOCKED' && (
-                              <div>
-                                 <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>비밀번호</label>
-                                 <input 
-                                   type="text" 
-                                   placeholder="예: #1234"
-                                   value={newAddress.entrancePassword}
-                                   onChange={(e) => setNewAddress({ ...newAddress, entrancePassword: e.target.value })}
-                                   style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
-                                 />
-                              </div>
-                           )}
-                        </div>
+
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
                           <input 
@@ -1461,7 +1431,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
         );
       default:
         return (
-          <div className="container" style={{ padding: '20px' }}>
+          <>
             <Hero 
               onShopClick={() => {
                 const grid = document.getElementById('store-grid-section');
@@ -1470,7 +1440,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
               onPromoClick={() => setActiveTab('special')} 
             />
             
-            <div id="store-grid-section" style={{ margin: '80px 0' }}>
+            <div className="container" id="store-grid-section" style={{ margin: '80px auto' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
                 <h2 style={{ fontSize: '28px', fontWeight: '800', margin: 0 }}>오늘의 추천 상점</h2>
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
@@ -1486,6 +1456,10 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
+                          if (localSearchTerm.length < 2) {
+                            alert('검색어는 2자 이상 입력해주세요.');
+                            return;
+                          }
                           setSearchQuery(localSearchTerm);
                           showToast(`'${localSearchTerm}' 검색 결과입니다.`);
                         }
@@ -1543,7 +1517,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                 }} />
               </div>
             </div>
-          </div>
+          </>
         );
     }
   };

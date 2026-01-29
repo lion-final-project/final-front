@@ -8,6 +8,10 @@ const OrderTrackingView = ({ orderId, onBack, isModal = false }) => {
   ]);
   const [activeShopIdx, setActiveShopIdx] = useState(0);
   
+  // In a real app, this would be an import. Using relative path for mock.
+  const deliveryMap = '/src/assets/delivery_map.png';
+  const deliveryProof = '/src/assets/delivery_proof.png';
+
   const currentShop = shops[activeShopIdx];
 
   const getStatusText = (status) => {
@@ -123,6 +127,23 @@ const OrderTrackingView = ({ orderId, onBack, isModal = false }) => {
               ))}
             </div>
           </div>
+
+          {/* Map for Delivering Status */}
+          {currentShop.status === 'DELIVERING' && (
+            <div style={{ marginTop: '24px', borderRadius: '16px', overflow: 'hidden', border: '1px solid #e2e8f0', height: '200px' }}>
+              <img src={deliveryMap} alt="Delivery Map" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
+          )}
+
+          {/* Photo for Delivered Status */}
+          {(currentShop.status === 'DELIVERED' || currentShop.status === 'PREPARING') && ( 
+            <div style={{ marginTop: '24px' }}>
+              <div style={{ fontSize: '14px', fontWeight: '700', marginBottom: '12px', color: '#334155' }}>배송 완료 사진</div>
+              <div style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                <img src={deliveryProof} alt="Delivery Proof" style={{ width: '100%', height: 'auto', maxHeight: '300px', objectFit: 'cover' }} />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ETA & Rider Card */}

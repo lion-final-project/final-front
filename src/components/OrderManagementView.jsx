@@ -3,6 +3,7 @@ import OrderDetailModal from './OrderDetailModal';
 import OrderDetailFullModal from './OrderDetailFullModal';
 import ReceiptModal from './ReceiptModal';
 import InquiryModal from './InquiryModal';
+import OrderReportModal from './OrderReportModal';
 
 const OrderManagementView = ({ orders, onTracking, onWriteReview, onCancelOrder, onViewReview, onBack }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -10,6 +11,7 @@ const OrderManagementView = ({ orders, onTracking, onWriteReview, onCancelOrder,
   const [detailOrder, setDetailOrder] = useState(null);
   const [receiptOrder, setReceiptOrder] = useState(null);
   const [inquiryOrder, setInquiryOrder] = useState(null);
+  const [reportOrder, setReportOrder] = useState(null);
   const [filterYear, setFilterYear] = useState('3년');
 
   const filteredOrders = orders.filter(order => 
@@ -156,6 +158,7 @@ const OrderManagementView = ({ orders, onTracking, onWriteReview, onCancelOrder,
         onOpenDetail={setDetailOrder}
         onOpenReceipt={setReceiptOrder}
         onOpenInquiry={setInquiryOrder}
+        onOpenReport={setReportOrder}
       />
 
       <OrderDetailFullModal 
@@ -174,6 +177,12 @@ const OrderManagementView = ({ orders, onTracking, onWriteReview, onCancelOrder,
         isOpen={!!inquiryOrder}
         order={inquiryOrder}
         onClose={() => setInquiryOrder(null)}
+      />
+
+      <OrderReportModal 
+        isOpen={!!reportOrder}
+        order={reportOrder}
+        onClose={() => setReportOrder(null)}
       />
     </div>
   );

@@ -20,6 +20,7 @@ npm run preview  # Preview production build locally
 ### Tech Stack
 - **React 19** with **Vite 7** (ES modules, JSX)
 - **Plain CSS** with CSS custom properties for theming
+- **Swiper 12** for carousel/slide components
 - **No routing library** - tab/view state managed in App.jsx
 - **No state management library** - props drilling pattern
 
@@ -30,26 +31,45 @@ src/
 ├── App.jsx                    # 메인 앱 컴포넌트 (역할별 라우팅, 전역 상태)
 ├── main.jsx                   # 앱 엔트리 포인트
 ├── components/
+│   │
+│   │  # 공통 UI 컴포넌트
 │   ├── Header.jsx             # 공통 헤더 (검색, 알림, 사용자 메뉴)
 │   ├── Footer.jsx             # 공통 푸터
-│   ├── Hero.jsx               # 랜딩 페이지 히어로 섹션
+│   ├── Hero.jsx               # 랜딩 페이지 히어로 섹션 (Swiper 슬라이드)
 │   ├── AuthModal.jsx          # 로그인/회원가입 모달
 │   ├── NotificationPanel.jsx  # 알림 패널
 │   ├── CategorySidebar.jsx    # 카테고리 사이드바
+│   ├── LocationModal.jsx      # 배송지 선택/변경 모달
 │   │
+│   │  # 고객(CUSTOMER) 관련 컴포넌트
 │   ├── CustomerView.jsx       # 고객 메인 뷰 (탭 네비게이션)
 │   ├── StoreGrid.jsx          # 마트 목록 그리드
+│   ├── StoreDetailView.jsx    # 마트 상세 페이지
 │   ├── StoreDetailModal.jsx   # 마트 상세/상품 목록 모달
+│   ├── CartModal.jsx          # 장바구니 모달
 │   ├── CheckoutView.jsx       # 결제 페이지
 │   ├── OrderTrackingView.jsx  # 실시간 주문 추적
+│   ├── OrderManagementView.jsx # 주문 관리 (마이페이지)
+│   ├── OrderDetailModal.jsx   # 주문 상세 모달
+│   ├── OrderDetailFullModal.jsx # 주문 상세 전체 모달
 │   ├── SearchResultsView.jsx  # 검색 결과 뷰
+│   ├── ReceiptModal.jsx       # 영수증 모달
 │   │
+│   │  # 마트(STORE) 관련 컴포넌트
 │   ├── StoreDashboard.jsx     # 마트 대시보드
+│   ├── StoreRegistrationView.jsx # 마트 등록 페이지
+│   │
+│   │  # 배달원(RIDER) 관련 컴포넌트
 │   ├── RiderDashboard.jsx     # 배달원 대시보드
+│   ├── RiderRegistrationView.jsx # 배달원 가입 페이지
+│   │
+│   │  # 관리자(ADMIN) 관련 컴포넌트
 │   ├── AdminDashboard.jsx     # 관리자 대시보드
 │   │
+│   │  # 기타 페이지/모달
 │   ├── PartnerPage.jsx        # 파트너 등록 페이지
 │   ├── SupportView.jsx        # 고객지원 페이지
+│   ├── InquiryModal.jsx       # 1:1 문의 모달
 │   └── ResidentDeliveryView.jsx # 주민 배달원 소개
 │
 ├── data/
@@ -92,7 +112,12 @@ const [cart, setCart] = useState([]);
 - `orders` - 주문 내역
 - `subscriptions` - 구독 정보
 - `riders` - 배달원 정보
-- `categories` - 상품 카테고리
+- `categories` - 상품 카테고리 (11개)
+- `addresses` - 배송지 관리
+- `paymentMethods` - 결제 수단
+- `coupons` - 쿠폰 정보
+- `reviews` - 리뷰 데이터
+- `faqs` / `inquiries` - 고객지원 데이터
 
 ### Design System
 
@@ -119,12 +144,20 @@ font-family: 'Pretendard', sans-serif;  /* Korean optimized */
 
 ## Project Documentation
 
+```
+doc/
+├── v1.0/                        # 기존 문서 (보관)
+└── v2.0/                        # 최신 문서
+```
+
 | 문서 | 경로 | 설명 |
 |------|------|------|
-| PRD | `doc/동네마켓_PRD_v1.0.md` | 제품 요구사항 정의서 |
-| SRS | `doc/동네마켓_SRS_v1.0.md` | 소프트웨어 요구사항 명세서 |
-| ERD | `doc/ERD.md` | 데이터베이스 설계 (Mermaid) |
-| 기술명세서 | `doc/기술명세서.md` | 백엔드 기술 스택 및 아키텍처 |
+| **ERD (v2.0)** | `doc/v2.0/ERD_엔티티_설명서.md` | ERD 엔티티 설명서 (최신) |
+| PRD | `doc/v1.0/동네마켓_PRD_v1.0.md` | 제품 요구사항 정의서 |
+| SRS | `doc/v1.0/동네마켓_SRS_v1.0.md` | 소프트웨어 요구사항 명세서 |
+| ERD (v1.0) | `doc/v1.0/ERD.md` | 데이터베이스 설계 (구버전) |
+| 기술명세서 | `doc/v1.0/기술명세서.md` | 백엔드 기술 스택 및 아키텍처 |
+| 유스케이스 | `doc/v1.0/유스케이스.md` | 시스템 유스케이스 다이어그램 |
 | Wireframes | `wireframes/` | 역할별 HTML 와이어프레임 |
 
 ## Coding Conventions
@@ -163,7 +196,7 @@ function ComponentName({ prop1, prop2, onAction }) {
 
 ### 목업 데이터 수정
 1. `src/data/mockData.js` 편집
-2. ERD (`doc/ERD.md`) 스키마 참고
+2. ERD (`doc/v2.0/ERD_엔티티_설명서.md`) 스키마 참고
 
 ### 새 역할 뷰 추가
 1. `src/components/` 에 Dashboard 컴포넌트 생성

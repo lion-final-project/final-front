@@ -3,13 +3,13 @@ import React, { useState } from 'react';
 const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) => {
   const [activeSubTab, setActiveSubTab] = useState('menu');
   const [reviewSort, setReviewSort] = useState('latest');
-  const [selectedDeliveryTime, setSelectedDeliveryTime] = useState('8~11시 사이');
+  const [selectedDeliveryTime, setSelectedDeliveryTime] = useState('08:00~11:00');
 
   const deliveryTimeSlots = [
-    '8~11시 사이',
-    '11~14시 사이',
-    '14~17시 사이',
-    '17~20시 사이'
+    '08:00~11:00',
+    '11:00~14:00',
+    '14:00~17:00',
+    '17:00~20:00'
   ];
   
   // Review Management State
@@ -294,7 +294,7 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
                   <p style={{ fontSize: '15px', color: '#475569', lineHeight: '1.6', margin: 0 }}>{re.content}</p>
                 )}
                 
-                {re.img && !editingReviewId && <img src={re.img} alt="review" style={{ width: '120px', height: '120px', borderRadius: '12px', marginTop: '16px', objectFit: 'cover' }} />}
+
               </div>
             ))}
           </div>
@@ -471,11 +471,7 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
               </div>
             </div>
           </div>
-          <div style={{ textAlign: 'right', background: 'white', padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05)', minWidth: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-             <div style={{ fontSize: '15px', color: '#64748b', fontWeight: '500' }}>
-               예상 소요시간 <span style={{ color: '#10b981', fontWeight: '900', fontSize: '20px', marginLeft: '8px' }}>{store.time}</span>
-             </div>
-          </div>
+
         </div>
       </div>
 
@@ -519,8 +515,11 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
       <SubscriptionDetailModal 
         subscription={selectedSubForDetail} 
         onClose={() => setSelectedSubForDetail(null)} 
+        deliveryTimeSlots={deliveryTimeSlots}
+        selectedDeliveryTime={selectedDeliveryTime}
+        setSelectedDeliveryTime={setSelectedDeliveryTime}
         onPayment={() => {
-          onSubscribeCheckout(selectedSubForDetail);
+          onSubscribeCheckout({ ...selectedSubForDetail, deliveryTime: selectedDeliveryTime });
           setSelectedSubForDetail(null);
         }}
       />
@@ -642,7 +641,7 @@ const ProductDetailModal = ({ product, onClose, onAddToCart }) => {
   );
 };
 
-const SubscriptionDetailModal = ({ subscription, onClose, onPayment }) => {
+const SubscriptionDetailModal = ({ subscription, onClose, onPayment, deliveryTimeSlots, selectedDeliveryTime, setSelectedDeliveryTime }) => {
   if (!subscription) return null;
 
   // Calculate next delivery date (e.g., next Monday)
@@ -683,9 +682,26 @@ const SubscriptionDetailModal = ({ subscription, onClose, onPayment }) => {
             <span style={{ color: '#64748b', fontWeight: '600', fontSize: '14px' }}>배송 주기</span>
             <span style={{ color: '#1e293b', fontWeight: '800', fontSize: '14px' }}>매주 월요일 (주 1회)</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', padding: '12px 0', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }}>
-            <span style={{ color: '#be185d', fontWeight: '700', fontSize: '15px' }}>첫 배송 시작일</span>
-            <span style={{ color: '#be185d', fontWeight: '900', fontSize: '15px' }}>{getNextDeliveryDate()}</span>
+          <div style={{ marginBottom: '24px', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', padding: '16px 0' }}>
+            <label style={{ display: 'block', marginBottom: '12px', fontSize: '14px', fontWeight: '800', color: '#be185d' }}>희망 배송 시간대</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              {deliveryTimeSlots.map(time => (
+                <button
+                  key={time}
+                  onClick={() => setSelectedDeliveryTime(time)}
+                  style={{
+                    padding: '10px 8px', borderRadius: '10px', fontSize: '12px', fontWeight: '700',
+                    border: selectedDeliveryTime === time ? '2px solid #be185d' : '1px solid #e2e8f0',
+                    background: selectedDeliveryTime === time ? '#fdf2f8' : 'white',
+                    color: selectedDeliveryTime === time ? '#be185d' : '#64748b',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {time}
+                </button>
+              ))}
+            </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px' }}>
             <span style={{ color: '#64748b', fontWeight: '600', fontSize: '14px' }}>월 구독료</span>

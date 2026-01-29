@@ -34,13 +34,27 @@ const StoreDashboard = () => {
     { id: 's1', name: '신선 채소 꾸러미', price: '19,900원/월', subscribers: 15, status: '운영중', weeklyFreq: 1, monthlyTotal: 4, deliveryDays: ['목'], selectedProducts: [{id: '3', qty: 1}], description: '매주 목요일 신선한 채소를 받아보세요.' }
   ]);
   const [editingSubscription, setEditingSubscription] = useState(null);
-  const [subscriptionForm, setSubscriptionForm] = useState({ name: '', price: '', weeklyFreq: 1, monthlyTotal: 4, deliveryDays: [], description: '', imageFile: null, imagePreview: null, selectedProducts: [] });
+  const [subscriptionForm, setSubscriptionForm] = useState({ name: '', price: '', weeklyFreq: 1, monthlyTotal: 4, deliveryDays: [], description: '', selectedProducts: [] });
   const [expandedSubscriptions, setExpandedSubscriptions] = useState(new Set());
+  
+  const [userSubscriptions, setUserSubscriptions] = useState([
+    { id: 1, userName: '김철수', productName: '신선 채소 꾸러미', startDate: '2026-01-10', status: 'APPROVED', deliveryStatus: 'DELIVERED', nextDelivery: '2026-02-01' },
+    { id: 2, userName: '이영희', productName: '제철 과일 꾸러미', startDate: '2026-01-15', status: 'PENDING', deliveryStatus: 'PENDING', nextDelivery: '2026-01-28' },
+    { id: 3, userName: '박민수', productName: '단백질 식단 세트', startDate: '2025-12-20', status: 'SUSPENDED', deliveryStatus: '-', nextDelivery: '-' },
+    { id: 4, userName: '최지우', productName: '다이어트 샐러드 팩', startDate: '2026-01-25', status: 'REJECTED', deliveryStatus: '-', nextDelivery: '-' },
+  ]);
 
   const [inventoryHistory, setInventoryHistory] = useState([
     { id: 'h1', type: '입고', productName: '유기농 우유 1L', amount: 20, date: '2026.01.23 09:00', remaining: 35 },
     { id: 'h2', type: '출고', productName: '신선란 10구', amount: 10, date: '2026.01.23 10:30', remaining: 8 },
   ]);
+
+  const [reviews, setReviews] = useState([
+    { id: 1, userName: '김철수', rating: 5, content: '배송이 정말 빨라요! 우유도 아주 신선합니다.', date: '2026-01-20', productName: '유기농 우유 1L', reply: null },
+    { id: 2, userName: '이영희', rating: 4, content: '채소들이 싱싱해서 좋아요. 다음에도 이용할게요.', date: '2026-01-18', productName: '대추토마토 500g', reply: '구매해주셔서 감사합니다! 항상 신선한 상품으로 보답하겠습니다.' },
+    { id: 3, userName: '박민수', rating: 3, content: '달걀 하나가 살짝 금이 가 있었어요. 주의 부탁드려요.', date: '2026-01-15', productName: '신선란 10구', reply: null },
+  ]);
+  const [replyInput, setReplyInput] = useState({});
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -232,6 +246,26 @@ const StoreDashboard = () => {
     }
   };
 
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportTarget, setReportTarget] = useState('RIDER'); // RIDER or CUSTOMER
+  const [reportContent, setReportContent] = useState('');
+
+  const handleOpenReportModal = (order) => {
+    setSelectedOrder(order);
+    setReportTarget('RIDER');
+    setReportContent('');
+    setIsReportModalOpen(true);
+  };
+
+  const handleSubmitReport = () => {
+    if (!reportContent) {
+      alert('신고 내용을 입력해주세요.');
+      return;
+    }
+    alert(`${reportTarget === 'RIDER' ? '배달원' : '고객'} 신고가 접수되었습니다.`);
+    setIsReportModalOpen(false);
+  };
+
   // --- Restored Missing Functions ---
 
   const handleOpenProductModal = (product = null) => {
@@ -286,7 +320,7 @@ const StoreDashboard = () => {
       setSubscriptionForm({ ...sub });
     } else {
       setEditingSubscription(null);
-      setSubscriptionForm({ name: '', price: '', weeklyFreq: 1, monthlyTotal: 4, deliveryDays: [], description: '', imageFile: null, imagePreview: null, selectedProducts: [] });
+      setSubscriptionForm({ name: '', price: '', weeklyFreq: 1, monthlyTotal: 4, deliveryDays: [], description: '', selectedProducts: [] });
     }
     setIsSubscriptionModalOpen(true);
   };
@@ -327,6 +361,15 @@ const StoreDashboard = () => {
       setIsRejectModalOpen(false);
       setSelectedOrder(null);
     }
+  };
+
+  const handleReplyReview = (reviewId) => {
+    const reply = replyInput[reviewId];
+    if (!reply || !reply.trim()) return;
+    
+    setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, reply } : r));
+    setReplyInput(prev => ({ ...prev, [reviewId]: '' }));
+    alert('답변이 등록되었습니다.');
   };
 
   const getStatusColor = (status) => {
@@ -463,6 +506,10 @@ const StoreDashboard = () => {
                                 onClick={() => setSelectedOrder(order)}
                                 style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer', fontSize: '12px', color: '#64748b' }}
                               >상세</button>
+                              <button 
+                                onClick={() => handleOpenReportModal(order)}
+                                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #fee2e2', background: 'white', cursor: 'pointer', fontSize: '12px', color: '#ef4444', fontWeight: '800' }}
+                              >신고</button>
                             </div>
                           </td>
                         </tr>
@@ -743,30 +790,6 @@ const StoreDashboard = () => {
                     재고: {product.stock}개 <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '400' }}>/ {product.capacity}</span>
                   </div>
                   
-                  {/* Sold Out Toggle */}
-                  <div style={{ display: 'flex', marginBottom: '12px' }}>
-                    <div 
-                      onClick={() => toggleSoldOut(product.id)}
-                      style={{ 
-                        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer',
-                        padding: '10px', borderRadius: '12px', border: '1px solid #cbd5e1',
-                        backgroundColor: product.isSoldOut ? '#fee2e2' : 'white',
-                        transition: 'all 0.2s',
-                        zIndex: 10
-                      }}
-                    >
-                      <span style={{ fontSize: '12px', fontWeight: '800', color: product.isSoldOut ? '#ef4444' : '#64748b' }}>품절 상태</span>
-                      <div style={{ 
-                        width: '32px', height: '16px', borderRadius: '10px', backgroundColor: product.isSoldOut ? '#ef4444' : '#cbd5e1', 
-                        position: 'relative'
-                      }}>
-                        <div style={{ 
-                          width: '12px', height: '12px', borderRadius: '50%', backgroundColor: 'white', position: 'absolute', top: '2px', 
-                          left: product.isSoldOut ? '18px' : '2px', transition: 'all 0.2s'
-                        }}></div>
-                      </div>
-                    </div>
-                  </div>
 
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button 
@@ -852,6 +875,7 @@ const StoreDashboard = () => {
                         <th style={{ padding: '12px' }}>상품</th>
                         <th style={{ padding: '12px' }}>현재고</th>
                         <th style={{ padding: '12px' }}>재고율</th>
+                        <th style={{ padding: '12px' }}>품절 여부</th>
                         <th style={{ padding: '12px' }}>수량 조정</th>
                       </tr>
                     </thead>
@@ -874,6 +898,27 @@ const StoreDashboard = () => {
                             <td style={{ padding: '12px' }}>
                               <div style={{ width: '100px', height: '6px', backgroundColor: '#f1f5f9', borderRadius: '3px', overflow: 'hidden', marginTop: '4px' }}>
                                 <div style={{ width: `${Math.min(100, stockRatio)}%`, height: '100%', backgroundColor: isLow ? '#ef4444' : '#10b981' }}></div>
+                              </div>
+                            </td>
+                            <td style={{ padding: '12px' }}>
+                               <div 
+                                onClick={() => toggleSoldOut(product.id)}
+                                style={{ 
+                                  display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer',
+                                  padding: '4px 8px', borderRadius: '12px', border: '1px solid #e2e8f0',
+                                  backgroundColor: product.isSoldOut ? '#fee2e2' : 'white'
+                                }}
+                              >
+                                <span style={{ fontSize: '10px', fontWeight: '800', color: product.isSoldOut ? '#ef4444' : '#64748b' }}>품절</span>
+                                <div style={{ 
+                                  width: '24px', height: '12px', borderRadius: '10px', backgroundColor: product.isSoldOut ? '#ef4444' : '#cbd5e1', 
+                                  position: 'relative'
+                                }}>
+                                  <div style={{ 
+                                    width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'white', position: 'absolute', top: '1px', 
+                                    left: product.isSoldOut ? '13px' : '1px', transition: 'all 0.2s'
+                                  }}></div>
+                                </div>
                               </div>
                             </td>
                             <td style={{ padding: '12px' }}>
@@ -1167,7 +1212,94 @@ const StoreDashboard = () => {
                       </tbody>
                    </table>
                 </div>
-             </div>
+              </div>
+
+              {/* Split Section: Next Delivery & Weekly Schedule */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+                {/* 1. Next Delivery Schedule & Required Status */}
+                <div style={{ background: 'white', padding: '32px', borderRadius: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                  <h2 style={{ fontSize: '20px', fontWeight: '800', margin: '0 0 24px 0' }}>다음 배송 일정 및 필요 물량</h2>
+                  
+                  <div style={{ marginBottom: '24px', padding: '20px', backgroundColor: '#f0fdf4', borderRadius: '16px', border: '1px solid #bbf7d0' }}>
+                     <div style={{ fontSize: '14px', fontWeight: '700', color: '#15803d', marginBottom: '8px' }}>다음 배송일</div>
+                     <div style={{ fontSize: '24px', fontWeight: '900', color: '#166534' }}>2월 1일 (목) <span style={{ fontSize: '16px', fontWeight: '600', color: '#15803d' }}>- 3일 뒤</span></div>
+                     <div style={{ marginTop: '12px', fontSize: '14px', fontWeight: '600', color: '#15803d' }}>총 배송 예정: 12건</div>
+                  </div>
+
+                  <h3 style={{ fontSize: '16px', fontWeight: '800', margin: '0 0 16px 0', color: '#475569' }}>준비 필요 상품 현황</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '300px', overflowY: 'auto' }}>
+                    {[
+                      { name: '신선 채소 꾸러미', count: 5, items: ['대추토마토 500g x5', '시금치 1단 x5'] },
+                      { name: '제철 과일 꾸러미', count: 4, items: ['사과 2개 x4', '바나나 1송이 x4'] },
+                      { name: '단백질 식단 세트', count: 3, items: ['닭가슴살 1kg x3', '두부 2모 x3'] }
+                    ].map((item, idx) => (
+                      <div key={idx} style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                          <span style={{ fontWeight: '700', fontSize: '14px' }}>{item.name}</span>
+                          <span style={{ fontWeight: '800', color: '#3b82f6' }}>{item.count}개</span>
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#64748b', lineHeight: '1.5' }}>
+                          {item.items.join(', ')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. Weekly Delivery Schedule (Time Unit) */}
+                <div style={{ background: 'white', padding: '32px', borderRadius: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                    <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0 }}>주간 배송 일정 (시간대별)</h2>
+                    <button style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', fontSize: '12px', fontWeight: '700', color: '#64748b', cursor: 'pointer' }}>자세히 보기 &gt;</button>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {/* Calendar Strip */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px', marginBottom: '16px' }}>
+                      {['월', '화', '수', '목', '금', '토', '일'].map((day, i) => (
+                        <div key={day} style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>{day}</div>
+                          <div style={{ 
+                            height: '32px', width: '32px', margin: '0 auto', 
+                            borderRadius: '50%', backgroundColor: i === 3 ? '#3b82f6' : 'transparent', color: i === 3 ? 'white' : '#1e293b', 
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '14px' 
+                          }}>
+                            {29 + i > 31 ? 29 + i - 31 : 29 + i}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Time Slots for Selected Day (Thursday Mock) */}
+                    <div style={{  padding: '16px', borderRadius: '16px', backgroundColor: '#eff6ff', border: '1px solid #dbeafe', marginBottom: '16px' }}>
+                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                          <span style={{ fontWeight: '800', color: '#1e40af' }}>2월 1일 (목) 배송 정보</span>
+                          <span style={{ fontSize: '11px', backgroundColor: '#bfdbfe', color: '#1e40af', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>선택됨</span>
+                       </div>
+                       
+                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {[
+                            { time: '06:00 - 09:00 (아침)', count: 4, area: '강남구 역삼동 외' },
+                            { time: '11:00 - 14:00 (점심)', count: 6, area: '서초구 서초동 외' },
+                            { time: '17:00 - 20:00 (저녁)', count: 2, area: '송파구 잠실동 외' }
+                          ].map((slot, idx) => (
+                            <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'white', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                               <div>
+                                  <div style={{ fontSize: '13px', fontWeight: '800', color: '#1e293b' }}>{slot.time}</div>
+                                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>지역: {slot.area}</div>
+                               </div>
+                               <div style={{ fontWeight: '800', color: '#3b82f6', fontSize: '15px' }}>{slot.count}건</div>
+                            </div>
+                          ))}
+                       </div>
+                    </div>
+
+                    <div style={{ padding: '16px', borderRadius: '16px', border: '1px solid #f1f5f9', backgroundColor: '#f8fafc', textAlign: 'center' }}>
+                       <div style={{ fontSize: '12px', color: '#64748b' }}>이 날짜에 배송될 구독 상품이 없습니다.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
           </div>
         );
       case 'settings':
@@ -1188,7 +1320,40 @@ const StoreDashboard = () => {
                   <div style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px', backgroundColor: '#f8fafc', color: '#64748b', fontWeight: '600' }}>
                     {storeInfo.category}
                   </div>
-                   <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px' }}>* 등록된 업종 정보입니다. (수정 불가)</p>
+                  <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px' }}>* 등록된 업종 정보입니다. (수정 불가)</p>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '12px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>스토어 대표 이미지 / 로고</label>
+                <div 
+                  onClick={() => document.getElementById('store-logo-upload').click()}
+                  style={{ 
+                    width: '100%', maxWidth: '400px', height: '200px', borderRadius: '16px', border: '2px dashed #cbd5e1', 
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', 
+                    backgroundColor: '#f8fafc', cursor: 'pointer', overflow: 'hidden', position: 'relative'
+                  }}>
+                  {storeInfo.img ? (
+                    <img src={storeInfo.img} alt="Store Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: '600' }}>이미지 업로드 (권장: 800x600)</span>
+                  )}
+                  <input 
+                    id="store-logo-upload"
+                    type="file" 
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setStoreInfo({ ...storeInfo, img: reader.result });
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    style={{ display: 'none' }}
+                  />
                 </div>
               </div>
 
@@ -1267,6 +1432,58 @@ const StoreDashboard = () => {
             </div>
           </div>
         );
+      case 'reviews':
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div style={{ background: 'white', padding: '32px', borderRadius: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+              <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '8px' }}>리뷰 관리</h2>
+              <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '32px' }}>고객님들이 남겨주신 소중한 리뷰에 답변을 남겨주세요.</p>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {reviews.map((review) => (
+                  <div key={review.id} style={{ padding: '24px', borderRadius: '20px', border: '1px solid #f1f5f9', backgroundColor: '#fdfdfd' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span style={{ fontWeight: '800', fontSize: '16px' }}>{review.userName}</span>
+                        <div style={{ display: 'flex', gap: '2px', color: '#f59e0b' }}>
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <span key={i} style={{ fontSize: '14px' }}>{i < review.rating ? '★' : '☆'}</span>
+                          ))}
+                        </div>
+                        <span style={{ color: '#94a3b8', fontSize: '13px' }}>{review.date}</span>
+                      </div>
+                      <span style={{ backgroundColor: '#f1f5f9', padding: '4px 10px', borderRadius: '6px', fontSize: '12px', color: '#64748b', fontWeight: '700' }}>{review.productName}</span>
+                    </div>
+                    
+                    <p style={{ fontSize: '15px', color: '#1e293b', lineHeight: '1.6', marginBottom: '20px', whiteSpace: 'pre-wrap' }}>{review.content}</p>
+                    
+                    {review.reply ? (
+                      <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: '12px', fontWeight: '800', color: 'var(--primary)', marginBottom: '4px' }}>마트 답변</div>
+                        <p style={{ fontSize: '14px', color: '#475569', margin: 0 }}>{review.reply}</p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <textarea 
+                          placeholder="고객님께 따뜻한 답변을 남겨주세요..."
+                          value={replyInput[review.id] || ''}
+                          onChange={(e) => setReplyInput(prev => ({ ...prev, [review.id]: e.target.value }))}
+                          style={{ width: '100%', height: '80px', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', resize: 'none' }}
+                        />
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          <button 
+                            onClick={() => handleReplyReview(review.id)}
+                            style={{ padding: '8px 20px', borderRadius: '8px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                          >답변 등록</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
       default:
         return (
           <>
@@ -1308,7 +1525,12 @@ const StoreDashboard = () => {
                             ▼
                           </button>
                           <div>
-                             <div style={{ fontSize: '15px', fontWeight: '700' }}>{order.id}</div>
+                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                               <div style={{ fontSize: '15px', fontWeight: '700' }}>{order.id}</div>
+                               {order.status === '배차 완료' && (
+                                 <span style={{ fontSize: '11px', fontWeight: '800', backgroundColor: '#e0e7ff', color: '#4338ca', padding: '2px 6px', borderRadius: '4px' }}>배달원 매칭 완료</span>
+                               )}
+                             </div>
                              <div style={{ fontSize: '14px', color: '#64748b', marginTop: '4px' }}>{order.items}</div>
                              {order.status === '거절됨' && (
                                <div style={{ fontSize: '12px', color: '#ef4444', fontWeight: '700', marginTop: '4px' }}>
@@ -1352,7 +1574,7 @@ const StoreDashboard = () => {
                               <button disabled style={{ padding: '14px 28px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', border: '1px solid #38bdf8', fontWeight: '800', cursor: 'wait', fontSize: '15px' }}>배차 진행중...</button>
                             )}
                             {order.status === '배차 완료' && (
-                              <button onClick={() => updateOrderStatus(order.id, '배달중')} style={{ padding: '14px 28px', borderRadius: '12px', background: '#a855f7', color: 'white', border: 'none', fontWeight: '800', cursor: 'pointer', fontSize: '15px', boxShadow: '0 4px 12px rgba(168, 85, 247, 0.2)' }}>라이더 인계</button>
+                              <button disabled style={{ padding: '14px 28px', borderRadius: '12px', background: '#e0e7ff', color: '#4338ca', border: 'none', fontWeight: '800', cursor: 'default', fontSize: '15px' }}>픽업 대기중</button>
                             )}
                            {order.status === '신규' && (
                              <button 
@@ -1462,6 +1684,7 @@ const StoreDashboard = () => {
           { id: 'inventory', label: '재고 관리', icon: '📊' },
           { id: 'subscriptions', label: '구독 관리', icon: '💎' },
           { id: 'settlements', label: '매출 및 정산', icon: '📈' },
+          { id: 'reviews', label: '리뷰 관리', icon: '⭐' },
           { id: 'settings', label: '운영 설정', icon: '⚙️' }
         ].map((item) => (
           <div 
@@ -1770,19 +1993,6 @@ const StoreDashboard = () => {
                     <span style={{ fontSize: '14px', fontWeight: '700', color: '#64748b' }}>개</span>
                   </div>
                 </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>최대 수용량 (Cap.)</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input 
-                      required
-                      type="number" 
-                      value={productForm.capacity || productForm.stock}
-                      onChange={e => setProductForm({...productForm, capacity: parseInt(e.target.value)})}
-                      style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1' }} 
-                    />
-                    <span style={{ fontSize: '14px', fontWeight: '700', color: '#64748b' }}>개</span>
-                  </div>
-                </div>
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>카테고리</label>
@@ -1840,40 +2050,7 @@ const StoreDashboard = () => {
               {editingSubscription ? '구독 상품 수정' : '새 구독 상품 등록'}
             </h2>
             <form onSubmit={handleSaveSubscription} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '12px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>구독 상품 대표 이미지</label>
-                <div 
-                  onClick={() => document.getElementById('sub-image-upload').click()}
-                  style={{ 
-                    width: '100%', height: '160px', borderRadius: '16px', border: '2px dashed #cbd5e1', 
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', 
-                    backgroundColor: '#f8fafc', cursor: 'pointer', overflow: 'hidden', position: 'relative'
-                  }}>
-                  {subscriptionForm.imagePreview ? (
-                    <img src={subscriptionForm.imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <>
-                      <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '600' }}>이미지 업로드 (클릭)</span>
-                    </>
-                  )}
-                  <input 
-                    id="sub-image-upload"
-                    type="file" 
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files[0];
-                      if (file) {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                          setSubscriptionForm({ ...subscriptionForm, imageFile: file, imagePreview: reader.result });
-                        };
-                        reader.readAsDataURL(file);
-                      }
-                    }}
-                    style={{ display: 'none' }}
-                  />
-                </div>
-              </div>
+              {/* Image Upload Removed (Feedback 3) */}
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>구독 상품명</label>
                 <input 
@@ -1898,7 +2075,7 @@ const StoreDashboard = () => {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>월 구독 가격</label>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>구독 가격</label>
                   <input 
                     required
                     type="text" 
@@ -1908,17 +2085,7 @@ const StoreDashboard = () => {
                     style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1' }} 
                   />
                 </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>구성 품목 수량</label>
-                  <input 
-                    required
-                    type="number" 
-                    value={subscriptionForm.quantity}
-                    onChange={e => setSubscriptionForm({...subscriptionForm, quantity: e.target.value})}
-                    placeholder="4"
-                    style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1' }} 
-                  />
-                </div>
+                  {/* 구성 품목 수량 Removed (Feedback 6) */}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
@@ -1927,13 +2094,13 @@ const StoreDashboard = () => {
                     required
                     type="number" 
                     value={subscriptionForm.weeklyFreq}
-                    onChange={e => setSubscriptionForm({...subscriptionForm, weeklyFreq: e.target.value})}
-                    placeholder="1"
-                    style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1' }} 
+                    readOnly
+                    placeholder="0"
+                    style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1', backgroundColor: '#f1f5f9', color: '#64748b' }} 
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>월간 총 배송 횟수</label>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>총 배송 횟수</label>
                   <input 
                     required
                     type="number" 
@@ -1955,7 +2122,7 @@ const StoreDashboard = () => {
                         const days = subscriptionForm.deliveryDays.includes(day)
                           ? subscriptionForm.deliveryDays.filter(d => d !== day)
                           : [...subscriptionForm.deliveryDays, day];
-                        setSubscriptionForm({ ...subscriptionForm, deliveryDays: days });
+                        setSubscriptionForm({ ...subscriptionForm, deliveryDays: days, weeklyFreq: days.length });
                       }}
                       style={{
                         padding: '8px 12px',
@@ -2115,6 +2282,68 @@ const StoreDashboard = () => {
                 onClick={handleConfirmReject}
                 style={{ flex: 2, padding: '14px', borderRadius: '12px', background: '#ef4444', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
               >거절 확정</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Modal */}
+      {isReportModalOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1300, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)'
+        }} onClick={() => setIsReportModalOpen(false)}>
+          <div style={{
+            background: 'white', width: '100%', maxWidth: '450px', borderRadius: '24px', padding: '32px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
+          }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '8px' }}>신고하기</h3>
+            <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '24px' }}>
+              {selectedOrder ? `주문번호 #${selectedOrder.id} 관련 신고` : '신고 내용을 입력해주세요.'}
+            </p>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', marginBottom: '12px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>신고 대상</label>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={() => setReportTarget('RIDER')}
+                  style={{
+                    flex: 1, padding: '12px', borderRadius: '12px', border: reportTarget === 'RIDER' ? '2px solid var(--primary)' : '1px solid #e2e8f0',
+                    background: reportTarget === 'RIDER' ? '#f0fdf4' : 'white', color: reportTarget === 'RIDER' ? 'var(--primary)' : '#64748b', fontWeight: '700', cursor: 'pointer'
+                  }}
+                >
+                  🛵 배달원
+                </button>
+                <button
+                  onClick={() => setReportTarget('CUSTOMER')}
+                  style={{
+                    flex: 1, padding: '12px', borderRadius: '12px', border: reportTarget === 'CUSTOMER' ? '2px solid var(--primary)' : '1px solid #e2e8f0',
+                    background: reportTarget === 'CUSTOMER' ? '#f0fdf4' : 'white', color: reportTarget === 'CUSTOMER' ? 'var(--primary)' : '#64748b', fontWeight: '700', cursor: 'pointer'
+                  }}
+                >
+                  👤 고객
+                </button>
+              </div>
+            </div>
+
+
+            <div style={{ marginBottom: '32px' }}>
+              <label style={{ display: 'block', marginBottom: '12px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>신고 내용</label>
+              <textarea
+                value={reportContent}
+                onChange={(e) => setReportContent(e.target.value)}
+                placeholder="상세한 신고 내용을 입력해주세요."
+                style={{ width: '100%', height: '100px', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1', fontSize: '14px', resize: 'none' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button 
+                onClick={() => setIsReportModalOpen(false)}
+                style={{ flex: 1, padding: '14px', borderRadius: '12px', background: '#f1f5f9', border: 'none', fontWeight: '700', cursor: 'pointer' }}
+              >취소</button>
+              <button 
+                onClick={handleSubmitReport}
+                style={{ flex: 2, padding: '14px', borderRadius: '12px', background: '#ef4444', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
+              >🚨 신고하기</button>
             </div>
           </div>
         </div>

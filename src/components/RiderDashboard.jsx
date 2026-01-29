@@ -32,7 +32,7 @@ const MapSimulator = ({ status }) => {
       <div style={{ position: 'absolute', top: '32px', left: '32px', width: '16px', height: '16px' }}>
         <div className="pulse-primary" style={{ position: 'absolute', inset: -8, borderRadius: '50%', backgroundColor: 'var(--primary)', opacity: 0.4 }}></div>
         <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', backgroundColor: 'var(--primary)', border: '2px solid white' }}></div>
-        <div style={{ position: 'absolute', top: -20, left: -20, whiteSpace: 'nowrap', fontSize: '10px', fontWeight: '800', color: 'white' }}>마트 (PICKUP)</div>
+        <div style={{ position: 'absolute', top: -20, left: -20, whiteSpace: 'nowrap', fontSize: '10px', fontWeight: '800', color: 'white' }}>매장 (PICKUP)</div>
       </div>
 
       {/* Pulsing Dot Destination */}
@@ -93,6 +93,29 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
   const [activeVehicleId, setActiveVehicleId] = useState(1);
   const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
   const [statusPopup, setStatusPopup] = useState(null); // { type: 'online' | 'offline' | 'error', message: string }
+  
+  // Report Modal State
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportTarget, setReportTarget] = useState('STORE'); // STORE, CUSTOMER
+  const [reportContent, setReportContent] = useState('');
+  const [selectedHistoryItem, setSelectedHistoryItem] = useState(null);
+
+  const handleOpenReportModal = (item) => {
+    setSelectedHistoryItem(item);
+    setReportTarget('STORE');
+    setReportContent('');
+    setIsReportModalOpen(true);
+  };
+
+  const handleSubmitReport = () => {
+    if (!reportContent) {
+      alert('신고 내용을 입력해주세요.');
+      return;
+    }
+    const targetName = reportTarget === 'STORE' ? '마트' : '고객';
+    alert(`${targetName} 신고가 접수되었습니다.`);
+    setIsReportModalOpen(false);
+  };
 
   const handleToggleOnline = () => {
     if (isOnline) {
@@ -334,10 +357,16 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
                       {item.status === '취소됨' ? '0원' : `+${item.fee.toLocaleString()}원`}
                     </div>
                     {item.status !== '취소됨' && (
-                      <button 
-                        onClick={() => setSelectedReceipt(item)}
-                        style={{ fontSize: '12px', color: '#94a3b8', background: 'transparent', border: '1px solid #334155', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer' }}
-                      >영수증 보기</button>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button 
+                          onClick={() => setSelectedReceipt(item)}
+                          style={{ fontSize: '12px', color: '#94a3b8', background: 'transparent', border: '1px solid #334155', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer' }}
+                        >영수증 보기</button>
+                        <button 
+                          onClick={() => handleOpenReportModal(item)}
+                          style={{ fontSize: '12px', color: '#ef4444', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #fee2e2', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontWeight: '800' }}
+                        >신고</button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -370,9 +399,92 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
               </div>
             </div>
 
-
+            {/* Vehicle Management (Feedback fix for 🚲 button) */}
+            <div style={{ backgroundColor: '#1e293b', padding: '24px', borderRadius: '20px', marginBottom: '24px', border: '1px solid #334155' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0 }}>내 운송 수단</h3>
+                <button 
+                  onClick={() => setShowAddVehicleModal(true)}
+                  style={{ border: 'none', background: 'var(--primary)', color: 'white', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}
+                >+ 추가</button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {registeredVehicles.map((vehicle) => (
+                  <div 
+                    key={vehicle.id} 
+                    onClick={() => setActiveVehicleId(vehicle.id)}
+                    style={{ 
+                      padding: '16px', borderRadius: '14px', backgroundColor: '#0f172a', border: `1.5px solid ${activeVehicleId === vehicle.id ? 'var(--primary)' : '#334155'}`,
+                      cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.2s'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{ fontSize: '20px' }}>{vehicle.type === 'walking' ? '🚶' : vehicle.type === 'bicycle' ? '🚲' : '🛵'}</span>
+                      <div>
+                        <div style={{ fontSize: '14px', fontWeight: '800' }}>{vehicle.type === 'walking' ? '도보' : vehicle.type === 'bicycle' ? '자전거' : '오토바이'}</div>
+                        {vehicle.model && <div style={{ fontSize: '12px', color: '#64748b' }}>{vehicle.model}</div>}
+                        {vehicle.plate && <div style={{ fontSize: '11px', color: '#475569' }}>{vehicle.plate}</div>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {activeVehicleId === vehicle.id && <span style={{ color: 'var(--primary)', fontSize: '11px', fontWeight: '900' }}>사용 중</span>}
+                      {registeredVehicles.length > 1 && (
+                        <button 
+                          onClick={(e) => handleDeleteVehicle(vehicle.id, e)}
+                          style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '16px', cursor: 'pointer', padding: '4px' }}
+                        >✕</button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
             <div style={{ marginTop: '24px', textAlign: 'center' }}>
               <button style={{ background: 'transparent', border: 'none', color: '#ef4444', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>로그아웃</button>
+            </div>
+          </div>
+        );
+      case 'login':
+        return (
+          <div style={{ padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '8px', color: '#38bdf8' }}>동네마켓 라이더</h2>
+            <div style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '40px' }}>우리 동네 1등 배달 파트너</div>
+            
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', color: '#cbd5e1', fontSize: '13px', marginBottom: '8px', fontWeight: '700' }}>아이디 / 휴대폰 번호</label>
+                <input 
+                  type="text" 
+                  placeholder="아이디 또는 휴대폰 번호 입력"
+                  style={{ width: '100%', padding: '16px', borderRadius: '12px', backgroundColor: '#1e293b', border: '1px solid #334155', color: 'white', fontSize: '15px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', color: '#cbd5e1', fontSize: '13px', marginBottom: '8px', fontWeight: '700' }}>비밀번호</label>
+                <input 
+                  type="password" 
+                  placeholder="비밀번호 입력"
+                  style={{ width: '100%', padding: '16px', borderRadius: '12px', backgroundColor: '#1e293b', border: '1px solid #334155', color: 'white', fontSize: '15px' }}
+                />
+              </div>
+            </div>
+
+            <button 
+              onClick={() => {
+                alert('로그인되었습니다!');
+                setActiveTab('main');
+              }}
+              style={{ width: '100%', padding: '16px', borderRadius: '12px', backgroundColor: '#38bdf8', color: '#0f172a', border: 'none', fontWeight: '900', fontSize: '16px', marginTop: '32px', cursor: 'pointer' }}
+            >
+              로그인하기
+            </button>
+
+            <div style={{ display: 'flex', gap: '20px', marginTop: '24px', fontSize: '13px', color: '#94a3b8' }}>
+              <span style={{ cursor: 'pointer' }}>아이디 찾기</span>
+              <span style={{ width: '1px', height: '12px', backgroundColor: '#475569', marginTop: '3px' }}></span>
+              <span style={{ cursor: 'pointer' }}>비밀번호 찾기</span>
+              <span style={{ width: '1px', height: '12px', backgroundColor: '#475569', marginTop: '3px' }}></span>
+              <span style={{ cursor: 'pointer', color: '#38bdf8', fontWeight: '700' }}>회원가입</span>
             </div>
           </div>
         );
@@ -614,7 +726,7 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {[
                 '조금 뒤 도착 예정입니다. 잠시만 기다려주세요!',
-                '마트 픽업이 다소 지연되고 있습니다. 죄송합니다.',
+                '매장 픽업이 다소 지연되고 있습니다. 죄송합니다.',
                 '도착했습니다! 문 앞에 두고 갈게요. 맛있게 드세요!',
                 '벨을 누르지 말아달라는 요청 확인했습니다. 조용히 배송할게요.'
               ].map((msg, i) => (
@@ -786,7 +898,8 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
           { icon: '🏠', label: '홈', tab: 'main' },
           { icon: '📋', label: '히스토리', tab: 'history' },
           { icon: '💰', label: '정산', tab: 'earnings' },
-          { icon: '👤', label: '마이페이지', tab: 'account' }
+          { icon: '👤', label: '마이페이지', tab: 'account' },
+          { icon: '🔐', label: '로그인', tab: 'login' }
         ].map(item => (
           <div 
             key={item.tab}
@@ -865,6 +978,63 @@ const RiderDashboard = ({ isResidentRider, riderInfo }) => {
               style={{ width: '100%', padding: '16px', borderRadius: '16px', backgroundColor: statusPopup.type === 'error' ? '#ef4444' : '#38bdf8', color: 'white', border: 'none', fontWeight: '900', fontSize: '16px', cursor: 'pointer' }}>
               확인
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Report Modal */}
+      {isReportModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ backgroundColor: '#1e293b', borderRadius: '24px', width: '100%', maxWidth: '360px', padding: '24px' }}>
+            <h3 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '8px' }}>신고하기</h3>
+            <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '24px' }}>
+              {selectedHistoryItem ? `주문번호 ${selectedHistoryItem.id}` : '신고 내용을 입력해주세요'}
+            </p>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', color: '#cbd5e1', fontSize: '12px', marginBottom: '8px', fontWeight: '700' }}>신고 대상</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => setReportTarget('STORE')}
+                  style={{
+                    flex: 1, padding: '12px', borderRadius: '12px', border: reportTarget === 'STORE' ? '2px solid var(--primary)' : '1px solid #334155',
+                    backgroundColor: reportTarget === 'STORE' ? '#0f172a' : '#1e293b', color: reportTarget === 'STORE' ? 'var(--primary)' : '#94a3b8', fontWeight: '800', cursor: 'pointer'
+                  }}
+                >
+                  🏪 마트
+                </button>
+                <button
+                  onClick={() => setReportTarget('CUSTOMER')}
+                  style={{
+                    flex: 1, padding: '12px', borderRadius: '12px', border: reportTarget === 'CUSTOMER' ? '2px solid var(--primary)' : '1px solid #334155',
+                    backgroundColor: reportTarget === 'CUSTOMER' ? '#0f172a' : '#1e293b', color: reportTarget === 'CUSTOMER' ? 'var(--primary)' : '#94a3b8', fontWeight: '800', cursor: 'pointer'
+                  }}
+                >
+                  👤 고객
+                </button>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', color: '#cbd5e1', fontSize: '12px', marginBottom: '8px', fontWeight: '700' }}>신고 사유</label>
+              <textarea
+                value={reportContent}
+                onChange={(e) => setReportContent(e.target.value)}
+                placeholder="상세한 신고 내용을 입력해주세요."
+                style={{ width: '100%', height: '100px', padding: '14px', borderRadius: '12px', backgroundColor: '#0f172a', border: '1px solid #334155', color: 'white', fontSize: '14px', resize: 'none' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+               <button 
+                onClick={() => setIsReportModalOpen(false)}
+                style={{ flex: 1, padding: '14px', borderRadius: '12px', backgroundColor: '#334155', border: 'none', fontWeight: '700', cursor: 'pointer', color: '#94a3b8' }}
+              >취소</button>
+              <button 
+                onClick={handleSubmitReport}
+                style={{ flex: 2, padding: '14px', borderRadius: '12px', backgroundColor: '#ef4444', color: 'white', border: 'none', fontWeight: '800', cursor: 'pointer' }}
+              >🚨 신고하기</button>
+            </div>
           </div>
         </div>
       )}

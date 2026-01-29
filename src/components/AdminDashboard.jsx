@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowReports }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -424,6 +424,8 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+  const [paymentMonthFilter, setPaymentMonthFilter] = useState('2026-01');
+  const [settlementMonthFilter, setSettlementMonthFilter] = useState('2026-01');
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [selectedApproval, setSelectedApproval] = useState(null);
   const [approvalFilter, setApprovalFilter] = useState('ALL'); // ALL, STORE, RIDER
@@ -556,6 +558,7 @@ const AdminDashboard = () => {
     }
   ]);
 
+
   const [reports, setReports] = useState([
     { 
       id: 1, type: '배송지연', status: '확인 중', time: '1시간 전', content: '예상 시간보다 30분이나 늦게 도착했습니다. 고기가 좀 녹았어요.',
@@ -615,6 +618,7 @@ const AdminDashboard = () => {
   const [paymentRegionFilter, setPaymentRegionFilter] = useState('ALL');
   const [settlementSearch, setSettlementSearch] = useState('');
   const [settlementStatusFilter, setSettlementStatusFilter] = useState('ALL');
+  const [inquiryFilter, setInquiryFilter] = useState('ALL'); // ALL, PENDING, COMPLETED
 
   const [faqs, setFaqs] = useState([
     { id: 1, question: '배송이 지연되면 어떻게 하나요?', answer: '고객센터로 즉시 연락 주시면 배달원과 확인 후 조치해 드립니다.' },
@@ -650,9 +654,9 @@ const AdminDashboard = () => {
     { region: '경기', category: '일반 식품', mart: '프레시팜 판교', amount: 19800000, commission: 1980000, status: '지급대기' }
   ]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, approvalFilter, approvalStatusFilter, reportsFilter, settlementFilter, userSearch]);
+  }, [activeTab, approvalFilter, approvalStatusFilter, reportsFilter, settlementFilter, userSearch, inquiryFilter]);
 
   const [selectedReport, setSelectedReport] = useState(null);
   const [inquiryList, setInquiryList] = useState([
@@ -706,6 +710,12 @@ const AdminDashboard = () => {
   ]);
   const [selectedPromotion, setSelectedPromotion] = useState(null);
 
+  const [notificationHistory, setNotificationHistory] = useState([
+    { id: 1, title: '설 연휴 배송 지연 안내', target: '전체 사용자', date: '2024.01.20 14:00', status: '발송 완료' },
+    { id: 2, title: '신규 가입 쿠폰 증정 이벤트', target: '전체 고객', date: '2024.01.15 10:00', status: '발송 완료' },
+    { id: 3, title: '시스템 점검 안내', target: '전체 사용자', date: '2024.01.10 02:00', status: '발송 완료' }
+  ]);
+
   const handleApprovalAction = (id, action, reason = '') => {
     let statusText = '';
     let successMsg = '';
@@ -721,7 +731,7 @@ const AdminDashboard = () => {
     } else if (action === 'REJECTED') {
       statusText = '거절됨';
       successMsg = `신청이 거절 처리되었습니다.${reason ? `\n(사유: ${reason})` : ''}`;
-    } else {
+    } else if (action === 'PENDING') {
       statusText = '보완 요청 중';
       successMsg = `보완 요청이 담당자에게 전달되었습니다.${reason ? `\n(사유: ${reason})` : ''}`;
     }
@@ -730,7 +740,7 @@ const AdminDashboard = () => {
       item.id === id ? { ...item, status: statusText } : item
     ));
     
-    if (action === 'APPROVED' || action === 'REJECTED') {
+    if (action === 'APPROVED' || action === 'REJECTED' || action === 'PENDING') {
       setTimeout(() => {
         setApprovalItems(prev => prev.filter(item => item.id !== id));
       }, 1500);
@@ -841,7 +851,7 @@ const AdminDashboard = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
                 <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0 }}>마트 목록 및 관리</h2>
                 <div style={{ display: 'flex', gap: '12px' }}>
-                   <input type="text" placeholder="마트명/지역 검색..." style={{ padding: '10px 16px', borderRadius: '10px', backgroundColor: '#0f172a', border: '1px solid #334155', color: 'white', fontSize: '14px' }} />
+                   <input type="text" placeholder="마트명으로 검색..." style={{ padding: '10px 16px', borderRadius: '10px', backgroundColor: '#0f172a', border: '1px solid #334155', color: 'white', fontSize: '14px' }} />
                    <button style={{ padding: '10px 20px', borderRadius: '10px', backgroundColor: '#334155', border: 'none', color: 'white', fontWeight: '700', cursor: 'pointer' }}>검색</button>
                 </div>
               </div>
@@ -1090,8 +1100,15 @@ const AdminDashboard = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
                 <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0 }}>전체 문의 내역</h2>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button style={{ padding: '8px 16px', borderRadius: '8px', background: '#334155', color: 'white', border: 'none', cursor: 'pointer' }}>답변 대기</button>
-                  <button style={{ padding: '8px 16px', borderRadius: '8px', background: '#334155', color: 'white', border: 'none', cursor: 'pointer' }}>답변 완료</button>
+                  <button 
+                    onClick={() => setInquiryFilter('ALL')}
+                    style={{ padding: '8px 16px', borderRadius: '8px', background: inquiryFilter === 'ALL' ? '#38bdf8' : '#334155', color: inquiryFilter === 'ALL' ? '#0f172a' : 'white', border: 'none', cursor: 'pointer', fontWeight: inquiryFilter === 'ALL' ? '700' : 'normal' }}>전체</button>
+                  <button 
+                    onClick={() => setInquiryFilter('PENDING')}
+                    style={{ padding: '8px 16px', borderRadius: '8px', background: inquiryFilter === 'PENDING' ? '#38bdf8' : '#334155', color: inquiryFilter === 'PENDING' ? '#0f172a' : 'white', border: 'none', cursor: 'pointer', fontWeight: inquiryFilter === 'PENDING' ? '700' : 'normal' }}>답변 대기</button>
+                  <button 
+                    onClick={() => setInquiryFilter('COMPLETED')}
+                    style={{ padding: '8px 16px', borderRadius: '8px', background: inquiryFilter === 'COMPLETED' ? '#38bdf8' : '#334155', color: inquiryFilter === 'COMPLETED' ? '#0f172a' : 'white', border: 'none', cursor: 'pointer', fontWeight: inquiryFilter === 'COMPLETED' ? '700' : 'normal' }}>답변 완료</button>
                 </div>
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -1106,7 +1123,14 @@ const AdminDashboard = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {inquiryList.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((inq, i) => (
+                  {inquiryList
+                    .filter(inq => {
+                      if (inquiryFilter === 'ALL') return true;
+                      if (inquiryFilter === 'PENDING') return inq.status === '답변 대기';
+                      if (inquiryFilter === 'COMPLETED') return inq.status === '답변 완료';
+                      return true;
+                    })
+                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((inq, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid #334155' }}>
                       <td style={{ padding: '16px' }}><span style={{ color: '#38bdf8' }}>[{inq.type}]</span></td>
                       <td style={{ padding: '16px' }}>{inq.title}</td>
@@ -1208,7 +1232,16 @@ const AdminDashboard = () => {
                         setSelectedInquiry(null);
                         setInquiryAnswer('');
                       }} 
-                      style={{ flex: 2, padding: '16px', borderRadius: '12px', background: '#38bdf8', color: '#0f172a', border: 'none', fontWeight: '800', cursor: 'pointer' }}>답변 등록</button>
+                      disabled={selectedInquiry.status === '답변 완료'}
+                      style={{ 
+                        flex: 2, padding: '16px', borderRadius: '12px', 
+                        background: selectedInquiry.status === '답변 완료' ? '#475569' : '#38bdf8', 
+                        color: selectedInquiry.status === '답변 완료' ? '#94a3b8' : '#0f172a', 
+                        border: 'none', fontWeight: '800', 
+                        cursor: selectedInquiry.status === '답변 완료' ? 'default' : 'pointer' 
+                      }}>
+                        {selectedInquiry.status === '답변 완료' ? '답변 완료' : '답변 등록'}
+                      </button>
                   </div>
                 </div>
               </div>
@@ -1374,6 +1407,16 @@ const AdminDashboard = () => {
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
             {/* Payment Overview Stats */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+              <select 
+                value={paymentMonthFilter}
+                onChange={(e) => setPaymentMonthFilter(e.target.value)}
+                style={{ padding: '8px 12px', borderRadius: '8px', backgroundColor: '#1e293b', border: '1px solid #334155', color: 'white', fontSize: '13px', outline: 'none' }}>
+                <option value="2026-01">2026년 01월</option>
+                <option value="2025-12">2025년 12월</option>
+                <option value="2025-11">2025년 11월</option>
+              </select>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px' }}>
               {[
                 { label: '총 결제 금액 (GMV)', value: '₩1,250,400,000', trend: '+12.5%', isPos: true },
@@ -1508,9 +1551,10 @@ const AdminDashboard = () => {
                   border: settlementFilter === 'STORE' ? 'none' : '1px solid #334155',
                   fontWeight: '800',
                   cursor: 'pointer',
-                  transition: 'all 0.2s'
+                  transition: 'all 0.2s',
+                  display: 'flex', alignItems: 'center', gap: '6px'
                 }}
-              >🏛️ 마트 정산 관리</button>
+              >🏛️ 마트 정산 관리 <span style={{ fontSize: '12px', background: 'rgba(255,255,255,0.2)', padding: '2px 6px', borderRadius: '4px' }}>{detailedSettlements.length}</span></button>
               <button 
                 onClick={() => setSettlementFilter('RIDER')}
                 style={{
@@ -1521,10 +1565,12 @@ const AdminDashboard = () => {
                   border: settlementFilter === 'RIDER' ? 'none' : '1px solid #334155',
                   fontWeight: '800',
                   cursor: 'pointer',
-                  transition: 'all 0.2s'
+                  transition: 'all 0.2s',
+                  display: 'flex', alignItems: 'center', gap: '6px'
                 }}
-              >🚲 배달원 정산 관리</button>
+              >🚲 배달원 정산 관리 <span style={{ fontSize: '12px', background: 'rgba(255,255,255,0.2)', padding: '2px 6px', borderRadius: '4px' }}>{riderSettlements.length}</span></button>
             </div>
+
 
             {/* Settlement Overview Stats */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px' }}>
@@ -1613,16 +1659,24 @@ const AdminDashboard = () => {
                       value={settlementSearch}
                       onChange={(e) => setSettlementSearch(e.target.value)}
                       style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: '#0f172a', border: '1px solid #334155', color: 'white', fontSize: '13px', outline: 'none' }} />
-                    <select 
-                      value={settlementStatusFilter}
-                      onChange={(e) => setSettlementStatusFilter(e.target.value)}
-                      style={{ padding: '8px 12px', borderRadius: '8px', backgroundColor: '#0f172a', border: '1px solid #334155', color: 'white', fontSize: '13px', outline: 'none' }}>
-                       <option value="ALL">정산 상태: 전체</option>
-                       <option value="지급 완료">지급 완료</option>
-                       <option value="지급 처리중">지급 처리중</option>
-                       <option value="승인 대기">승인 대기</option>
-                       <option value="지급 실패">지급 실패</option>
-                    </select>
+                     <select 
+                       value={settlementMonthFilter}
+                       onChange={(e) => setSettlementMonthFilter(e.target.value)}
+                       style={{ padding: '8px 12px', borderRadius: '8px', backgroundColor: '#0f172a', border: '1px solid #334155', color: 'white', fontSize: '13px', outline: 'none' }}>
+                        <option value="2026-01">2026년 01월</option>
+                        <option value="2025-12">2025년 12월</option>
+                        <option value="2025-11">2025년 11월</option>
+                     </select>
+                     <select 
+                       value={settlementStatusFilter}
+                       onChange={(e) => setSettlementStatusFilter(e.target.value)}
+                       style={{ padding: '8px 12px', borderRadius: '8px', backgroundColor: '#0f172a', border: '1px solid #334155', color: 'white', fontSize: '13px', outline: 'none' }}>
+                        <option value="ALL">정산 상태: 전체</option>
+                        <option value="지급 완료">지급 완료</option>
+                        <option value="지급 처리중">지급 처리중</option>
+                        <option value="승인 대기">승인 대기</option>
+                        <option value="지급 실패">지급 실패</option>
+                     </select>
                   </div>
                </div>
                <div className="table-responsive">
@@ -1713,7 +1767,6 @@ const AdminDashboard = () => {
                     <th style={{ padding: '16px' }}>유형</th>
                     <th style={{ padding: '16px' }}>이름/상호명</th>
                     <th style={{ padding: '16px' }}>신청일</th>
-                    <th style={{ padding: '16px' }}>상태</th>
                     <th style={{ padding: '16px' }}>관리</th>
                   </tr>
                 </thead>
@@ -1725,9 +1778,6 @@ const AdminDashboard = () => {
                       </td>
                       <td style={{ padding: '16px' }}>{item.name}</td>
                       <td style={{ padding: '16px' }}>{item.date}</td>
-                      <td style={{ padding: '16px' }}>
-                        <span style={{ color: item.status === '서류 미비' ? '#f59e0b' : '#38bdf8', fontWeight: '700', fontSize: '13px' }}>{item.status}</span>
-                      </td>
                       <td style={{ padding: '16px' }}>
                          <button 
                            onClick={() => setSelectedApproval(item)}
@@ -1755,24 +1805,15 @@ const AdminDashboard = () => {
             <div style={{ backgroundColor: '#1e293b', padding: '32px', borderRadius: '24px', border: '1px solid #334155', maxWidth: '800px' }}>
               <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '32px' }}>새 알림 발송</h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                   <div>
-                      <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>발송 대상</label>
-                      <select style={{ width: '100%', padding: '12px', borderRadius: '8px', backgroundColor: '#0f172a', border: '1px solid #334155', color: 'white' }}>
-                        <option>전체 사용자</option>
-                        <option>전체 고객</option>
-                        <option>전체 마트 사장님</option>
-                        <option>전체 배달원</option>
-                      </select>
-                   </div>
-                   <div>
-                      <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>알림 유형</label>
-                      <select style={{ width: '100%', padding: '12px', borderRadius: '8px', backgroundColor: '#0f172a', border: '1px solid #334155', color: 'white' }}>
-                        <option>긴급 공지</option>
-                        <option>마케팅 홍보</option>
-                        <option>배송 안내</option>
-                      </select>
-                   </div>
+                <div style={{ marginBottom: '24px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>발송 대상</label>
+                    <select style={{ width: '100%', padding: '12px', borderRadius: '8px', backgroundColor: '#0f172a', border: '1px solid #334155', color: 'white' }}>
+                      <option>전체 사용자</option>
+                      <option>전체 고객</option>
+                      <option>전체 마트 사장님</option>
+                      <option>전체 배달원</option>
+                    </select>
+
                 </div>
                 <div>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>알림 제목</label>
@@ -2001,6 +2042,7 @@ const AdminDashboard = () => {
                     { label: '전체 고객', value: '12,504명' },
                     { label: '등록 마트', value: '458개' },
                     { label: '활동 배달원', value: '892명' },
+                    { label: '정산 현황 (미지급)', value: `${detailedSettlements.filter(s => s.status !== '지급 완료').length + riderSettlements.filter(s => s.status !== '지급 완료').length}건`, highlight: true, action: () => setActiveTab('settlements') },
                     { label: '확인중인 신고수', value: `${reports.filter(r => r.status === '확인 중').length}개`, highlight: true, action: () => setActiveTab('reports') },
                     { label: '처리완료 신고 수', value: `${reports.filter(r => r.status === '처리완료' || r.status === '답변완료').length}개`, highlight: true, action: () => setActiveTab('reports') },
                     { label: '승인 대기', value: `${approvalItems.length}건`, highlight: true, action: () => setActiveTab('approvals') },
@@ -2186,7 +2228,7 @@ const AdminDashboard = () => {
       <div className="sidebar" style={{
         width: '260px',
         backgroundColor: '#1e293b',
-        padding: '30px 20px',
+        padding: '30px 5px',
         display: 'flex',
         flexDirection: 'column',
         gap: '8px',

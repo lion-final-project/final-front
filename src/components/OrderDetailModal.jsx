@@ -1,6 +1,6 @@
 import React from 'react';
 
-const OrderDetailModal = ({ isOpen, onClose, order, onTracking, onReview, onOpenDetail, onOpenReceipt, onOpenInquiry }) => {
+const OrderDetailModal = ({ isOpen, onClose, order, onTracking, onReview, onOpenDetail, onOpenReceipt, onOpenInquiry, onOpenReport }) => {
   if (!isOpen || !order) return null;
 
   return (
@@ -37,11 +37,11 @@ const OrderDetailModal = ({ isOpen, onClose, order, onTracking, onReview, onOpen
 
           <div style={{ display: 'flex' }}>
              <button style={{ flex: 1, padding: '16px', border: 'none', background: 'white', fontSize: '14px', color: '#1e293b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={() => { onClose(); onOpenInquiry(order); }}>
-               <span style={{ color: '#22c55e' }}>💬</span> 톡톡하기
+               <span style={{ color: '#22c55e' }}>💬</span> 1:1 문의하기
              </button>
              <div style={{ width: '1px', background: '#f1f5f9' }}></div>
-             <button style={{ flex: 1, padding: '16px', border: 'none', background: 'white', fontSize: '14px', color: '#1e293b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={() => alert('전화 문의 연결 (준비중)')}>
-               <span style={{ color: '#22c55e' }}>📞</span> 전화문의
+             <button style={{ flex: 1, padding: '16px', border: 'none', background: 'white', fontSize: '14px', color: '#1e293b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={() => { onClose(); onOpenReport(order); }}>
+               <span style={{ color: '#ef4444' }}>🚨</span> 신고하기
              </button>
           </div>
         </div>
