@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authApi } from '../config/api';
 
 const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
   const [mode, setMode] = useState('login'); // 'login' or 'signup'
@@ -8,12 +9,15 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [addressDetail, setAddressDetail] = useState('');
+  const [apiLoading, setApiLoading] = useState(false);
+  const [apiError, setApiError] = useState('');
   
   // Validation States for Signup
   const [isEmailChecked, setIsEmailChecked] = useState(false);
   const [isPhoneSent, setIsPhoneSent] = useState(false);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [verifyCode, setVerifyCode] = useState('');
+  const [phoneVerificationToken, setPhoneVerificationToken] = useState('');
   
   // Terms and Agreements State
   const [agreements, setAgreements] = useState({
@@ -48,11 +52,11 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
   useEffect(() => {
     if (!isOpen) {
       setMode('login');
-      // Reset other states
       setIsEmailChecked(false);
       setIsPhoneSent(false);
       setIsPhoneVerified(false);
       setVerifyCode('');
+      setPhoneVerificationToken('');
     }
   }, [isOpen]);
 
@@ -69,39 +73,142 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
     }
   };
 
-  const handleCheckEmail = () => {
-    if (!email.includes('@')) {
-      alert('올바른 이메일 형식을 입력해주세요.');
-      return;
-    }
-    // Simulate API call
-    setTimeout(() => {
-      setIsEmailChecked(true);
-      alert('사용 가능한 이메일입니다.');
-    }, 500);
+  const getErrorMessage = (json, fallback) => {
+    if (!json) return fallback;
+    return json.error?.message ?? json.message ?? fallback;
   };
 
-  const handleSendVerifyCode = () => {
+  const handleCheckEmail = async () => {
+    const emailWithDomain = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailWithDomain.test(email)) {
+      alert('이메일은 정확하게 입력해주세요.');
+      return;
+    }
+    setApiLoading(true);
+    setApiError('');
+    try {
+      const res = await fetch(authApi.checkEmail(email));
+      let json = null;
+      try {
+        json = await res.json();
+      } catch (_) {
+        alert('응답 형식을 확인할 수 없습니다.');
+        return;
+      }
+      if (!res.ok) {
+        alert(getErrorMessage(json, '이메일 확인에 실패했습니다.'));
+        return;
+      }
+      const duplicated = json.data?.duplicated ?? false;
+      if (duplicated) {
+        alert('이미 사용 중인 이메일입니다.');
+        return;
+      }
+      setIsEmailChecked(true);
+      alert('사용 가능한 이메일입니다.');
+    } catch (err) {
+      const isNetworkError = err?.name === 'TypeError' && (err?.message === 'Failed to fetch' || err?.message?.includes('fetch'));
+      alert(isNetworkError
+        ? '서버에 연결할 수 없습니다. 백엔드(localhost:8080)가 실행 중인지 확인해 주세요.'
+        : '오류가 발생했습니다. 다시 시도해 주세요.');
+    } finally {
+      setApiLoading(false);
+    }
+  };
+
+  const handleSendVerifyCode = async () => {
     if (phone.length < 10) {
       alert('올바른 휴대폰 번호를 입력해주세요.');
       return;
     }
-    if (resendCount >= 5) {
-      alert('인증번호 재발송 횟수(5회)를 초과하였습니다. 나중에 다시 시도해주세요.');
-      return;
+    setApiLoading(true);
+    setApiError('');
+    try {
+      const checkRes = await fetch(authApi.checkPhone(phone));
+      let checkJson = null;
+      try {
+        checkJson = await checkRes.json();
+      } catch (_) {
+        alert('응답 형식을 확인할 수 없습니다.');
+        return;
+      }
+      if (!checkRes.ok) {
+        alert(getErrorMessage(checkJson, '휴대폰 확인에 실패했습니다.'));
+        return;
+      }
+      if (checkJson.data?.duplicated) {
+        alert('이미 가입된 휴대폰 번호입니다.');
+        return;
+      }
+      const res = await fetch(authApi.sendVerification(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+      let json = null;
+      try {
+        json = await res.json();
+      } catch (_) {
+        alert('응답 형식을 확인할 수 없습니다.');
+        return;
+      }
+      if (!res.ok) {
+        alert(getErrorMessage(json, '인증번호 발송에 실패했습니다.'));
+        return;
+      }
+      const d = json.data;
+      setIsPhoneSent(true);
+      setTimeLeft(d?.expiresIn ?? 180);
+      setResendCount((prev) => prev + 1);
+      alert(`${d?.message ?? '인증번호가 발송되었습니다.'}\n유효시간 ${Math.floor((d?.expiresIn ?? 180) / 60)}분, 잔여 재발송 ${d?.remainingAttempts ?? 4}회`);
+    } catch (err) {
+      const isNetworkError = err?.name === 'TypeError' && (err?.message === 'Failed to fetch' || err?.message?.includes('fetch'));
+      alert(isNetworkError
+        ? '서버에 연결할 수 없습니다. 백엔드(localhost:8080)가 실행 중인지 확인해 주세요.'
+        : '오류가 발생했습니다. 다시 시도해 주세요.');
+    } finally {
+      setApiLoading(false);
     }
-    setIsPhoneSent(true);
-    setTimeLeft(180); // 3 minutes
-    setResendCount(prev => prev + 1);
-    alert(`인증번호가 발송되었습니다. (테스트 번호: 1234)\n잔여 재발송 횟수: ${5 - (resendCount + 1)}회`);
   };
 
-  const handleVerifyCode = () => {
-    if (verifyCode === '1234') {
-      setIsPhoneVerified(true);
-      alert('휴대폰 인증이 완료되었습니다.');
-    } else {
-      alert('인증번호가 일치하지 않습니다.');
+  const handleVerifyCode = async () => {
+    if (!verifyCode.trim()) {
+      alert('인증번호를 입력해주세요.');
+      return;
+    }
+    setApiLoading(true);
+    try {
+      const res = await fetch(authApi.verifyPhone(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, verificationCode: verifyCode.trim() }),
+      });
+      let json = null;
+      try {
+        json = await res.json();
+      } catch (_) {
+        alert('응답 형식을 확인할 수 없습니다.');
+        return;
+      }
+      if (!res.ok) {
+        alert(getErrorMessage(json, '인증에 실패했습니다.'));
+        return;
+      }
+      const token = json.data?.phoneVerificationToken;
+      if (token) {
+        setPhoneVerificationToken(token);
+        setIsPhoneVerified(true);
+        alert('휴대폰 인증이 완료되었습니다.');
+      } else {
+        alert('인증 결과를 받지 못했습니다.');
+      }
+    } catch (err) {
+      const isNetworkError = err?.name === 'TypeError' && (err?.message === 'Failed to fetch' || err?.message?.includes('fetch'));
+      alert(isNetworkError
+        ? '서버에 연결할 수 없습니다. 백엔드(localhost:8080)가 실행 중인지 확인해 주세요.'
+        : '오류가 발생했습니다. 다시 시도해 주세요.');
+    } finally {
+      setApiLoading(false);
     }
   };
 
@@ -111,20 +218,60 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
     alert('주 검색 기능은 현재 데모 모드입니다. 상세 주소를 입력해주세요.');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (mode === 'signup') {
       if (!isEmailChecked) return alert('이메일 중복 확인이 필요합니다.');
       if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.');
       if (!address || !addressDetail) return alert('주소를 입력해주세요.');
       if (!agreements.service || !agreements.privacy) return alert('필수 약관에 동의해주세요.');
-      alert('회원가입이 완료되었습니다! 반갑습니다.');
-    } else if (mode === 'social-extra') {
+      if (!password || password.length < 8) return alert('비밀번호는 8자 이상, 영문/숫자/특수문자를 포함해주세요.');
+      setApiLoading(true);
+      setApiError('');
+      try {
+        const res = await fetch(authApi.register(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            password,
+            phone,
+            name,
+            phoneVerificationToken,
+            marketingAgreed: agreements.marketing,
+            termsAgreed: agreements.service,
+            privacyAgreed: agreements.privacy,
+          }),
+        });
+        let json = null;
+        try {
+          json = await res.json();
+        } catch (_) {
+          alert('응답 형식을 확인할 수 없습니다.');
+          return;
+        }
+        if (!res.ok) {
+          alert(getErrorMessage(json, '회원가입에 실패했습니다.'));
+          return;
+        }
+        alert('회원가입이 완료되었습니다! 반갑습니다.');
+        onLoginSuccess();
+        onClose();
+      } catch (err) {
+        const isNetworkError = err?.name === 'TypeError' && (err?.message === 'Failed to fetch' || err?.message?.includes('fetch'));
+        alert(isNetworkError
+          ? '서버에 연결할 수 없습니다. 백엔드(localhost:8080)가 실행 중인지 확인해 주세요.'
+          : '오류가 발생했습니다. 다시 시도해 주세요.');
+      } finally {
+        setApiLoading(false);
+      }
+      return;
+    }
+    if (mode === 'social-extra') {
       if (!name || !phone) return alert('이름과 휴대폰 번호를 모두 입력해주세요.');
       if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.');
       alert('추가 정보 입력이 완료되었습니다.');
     }
-    // Simulate authentication
     onLoginSuccess();
     onClose();
   };
@@ -137,11 +284,11 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
 
   const toggleMode = () => {
     setMode(mode === 'login' ? 'signup' : 'login');
-    // Reset states
     setIsEmailChecked(false);
     setIsPhoneSent(false);
     setIsPhoneVerified(false);
     setVerifyCode('');
+    setPhoneVerificationToken('');
   };
 
   return (
@@ -178,6 +325,15 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
                 />
               </div>
 
+              {/* Password */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>비밀번호</label>
+                <input 
+                  type="password" placeholder="8자 이상, 영문·숫자·특수문자 포함" required value={password} onChange={(e) => setPassword(e.target.value)}
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }} 
+                />
+              </div>
+
               {/* Email with Duplicate Check */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>이메일 (아이디)</label>
@@ -186,7 +342,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
                     type="email" placeholder="example@email.com" required value={email} onChange={(e) => { setEmail(e.target.value); setIsEmailChecked(false); }}
                     style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: isEmailChecked ? '2px solid #10b981' : '1px solid #e2e8f0', fontSize: '15px' }} 
                   />
-                  <button type="button" onClick={handleCheckEmail} disabled={isEmailChecked} style={{
+                  <button type="button" onClick={handleCheckEmail} disabled={isEmailChecked || apiLoading} style={{
                     padding: '0 16px', borderRadius: '12px', border: 'none', background: isEmailChecked ? '#10b981' : '#334155', color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
                   }}>
                     {isEmailChecked ? '확인됨' : '중복확인'}
@@ -203,7 +359,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
                     style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: isPhoneVerified ? '2px solid #10b981' : '1px solid #e2e8f0', fontSize: '15px' }} 
                   />
                   {!isPhoneVerified && (
-                    <button type="button" onClick={handleSendVerifyCode} style={{
+                    <button type="button" onClick={handleSendVerifyCode} disabled={apiLoading} style={{
                       padding: '0 16px', borderRadius: '12px', border: 'none', background: '#334155', color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
                     }}>
                       {isPhoneSent ? '재발송' : '인증요청'}
@@ -294,7 +450,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
                     style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: isPhoneVerified ? '2px solid #10b981' : '1px solid #e2e8f0', fontSize: '15px' }} 
                   />
                   {!isPhoneVerified && (
-                    <button type="button" onClick={handleSendVerifyCode} style={{
+                    <button type="button" onClick={handleSendVerifyCode} disabled={apiLoading} style={{
                       padding: '0 16px', borderRadius: '12px', border: 'none', background: '#334155', color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
                     }}>
                       {isPhoneSent ? '재발송' : '인증요청'}
@@ -340,11 +496,11 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
             </>
           )}
 
-          <button type="submit" style={{
-            marginTop: '10px', padding: '16px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '16px',
-            fontWeight: '800', fontSize: '16px', cursor: 'pointer', boxShadow: '0 8px 16px rgba(16, 185, 129, 0.25)', transition: 'all 0.2s'
+          <button type="submit" disabled={apiLoading} style={{
+            marginTop: '10px', padding: '16px', backgroundColor: apiLoading ? '#94a3b8' : '#10b981', color: 'white', border: 'none', borderRadius: '16px',
+            fontWeight: '800', fontSize: '16px', cursor: apiLoading ? 'wait' : 'pointer', boxShadow: '0 8px 16px rgba(16, 185, 129, 0.25)', transition: 'all 0.2s'
           }}>
-            {mode === 'login' ? '로그인하기' : mode === 'signup' ? '동네마켓 가입 완료' : '입력 완료'}
+            {apiLoading ? '처리 중...' : mode === 'login' ? '로그인하기' : mode === 'signup' ? '동네마켓 가입 완료' : '입력 완료'}
           </button>
         </form>
 
