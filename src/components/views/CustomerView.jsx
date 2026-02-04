@@ -1,22 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import Header from './Header';
-import Hero from './Hero';
-import StoreGrid from './StoreGrid';
-import CategorySidebar from './CategorySidebar';
+import Header from '../common/Header';
+import Hero from '../common/Hero';
+import StoreGrid from '../common/StoreGrid';
+import CategorySidebar from '../common/CategorySidebar';
 import SearchResultsView from './SearchResultsView';
 import CheckoutView from './CheckoutView';
 import OrderTrackingView from './OrderTrackingView';
 import ResidentDeliveryView from './ResidentDeliveryView';
 import SupportView from './SupportView';
 import PartnerPage from './PartnerPage';
-import Footer from './Footer';
-import { orders, subscriptions, reviews, stores, addresses, paymentMethods, faqs, categories, coupons, inquiries, loyaltyPoints, subscriptionPayments } from '../data/mockData';
-import CartModal from './CartModal';
+import Footer from '../common/Footer';
+import { orders, subscriptions, reviews, stores, addresses, paymentMethods, faqs, categories, coupons, inquiries, loyaltyPoints, subscriptionPayments } from '../../data/mockData';
+import CartModal from '../modals/CartModal';
 import StoreDetailView from './StoreDetailView';
 import StoreRegistrationView from './StoreRegistrationView';
 import RiderRegistrationView from './RiderRegistrationView';
 import OrderManagementView from './OrderManagementView';
-import LocationModal from './LocationModal';
+import LocationModal from '../modals/LocationModal';
 
 // Import Swiper React components
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -35,7 +35,7 @@ const TrackingModal = ({ isOpen, onClose, orderId }) => {
       position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1100, backdropFilter: 'blur(4px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center'
     }} onClick={onClose}>
-      <div style={{ 
+      <div style={{
         width: '100%', maxWidth: '500px', height: '80vh', backgroundColor: 'white', borderRadius: '24px', overflow: 'hidden', display: 'flex', flexDirection: 'column'
       }} onClick={e => e.stopPropagation()}>
         <div style={{ padding: '16px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -50,7 +50,7 @@ const TrackingModal = ({ isOpen, onClose, orderId }) => {
   );
 };
 
-const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth, isResidentRider, setIsResidentRider, notificationCount, storeRegistrationStatus, setStoreRegistrationStatus, riderInfo, setRiderInfo }) => {
+const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth, isResidentRider, setIsResidentRider, notificationCount, storeRegistrationStatus, setStoreRegistrationStatus, riderInfo, setRiderInfo, userInfo }) => {
   const [activeTab, setActiveTab] = useState('home');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -62,13 +62,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [orderList, setOrderList] = useState(orders);
   const [subscriptionList, setSubscriptionList] = useState(subscriptions);
-  const [userInfo] = useState({
-    name: '사용자',
-    email: 'user@example.com',
-    phone: '010-1234-5678',
-    birth: '1995.05.20',
-    joinDate: '2024.01.01'
-  });
+
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -115,14 +109,14 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
   const [editingPaymentMethod, setEditingPaymentMethod] = useState(null);
   const [newPaymentMethod, setNewPaymentMethod] = useState({ name: '', number: '', color: '#10b981', type: 'card', isDefault: false });
   const [editingAddress, setEditingAddress] = useState(null);
-  const [newAddress, setNewAddress] = useState({ 
-    label: '', 
-    contact: '', 
-    address: '', 
-    detail: '', 
+  const [newAddress, setNewAddress] = useState({
+    label: '',
+    contact: '',
+    address: '',
+    detail: '',
     entranceType: 'FREE', // FREE: 자율출입, LOCKED: 공동현관비번
     entrancePassword: '',
-    isDefault: false 
+    isDefault: false
   });
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [viewingReview, setViewingReview] = useState(null);
@@ -133,14 +127,14 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
       setNewAddress({ ...addr });
     } else {
       setEditingAddress(null);
-      setNewAddress({ 
-        label: '', 
-        contact: '', 
-        address: '', 
-        detail: '', 
+      setNewAddress({
+        label: '',
+        contact: '',
+        address: '',
+        detail: '',
         entranceType: 'FREE',
         entrancePassword: '',
-        isDefault: false 
+        isDefault: false
       });
     }
     setIsAddressModalOpen(true);
@@ -167,7 +161,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
       const newId = Date.now();
       // If it's the first address, make it default automatically
       const isFirst = updatedList.length === 0;
-      
+
       updatedList.push({
         id: newId,
         ...newAddress,
@@ -179,14 +173,14 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
 
     setIsAddressModalOpen(false);
     setEditingAddress(null);
-    setNewAddress({ 
-      label: '', 
-      contact: '', 
-      address: '', 
-      detail: '', 
+    setNewAddress({
+      label: '',
+      contact: '',
+      address: '',
+      detail: '',
       entranceType: 'FREE',
       entrancePassword: '',
-      isDefault: false 
+      isDefault: false
     });
   };
 
@@ -240,7 +234,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
       alert('취소 사유를 선택해주세요.');
       return;
     }
-    setOrderList(prev => prev.map(order => 
+    setOrderList(prev => prev.map(order =>
       order.id === cancellingOrderId ? { ...order, status: '주문 취소됨' } : order
     ));
     setIsCancelModalOpen(false);
@@ -253,12 +247,12 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
     if (!sub) return;
 
     if (sub.nextPayment && sub.nextPayment !== '-') {
-      setSubscriptionList(prev => prev.map(item => 
+      setSubscriptionList(prev => prev.map(item =>
         item.id === subId ? { ...item, status: '해지 예정' } : item
       ));
       alert(`남은 배송 일정이 있어 ${sub.nextPayment}일에 정기 결제가 종료되며 '해지 예정' 상태로 변경되었습니다. 마지막 배송까지 정성을 다하겠습니다.`);
     } else {
-      setSubscriptionList(prev => prev.map(item => 
+      setSubscriptionList(prev => prev.map(item =>
         item.id === subId ? { ...item, status: '해지됨', nextPayment: '-' } : item
       ));
       alert("남은 배송 일정이 없어 즉시 '해지됨' 상태로 변경되었습니다. 그동안 이용해 주셔서 감사합니다.");
@@ -266,7 +260,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
   };
 
   const resumeSubscription = (subId) => {
-    setSubscriptionList(prev => prev.map(item => 
+    setSubscriptionList(prev => prev.map(item =>
       item.id === subId ? { ...item, status: '구독중' } : item
     ));
     showToast('구독 해지가 취소되었습니다. 계속해서 혜택을 누리실 수 있습니다!');
@@ -383,7 +377,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                   <div>
                     <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '8px' }}>{special.title}</h3>
                     <p style={{ fontSize: '14px' }}>{special.desc}</p>
-                    <button 
+                    <button
                       onClick={() => showToast('상세 기획전 페이지로 이동합니다. (데모)')}
                       style={{ marginTop: '16px', padding: '8px 16px', borderRadius: '20px', background: 'white', color: '#333', border: 'none', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>자세히 보기</button>
                   </div>
@@ -432,7 +426,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
         return null;
       }
       case 'checkout':
-        return <CheckoutView cartItems={cartItems} onComplete={(success) => { 
+        return <CheckoutView cartItems={cartItems} onComplete={(success) => {
           if (success) {
             setIsSuccessModalOpen(true);
             // clearCart() will be called when modal closes or immediately
@@ -452,7 +446,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
 
       case 'store_registration':
         return (
-          <StoreRegistrationView 
+          <StoreRegistrationView
             onBack={() => setActiveTab('partner')}
             status={storeRegistrationStatus}
             setStatus={setStoreRegistrationStatus}
@@ -460,7 +454,8 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
         );
       case 'rider_registration':
         return (
-          <RiderRegistrationView 
+          <RiderRegistrationView
+            userInfo={userInfo}
             onBack={() => setActiveTab('partner')}
             onComplete={(data) => {
               setRiderInfo(data);
@@ -474,8 +469,8 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
         return <SupportView userRole={userRole} onOpenAuth={onOpenAuth} />;
       case 'partner':
         return (
-          <PartnerPage 
-            onBack={() => setActiveTab('home')} 
+          <PartnerPage
+            onBack={() => setActiveTab('home')}
             isLoggedIn={isLoggedIn}
             onOpenAuth={onOpenAuth}
             onRegister={(role) => {
@@ -497,7 +492,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
               setUserRole(role);
               setActiveTab('home');
               window.scrollTo(0, 0);
-            }} 
+            }}
           />
         );
       case 'mypage':
@@ -550,17 +545,17 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                     { id: 'application_status', label: '신청 현황', icon: '📋' },
                     { id: 'resident', label: '주민라이더', icon: '🛵', visible: isResidentRider || verifyStep > 0 }
                   ].filter(tab => tab.visible !== false).map(tab => (
-                    <button 
+                    <button
                       key={tab.id}
                       onClick={() => setMyPageTab(tab.id)}
-                      style={{ 
-                        textAlign: 'left', 
-                        padding: '12px 16px', 
-                        borderRadius: '12px', 
-                        border: 'none', 
-                        background: myPageTab === tab.id ? 'rgba(46, 204, 113, 0.1)' : 'transparent', 
+                      style={{
+                        textAlign: 'left',
+                        padding: '12px 16px',
+                        borderRadius: '12px',
+                        border: 'none',
+                        background: myPageTab === tab.id ? 'rgba(46, 204, 113, 0.1)' : 'transparent',
                         color: myPageTab === tab.id ? 'var(--primary)' : '#475569',
-                        fontWeight: '700', 
+                        fontWeight: '700',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
@@ -575,16 +570,16 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                     </button>
                   ))}
                   <div style={{ height: '1px', background: '#f1f5f9', margin: '12px 0' }}></div>
-                  <button 
+                  <button
                     onClick={onLogout}
-                    style={{ 
-                      textAlign: 'left', 
-                      padding: '12px 16px', 
-                      borderRadius: '12px', 
-                      border: 'none', 
-                      background: 'transparent', 
-                      fontWeight: '700', 
-                      color: '#94a3b8', 
+                    style={{
+                      textAlign: 'left',
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      border: 'none',
+                      background: 'transparent',
+                      fontWeight: '700',
+                      color: '#94a3b8',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -599,7 +594,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 {myPageTab === 'profile' && (
-                  <OrderManagementView 
+                  <OrderManagementView
                     orders={orderList}
                     onTracking={(order) => {
                       setIsTrackingOpen(true);
@@ -610,10 +605,10 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                     }}
                     onCancelOrder={handleCancelOrder}
                     onViewReview={(order) => {
-                      const review = reviews.find(r => r.store === order.store) || { 
-                        rate: 5, 
-                        content: '정말 신선하고 배송도 빨라요! 재구매 의사 있습니다.', 
-                        store: order.store 
+                      const review = reviews.find(r => r.store === order.store) || {
+                        rate: 5,
+                        content: '정말 신선하고 배송도 빨라요! 재구매 의사 있습니다.',
+                        store: order.store
                       };
                       setViewingReview(review);
                       setSelectedOrderForReview(order);
@@ -637,15 +632,15 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                         ].map((item, i) => (
                           <div key={i} style={{ display: 'grid', gridTemplateColumns: '120px 1fr', alignItems: 'center' }}>
                             <label style={{ fontSize: '14px', color: '#64748b', fontWeight: '700' }}>{item.label}</label>
-                            <input 
-                              type="text" 
-                              value={item.value} 
-                              readOnly 
-                              style={{ 
-                                padding: '12px 16px', borderRadius: '10px', border: '1px solid #f1f5f9', 
+                            <input
+                              type="text"
+                              value={item.value}
+                              readOnly
+                              style={{
+                                padding: '12px 16px', borderRadius: '10px', border: '1px solid #f1f5f9',
                                 backgroundColor: '#f8fafc', color: '#1e293b', fontSize: '14px', fontWeight: '600',
                                 outline: 'none'
-                              }} 
+                              }}
                             />
                           </div>
                         ))}
@@ -660,14 +655,14 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                         신중하게 결정해 주시기 바랍니다.
                       </p>
 
-                      <button 
+                      <button
                         onClick={() => {
                           const hasActiveSub = subscriptionList.some(sub => sub.status !== '해지됨');
                           if (hasActiveSub) {
                             alert('현재 이용 중이거나 해지 예정인 구독 상품이 있습니다. 구독 상품을 모두 해지(종료)하신 후에만 탈퇴가 가능합니다.');
                             return;
                           }
-                          
+
                           if (window.confirm('탈퇴 시 모든 적립금, 쿠폰, 주문 내역이 즉시 삭제되며 복구가 불가능합니다. 정말 탈퇴하시겠습니까?')) {
                             if (window.confirm('마지막 확인입니다. 동네마켓을 탈퇴하시겠습니까?')) {
                               alert('탈퇴 처리가 완료되었습니다. 그동안 이용해주셔서 감사합니다.');
@@ -689,10 +684,10 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                       <h3 style={{ fontSize: '18px', fontWeight: '700' }}>나의 구독 관리</h3>
                       <div style={{ display: 'flex', gap: '8px', backgroundColor: '#f8fafc', padding: '4px', borderRadius: '10px' }}>
                         {['전체', '구독중', '해지 예정'].map(f => (
-                          <button 
+                          <button
                             key={f}
                             onClick={() => setSubscriptionFilter(f)}
-                            style={{ 
+                            style={{
                               padding: '6px 14px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: '700',
                               background: subscriptionFilter === f ? 'var(--primary)' : 'transparent',
                               color: subscriptionFilter === f ? 'white' : '#64748b', cursor: 'pointer'
@@ -704,24 +699,24 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '40px' }}>
                       {subscriptionList.filter(s => subscriptionFilter === '전체' || s.status === subscriptionFilter).map((sub) => (
-                        <div 
-                          key={sub.id} 
-                          style={{ 
-                            background: 'white', 
-                            borderRadius: '16px', 
-                            border: '1px solid var(--border)', 
-                            overflow: 'hidden', 
+                        <div
+                          key={sub.id}
+                          style={{
+                            background: 'white',
+                            borderRadius: '16px',
+                            border: '1px solid var(--border)',
+                            overflow: 'hidden',
                             transition: 'all 0.3s ease'
                           }}
                         >
                           {/* List Item Header */}
-                          <div 
+                          <div
                             onClick={() => setExpandedSubId(expandedSubId === sub.id ? null : sub.id)}
-                            style={{ 
-                              padding: '20px 24px', 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'space-between', 
+                            style={{
+                              padding: '20px 24px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
                               cursor: 'pointer',
                               backgroundColor: expandedSubId === sub.id ? '#f8fafc' : 'white'
                             }}
@@ -736,14 +731,14 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                               </div>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                              <div style={{ 
-                                 backgroundColor: sub.status === '구독중' ? 'rgba(16, 185, 129, 0.1)' : sub.status === '해지 예정' ? 'rgba(245, 158, 11, 0.1)' : '#f1f5f9', 
-                                 color: sub.status === '구독중' ? 'var(--primary)' : sub.status === '해지 예정' ? '#f59e0b' : '#94a3b8', 
-                                 padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '800', whiteSpace: 'nowrap'
+                              <div style={{
+                                backgroundColor: sub.status === '구독중' ? 'rgba(16, 185, 129, 0.1)' : sub.status === '해지 예정' ? 'rgba(245, 158, 11, 0.1)' : '#f1f5f9',
+                                color: sub.status === '구독중' ? 'var(--primary)' : sub.status === '해지 예정' ? '#f59e0b' : '#94a3b8',
+                                padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '800', whiteSpace: 'nowrap'
                               }}>{sub.status}</div>
-                              <span style={{ 
-                                fontSize: '18px', 
-                                color: '#94a3b8', 
+                              <span style={{
+                                fontSize: '18px',
+                                color: '#94a3b8',
                                 transform: expandedSubId === sub.id ? 'rotate(180deg)' : 'rotate(0)',
                                 transition: 'transform 0.3s'
                               }}>▾</span>
@@ -753,49 +748,49 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                           {/* Expandable Content (Dropdown) */}
                           {expandedSubId === sub.id && (
                             <div style={{ padding: '0 24px 24px', borderTop: '1px solid #f1f5f9', backgroundColor: '#f8fafc', animation: 'slideDown 0.3s ease-out' }}>
-                               <div style={{ paddingTop: '20px' }}>
-                                  {/* Plan Detail Summary */}
-                                  <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: '20px' }}>
-                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-                                        <span style={{ fontSize: '14px', fontWeight: '800', color: '#1e293b' }}>구독 상품 구성</span>
-                                        <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--primary)', backgroundColor: 'rgba(46, 204, 113, 0.1)', padding: '2px 8px', borderRadius: '4px' }}>월 {sub.monthlyCount} 배송</span>
-                                     </div>
-                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                        {sub.includedItems?.map((item, idx) => (
-                                           <span key={idx} style={{ 
-                                              fontSize: '12px', padding: '6px 12px', backgroundColor: '#f1f5f9', color: '#475569', borderRadius: '8px', border: '1px solid #e2e8f0' 
-                                           }}>{item}</span>
-                                        ))}
-                                     </div>
+                              <div style={{ paddingTop: '20px' }}>
+                                {/* Plan Detail Summary */}
+                                <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: '20px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                                    <span style={{ fontSize: '14px', fontWeight: '800', color: '#1e293b' }}>구독 상품 구성</span>
+                                    <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--primary)', backgroundColor: 'rgba(46, 204, 113, 0.1)', padding: '2px 8px', borderRadius: '4px' }}>월 {sub.monthlyCount} 배송</span>
                                   </div>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                    {sub.includedItems?.map((item, idx) => (
+                                      <span key={idx} style={{
+                                        fontSize: '12px', padding: '6px 12px', backgroundColor: '#f1f5f9', color: '#475569', borderRadius: '8px', border: '1px solid #e2e8f0'
+                                      }}>{item}</span>
+                                    ))}
+                                  </div>
+                                </div>
 
-                                  {sub.status === '구독중' ? (
-                                    <>
-                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '16px', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                         <span style={{ fontSize: '13px', color: '#64748b' }}>다음 결제 예정일</span>
-                                         <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--primary)' }}>{sub.nextPayment}</span>
-                                      </div>
-                                      <button 
-                                        onClick={(e) => { e.stopPropagation(); handleCancelSubscription(sub.id); }}
-                                        style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #fee2e2', background: 'white', color: '#ef4444', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}
-                                      >구독 해지하기</button>
-                                    </>
-                                  ) : sub.status === '해지 예정' ? (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                      <div style={{ padding: '16px', backgroundColor: '#fff7ed', borderRadius: '12px', border: '1px solid #ffedd5', color: '#9a3412', fontSize: '13px', lineHeight: '1.6' }}>
-                                         이미 해지 신청이 완료된 상품입니다. 남은 구독 기간까지는 혜택이 유지되며, 이후 자동으로 종료됩니다.
-                                      </div>
-                                      <button 
-                                        onClick={() => resumeSubscription(sub.id)}
-                                        style={{ width: '100%', padding: '14px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '800', fontSize: '14px', cursor: 'pointer' }}
-                                      >구독 유지하기 (다시 구독)</button>
+                                {sub.status === '구독중' ? (
+                                  <>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '16px', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                      <span style={{ fontSize: '13px', color: '#64748b' }}>다음 결제 예정일</span>
+                                      <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--primary)' }}>{sub.nextPayment}</span>
                                     </div>
-                                  ) : (
-                                    <div style={{ padding: '16px', backgroundColor: '#f1f5f9', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '13px', textAlign: 'center' }}>
-                                       해지된 구독 상품입니다. 다시 이용하시려면 상점에서 신청해 주세요.
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleCancelSubscription(sub.id); }}
+                                      style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #fee2e2', background: 'white', color: '#ef4444', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}
+                                    >구독 해지하기</button>
+                                  </>
+                                ) : sub.status === '해지 예정' ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    <div style={{ padding: '16px', backgroundColor: '#fff7ed', borderRadius: '12px', border: '1px solid #ffedd5', color: '#9a3412', fontSize: '13px', lineHeight: '1.6' }}>
+                                      이미 해지 신청이 완료된 상품입니다. 남은 구독 기간까지는 혜택이 유지되며, 이후 자동으로 종료됩니다.
                                     </div>
-                                  )}
-                               </div>
+                                    <button
+                                      onClick={() => resumeSubscription(sub.id)}
+                                      style={{ width: '100%', padding: '14px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '800', fontSize: '14px', cursor: 'pointer' }}
+                                    >구독 유지하기 (다시 구독)</button>
+                                  </div>
+                                ) : (
+                                  <div style={{ padding: '16px', backgroundColor: '#f1f5f9', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '13px', textAlign: 'center' }}>
+                                    해지된 구독 상품입니다. 다시 이용하시려면 상점에서 신청해 주세요.
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -809,21 +804,21 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                     </div>
 
                     <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '32px' }}>
-                       <h4 style={{ fontSize: '16px', fontWeight: '800', marginBottom: '20px' }}>구독 결제 내역</h4>
-                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                          {subscriptionPayments.map(p => (
-                             <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
-                                <div>
-                                   <div style={{ fontSize: '14px', fontWeight: '700', marginBottom: '2px' }}>{p.name}</div>
-                                   <div style={{ fontSize: '12px', color: '#94a3b8' }}>{p.date} • {p.id}</div>
-                                </div>
-                                <div style={{ textAlign: 'right' }}>
-                                   <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--primary)' }}>{p.amount}</div>
-                                   <div style={{ fontSize: '11px', color: '#10b981', fontWeight: '600' }}>{p.status}</div>
-                                </div>
-                             </div>
-                          ))}
-                       </div>
+                      <h4 style={{ fontSize: '16px', fontWeight: '800', marginBottom: '20px' }}>구독 결제 내역</h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {subscriptionPayments.map(p => (
+                          <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
+                            <div>
+                              <div style={{ fontSize: '14px', fontWeight: '700', marginBottom: '2px' }}>{p.name}</div>
+                              <div style={{ fontSize: '12px', color: '#94a3b8' }}>{p.date} • {p.id}</div>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--primary)' }}>{p.amount}</div>
+                              <div style={{ fontSize: '11px', color: '#10b981', fontWeight: '600' }}>{p.status}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -856,26 +851,26 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                   <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                       <h3 style={{ fontSize: '18px', fontWeight: '700' }}>배송지 관리</h3>
-                      <button 
+                      <button
                         onClick={() => handleOpenAddressModal()}
                         style={{ padding: '8px 16px', borderRadius: '8px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>+ 새 배송지 추가</button>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                       {addressList.map(addr => (
-                        <div 
-                          key={addr.id} 
+                        <div
+                          key={addr.id}
                           onClick={() => !addr.isDefault && handleSetDefaultAddress(addr.id)}
-                          style={{ 
-                            padding: '20px', 
-                            borderRadius: '16px', 
-                            border: `1px solid ${addr.isDefault ? 'var(--primary)' : '#f1f5f9'}`, 
+                          style={{
+                            padding: '20px',
+                            borderRadius: '16px',
+                            border: `1px solid ${addr.isDefault ? 'var(--primary)' : '#f1f5f9'}`,
                             backgroundColor: addr.isDefault ? 'rgba(46, 204, 113, 0.05)' : 'white',
                             cursor: addr.isDefault ? 'default' : 'pointer',
                             transition: 'all 0.2s',
                             position: 'relative'
                           }}
-                          onMouseOver={e => { if(!addr.isDefault) e.currentTarget.style.borderColor = 'var(--primary-light)'; }}
-                          onMouseOut={e => { if(!addr.isDefault) e.currentTarget.style.borderColor = '#f1f5f9'; }}
+                          onMouseOver={e => { if (!addr.isDefault) e.currentTarget.style.borderColor = 'var(--primary-light)'; }}
+                          onMouseOut={e => { if (!addr.isDefault) e.currentTarget.style.borderColor = '#f1f5f9'; }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -905,7 +900,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                     </div>
                   </div>
                 )}
-                
+
                 {/* Address Modal */}
                 {isAddressModalOpen && (
                   <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }} onClick={() => setIsAddressModalOpen(false)}>
@@ -914,12 +909,12 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                         <h3 style={{ fontSize: '20px', fontWeight: '800' }}>{editingAddress ? '배송지 수정' : '새 배송지 추가'}</h3>
                         <button onClick={() => setIsAddressModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '24px', color: '#94a3b8', cursor: 'pointer' }}>✕</button>
                       </div>
-                      
+
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                         <div>
                           <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>배송지 별칭</label>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             placeholder="예: 회사, 본가, 친구집"
                             value={newAddress.label}
                             onChange={(e) => setNewAddress({ ...newAddress, label: e.target.value })}
@@ -928,8 +923,8 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                         </div>
                         <div>
                           <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>연락처</label>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             placeholder="010-0000-0000"
                             value={newAddress.contact}
                             onChange={(e) => setNewAddress({ ...newAddress, contact: e.target.value })}
@@ -939,23 +934,23 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                         <div>
                           <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>주소</label>
                           <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                            <input 
-                              type="text" 
+                            <input
+                              type="text"
                               placeholder="주소 검색"
                               value={newAddress.address}
                               readOnly
                               style={{ flexGrow: 1, padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc', color: '#64748b' }}
                             />
-                              <button 
-                                onClick={() => {
-                                  setNewAddress({ ...newAddress, address: '서울시 강남구 테헤란로 123 (역삼동)' }); // Mock address search
-                                  showToast('주소가 검색되었습니다.');
-                                }}
-                                style={{ padding: '0 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontWeight: '600', cursor: 'pointer', fontSize: '13px' }}
-                              >검색</button>
+                            <button
+                              onClick={() => {
+                                setNewAddress({ ...newAddress, address: '서울시 강남구 테헤란로 123 (역삼동)' }); // Mock address search
+                                showToast('주소가 검색되었습니다.');
+                              }}
+                              style={{ padding: '0 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontWeight: '600', cursor: 'pointer', fontSize: '13px' }}
+                            >검색</button>
                           </div>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             placeholder="상세 주소를 입력해주세요"
                             value={newAddress.detail}
                             onChange={(e) => setNewAddress({ ...newAddress, detail: e.target.value })}
@@ -965,17 +960,17 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
 
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                          <input 
-                            type="checkbox" 
-                            id="def-addr" 
+                          <input
+                            type="checkbox"
+                            id="def-addr"
                             checked={newAddress.isDefault}
                             onChange={(e) => setNewAddress({ ...newAddress, isDefault: e.target.checked })}
-                            style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }} 
+                            style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
                           />
                           <label htmlFor="def-addr" style={{ fontSize: '14px', color: '#475569', cursor: 'pointer' }}>기본 배송지로 설정</label>
                         </div>
 
-                        <button 
+                        <button
                           onClick={handleSaveAddress}
                           style={{ width: '100%', padding: '16px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '800', fontSize: '16px', cursor: 'pointer', marginTop: '12px' }}
                         >저장하기</button>
@@ -988,7 +983,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                   <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                       <h3 style={{ fontSize: '18px', fontWeight: '700' }}>결제 수단 관리</h3>
-                      <button 
+                      <button
                         onClick={() => handleOpenPaymentModal()}
                         style={{ padding: '8px 16px', borderRadius: '8px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>+ 결제 수단 추가</button>
                     </div>
@@ -1014,92 +1009,92 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                       >
                         {paymentMethodList.map(pm => (
                           <SwiperSlide key={pm.id} style={{ background: pm.color || 'var(--primary)' }}>
-                             <div style={{ width: '100%', height: '100%', padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxSizing: 'border-box' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                        <span style={{ fontSize: '20px', fontWeight: '800', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>{pm.name}</span>
-                                        <span style={{ fontSize: '12px', opacity: 0.9 }}>{pm.type === 'card' ? 'Credit Card' : 'Payment Method'}</span>
-                                    </div>
-                                     <span style={{ fontSize: '28px' }}>{pm.type === 'card' ? '💳' : '💰'}</span>
+                            <div style={{ width: '100%', height: '100%', padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxSizing: 'border-box' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                  <span style={{ fontSize: '20px', fontWeight: '800', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>{pm.name}</span>
+                                  <span style={{ fontSize: '12px', opacity: 0.9 }}>{pm.type === 'card' ? 'Credit Card' : 'Payment Method'}</span>
                                 </div>
-                                
-                                <div style={{ fontSize: '20px', letterSpacing: '3px', fontWeight: '600', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-                                    {pm.number ? pm.number : '**** **** **** ****'}
-                                </div>
+                                <span style={{ fontSize: '28px' }}>{pm.type === 'card' ? '💳' : '💰'}</span>
+                              </div>
 
-                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                     <div>
-                                        <div style={{ fontSize: '10px', opacity: 0.7, textTransform: 'uppercase' }}>Card Holder</div>
-                                        <div style={{ fontSize: '14px', fontWeight: '700', letterSpacing: '1px' }}>MEMBER</div>
-                                     </div>
-                                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                       {pm.isDefault ? (
-                                           <div style={{ 
-                                               backgroundColor: 'rgba(255,255,255,0.9)', 
-                                               color: pm.color || 'black', 
-                                               padding: '6px 12px', 
-                                               borderRadius: '20px', 
-                                               fontSize: '11px', 
-                                               fontWeight: '800',
-                                               boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                                           }}>
-                                               기본 결제
-                                           </div>
-                                       ) : (
-                                           <button 
-                                              onClick={() => handleSetDefaultPaymentMethod(pm.id)}
-                                              style={{ 
-                                                  backgroundColor: 'rgba(0,0,0,0.2)', 
-                                                  color: 'white', 
-                                                  border: '1px solid rgba(255,255,255,0.4)',
-                                                  padding: '6px 12px', 
-                                                  borderRadius: '20px', 
-                                                  fontSize: '11px', 
-                                                  fontWeight: '600',
-                                                  cursor: 'pointer'
-                                              }}
-                                           >
-                                               기본 설정
-                                           </button>
-                                       )}
-                                       
-                                       <button 
-                                          onClick={() => handleDeletePaymentMethod(pm.id)}
-                                          style={{ 
-                                              backgroundColor: 'rgba(239, 68, 68, 0.2)', 
-                                              color: 'white', 
-                                              border: '1px solid rgba(255,255,255,0.4)',
-                                              padding: '6px 12px', 
-                                              borderRadius: '20px', 
-                                              fontSize: '11px', 
-                                              fontWeight: '600',
-                                              cursor: 'pointer'
-                                          }}
-                                       >
-                                           삭제
-                                       </button>
-                                     </div>
+                              <div style={{ fontSize: '20px', letterSpacing: '3px', fontWeight: '600', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                                {pm.number ? pm.number : '**** **** **** ****'}
+                              </div>
+
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                  <div style={{ fontSize: '10px', opacity: 0.7, textTransform: 'uppercase' }}>Card Holder</div>
+                                  <div style={{ fontSize: '14px', fontWeight: '700', letterSpacing: '1px' }}>MEMBER</div>
                                 </div>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                  {pm.isDefault ? (
+                                    <div style={{
+                                      backgroundColor: 'rgba(255,255,255,0.9)',
+                                      color: pm.color || 'black',
+                                      padding: '6px 12px',
+                                      borderRadius: '20px',
+                                      fontSize: '11px',
+                                      fontWeight: '800',
+                                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                                    }}>
+                                      기본 결제
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleSetDefaultPaymentMethod(pm.id)}
+                                      style={{
+                                        backgroundColor: 'rgba(0,0,0,0.2)',
+                                        color: 'white',
+                                        border: '1px solid rgba(255,255,255,0.4)',
+                                        padding: '6px 12px',
+                                        borderRadius: '20px',
+                                        fontSize: '11px',
+                                        fontWeight: '600',
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      기본 설정
+                                    </button>
+                                  )}
+
+                                  <button
+                                    onClick={() => handleDeletePaymentMethod(pm.id)}
+                                    style={{
+                                      backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                                      color: 'white',
+                                      border: '1px solid rgba(255,255,255,0.4)',
+                                      padding: '6px 12px',
+                                      borderRadius: '20px',
+                                      fontSize: '11px',
+                                      fontWeight: '600',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    삭제
+                                  </button>
+                                </div>
+                              </div>
                             </div>
                           </SwiperSlide>
                         ))}
                         <SwiperSlide key="add-new" style={{ background: '#f8fafc', border: '2px dashed #cbd5e1', color: '#64748b' }}>
-                           <div 
-                              onClick={() => handleOpenPaymentModal()}
-                              style={{ 
-                                 width: '100%', 
-                                 height: '100%', 
-                                 display: 'flex', 
-                                 flexDirection: 'column', 
-                                 alignItems: 'center', 
-                                 justifyContent: 'center', 
-                                 cursor: 'pointer'
-                              }}
-                           >
-                              <div style={{ fontSize: '48px', marginBottom: '12px', opacity: 0.5 }}>+</div>
-                              <div style={{ fontWeight: '800', fontSize: '18px' }}>결제 수단 추가</div>
-                              <div style={{ fontSize: '12px', marginTop: '4px', opacity: 0.7 }}>신용/체크카드, 간편결제</div>
-                           </div>
+                          <div
+                            onClick={() => handleOpenPaymentModal()}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <div style={{ fontSize: '48px', marginBottom: '12px', opacity: 0.5 }}>+</div>
+                            <div style={{ fontWeight: '800', fontSize: '18px' }}>결제 수단 추가</div>
+                            <div style={{ fontSize: '12px', marginTop: '4px', opacity: 0.7 }}>신용/체크카드, 간편결제</div>
+                          </div>
                         </SwiperSlide>
                       </Swiper>
 
@@ -1115,8 +1110,8 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                               <div>
                                 <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>카드/계좌 명칭</label>
-                                <input 
-                                  type="text" 
+                                <input
+                                  type="text"
                                   placeholder="예: 생활비 카드, 국민은행 메인"
                                   value={newPaymentMethod.name}
                                   onChange={(e) => setNewPaymentMethod({ ...newPaymentMethod, name: e.target.value })}
@@ -1125,8 +1120,8 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                               </div>
                               <div>
                                 <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>번호</label>
-                                <input 
-                                  type="text" 
+                                <input
+                                  type="text"
                                   placeholder="**** **** **** ****"
                                   value={newPaymentMethod.number}
                                   onChange={(e) => setNewPaymentMethod({ ...newPaymentMethod, number: e.target.value })}
@@ -1137,10 +1132,10 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                                 <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>테마 색상</label>
                                 <div style={{ display: 'flex', gap: '10px' }}>
                                   {['#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#f97316', '#1e293b'].map(c => (
-                                    <div 
+                                    <div
                                       key={c}
                                       onClick={() => setNewPaymentMethod({ ...newPaymentMethod, color: c })}
-                                      style={{ 
+                                      style={{
                                         width: '32px', height: '32px', borderRadius: '50%', backgroundColor: c, cursor: 'pointer',
                                         border: newPaymentMethod.color === c ? '3px solid #fff' : 'none',
                                         boxShadow: newPaymentMethod.color === c ? '0 0 0 2px var(--primary)' : 'none'
@@ -1149,19 +1144,19 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                                   ))}
                                 </div>
                               </div>
-                              
+
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                                <input 
-                                  type="checkbox" 
-                                  id="def-payment" 
+                                <input
+                                  type="checkbox"
+                                  id="def-payment"
                                   checked={newPaymentMethod.isDefault}
                                   onChange={(e) => setNewPaymentMethod({ ...newPaymentMethod, isDefault: e.target.checked })}
-                                  style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }} 
+                                  style={{ width: '18px', height: '18px', accentColor: 'var(--primary)' }}
                                 />
                                 <label htmlFor="def-payment" style={{ fontSize: '14px', color: '#475569', cursor: 'pointer' }}>기본 결제 수단으로 설정</label>
                               </div>
 
-                              <button 
+                              <button
                                 onClick={handleSavePaymentMethod}
                                 style={{ width: '100%', padding: '16px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '800', fontSize: '16px', cursor: 'pointer', marginTop: '12px' }}
                               >{editingPaymentMethod ? '수정 완료' : '저장하기'}</button>
@@ -1181,14 +1176,14 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                   <SupportView userRole={userRole} isLoggedIn={isLoggedIn} onOpenAuth={onOpenAuth} isEmbedded={true} />
                 )}
 
-                 {myPageTab === 'resident' && (
+                {myPageTab === 'resident' && (
                   <div style={{ background: 'white', padding: '40px', borderRadius: '24px', border: '1px solid var(--border)', textAlign: 'center' }}>
                     {isResidentRider ? (
                       <div>
                         <div style={{ fontSize: '64px', marginBottom: '24px' }}>🎉</div>
                         <h3 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '16px' }}>주민라이더 파트너님, 환영합니다!</h3>
                         <p style={{ color: '#64748b', marginBottom: '32px' }}>지금 바로 동네 마켓의 라이더가 되어 이웃에게 배달을 시작해보세요.</p>
-                        <button 
+                        <button
                           onClick={() => setUserRole('RIDER')}
                           style={{ padding: '16px 32px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
                         >라이더 앱으로 이동하기</button>
@@ -1201,10 +1196,10 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                             <h2 style={{ fontSize: '16px', color: 'var(--primary)', fontWeight: '800', marginBottom: '12px' }}>파트너 모집</h2>
                             <h3 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '16px' }}>주민라이더 신청</h3>
                             <p style={{ color: '#64748b', lineHeight: '1.6', marginBottom: '32px' }}>
-                              근거리 배달로 이웃에게 따뜻함을 전달하고 소소한 수익도 얻어보세요.<br/>
+                              근거리 배달로 이웃에게 따뜻함을 전달하고 소소한 수익도 얻어보세요.<br />
                               오토바이가 없어도 도보나 자전거로 충분히 가능합니다!
                             </p>
-                            <button 
+                            <button
                               onClick={() => setVerifyStep(1)}
                               style={{ padding: '16px 32px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
                             >동네 인증 시작하기</button>
@@ -1218,7 +1213,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                             <div style={{ height: '180px', backgroundColor: '#f1f5f9', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '32px', border: '1px solid #e2e8f0' }}>
                               <span style={{ color: 'var(--primary)', fontWeight: '700' }}>[GPS 시뮬레이션: 역삼동 확인됨]</span>
                             </div>
-                            <button 
+                            <button
                               onClick={() => setVerifyStep(2)}
                               style={{ width: '100%', padding: '16px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
                             >위치 인증 완료</button>
@@ -1236,13 +1231,13 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                               <label style={{ display: 'block', fontWeight: '700', fontSize: '14px', marginBottom: '12px' }}>신분증 종류 선택</label>
                               <div style={{ display: 'flex', gap: '12px' }}>
                                 {['주민등록증', '운전면허증'].map(type => (
-                                  <button 
+                                  <button
                                     key={type}
-                                    style={{ 
-                                      flex: 1, 
-                                      padding: '12px', 
-                                      borderRadius: '12px', 
-                                      border: '1.5px solid #e2e8f0', 
+                                    style={{
+                                      flex: 1,
+                                      padding: '12px',
+                                      borderRadius: '12px',
+                                      border: '1.5px solid #e2e8f0',
                                       backgroundColor: 'white',
                                       fontWeight: '600',
                                       cursor: 'pointer'
@@ -1254,11 +1249,11 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                               </div>
                             </div>
 
-                            <div style={{ 
-                              border: '2px dashed #cbd5e1', 
-                              borderRadius: '16px', 
-                              padding: '40px 20px', 
-                              textAlign: 'center', 
+                            <div style={{
+                              border: '2px dashed #cbd5e1',
+                              borderRadius: '16px',
+                              padding: '40px 20px',
+                              textAlign: 'center',
                               backgroundColor: '#f8fafc',
                               marginBottom: '24px',
                               cursor: 'pointer'
@@ -1279,14 +1274,14 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                               </div>
                             </div>
 
-                            <button 
+                            <button
                               onClick={() => {
                                 const btn = document.getElementById('verify-btn');
                                 btn.innerHTML = '✨ 신분증 스캔 중...';
                                 btn.style.opacity = '0.7';
                                 btn.disabled = true;
                                 setTimeout(() => {
-                                  setIsResidentRider(true); 
+                                  setIsResidentRider(true);
                                   setVerifyStep(3);
                                 }, 2000);
                               }}
@@ -1300,7 +1295,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                             <div style={{ fontSize: '64px', marginBottom: '24px' }}>✨</div>
                             <h3 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '16px' }}>동네 라이더 인증 완료!</h3>
                             <p style={{ color: '#64748b', marginBottom: '32px' }}>이제 이웃을 위한 배달을 시작할 수 있습니다. 라이더 앱으로 이동합니다.</p>
-                            <button 
+                            <button
                               onClick={() => setUserRole('RIDER')}
                               style={{ padding: '16px 32px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
                             >라이더 앱으로 이동</button>
@@ -1310,12 +1305,12 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                     )}
                   </div>
                 )}
-                
+
                 {myPageTab === 'application_status' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                     <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid var(--border)' }}>
                       <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '24px' }}>파트너 신청 현황</h3>
-                      
+
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                         {/* Mart Status */}
                         <div style={{ padding: '24px', borderRadius: '20px', backgroundColor: '#f8fafc', border: '1px solid #f1f5f9' }}>
@@ -1327,7 +1322,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                                 <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>Neighborhood Mart Partner</div>
                               </div>
                             </div>
-                            <div style={{ 
+                            <div style={{
                               padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: '800',
                               backgroundColor: storeRegistrationStatus === 'APPROVED' ? 'rgba(16, 185, 129, 0.1)' : (storeRegistrationStatus && storeRegistrationStatus !== 'NONE') ? 'rgba(245, 158, 11, 0.1)' : '#f1f5f9',
                               color: storeRegistrationStatus === 'APPROVED' ? '#10b981' : (storeRegistrationStatus && storeRegistrationStatus !== 'NONE') ? '#f59e0b' : '#94a3b8'
@@ -1341,7 +1336,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                                 {storeRegistrationStatus === 'APPROVED' ? '축하합니다! 마트 입점 승인이 완료되었습니다. 이제 상품을 등록하고 판매를 시작해보세요.' : '제출하신 서류를 관리자가 검토 중입니다. 결과는 영업일 기준 3일 이내에 알림으로 안내해 드립니다.'}
                               </div>
                               {storeRegistrationStatus !== 'APPROVED' && (
-                                <button 
+                                <button
                                   onClick={() => {
                                     if (window.confirm('마트 입점 신청을 취소하시겠습니까?')) {
                                       setStoreRegistrationStatus('NONE');
@@ -1355,8 +1350,8 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                           ) : (
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <span style={{ fontSize: '14px', color: '#94a3b8' }}>아직 신청 내역이 없습니다.</span>
-                              <button 
-                                onClick={() => { setActiveTab('partner'); window.scrollTo(0,0); }}
+                              <button
+                                onClick={() => { setActiveTab('partner'); window.scrollTo(0, 0); }}
                                 style={{ padding: '8px 16px', borderRadius: '10px', background: 'white', border: '1.5px solid #e2e8f0', color: '#475569', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
                               >입점 신청하기</button>
                             </div>
@@ -1373,7 +1368,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                                 <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>Neighborhood Delivery Partner</div>
                               </div>
                             </div>
-                            <div style={{ 
+                            <div style={{
                               padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: '800',
                               backgroundColor: isResidentRider ? 'rgba(16, 185, 129, 0.1)' : verifyStep > 0 ? 'rgba(245, 158, 11, 0.1)' : '#f1f5f9',
                               color: isResidentRider ? '#10b981' : verifyStep > 0 ? '#f59e0b' : '#94a3b8'
@@ -1387,7 +1382,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                                 {isResidentRider ? '라이더 파트너로 등록되어 활동 중입니다. 라이더 전용 대시보드에서 배달을 수락할 수 있습니다.' : '주민라이더 동네 인증 및 서류 제출이 완료되었습니다. 최종 승인 후 활동이 가능합니다.'}
                               </div>
                               {(!isResidentRider && verifyStep > 0) && (
-                                <button 
+                                <button
                                   onClick={() => {
                                     if (window.confirm('라이더 신청을 취소하시겠습니까?')) {
                                       setVerifyStep(0);
@@ -1401,8 +1396,8 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                           ) : (
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <span style={{ fontSize: '14px', color: '#94a3b8' }}>아직 신청 내역이 없습니다.</span>
-                              <button 
-                                onClick={() => { setActiveTab('partner'); window.scrollTo(0,0); }}
+                              <button
+                                onClick={() => { setActiveTab('partner'); window.scrollTo(0, 0); }}
                                 style={{ padding: '8px 16px', borderRadius: '10px', background: 'white', border: '1.5px solid #e2e8f0', color: '#475569', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
                               >라이더 신청하기</button>
                             </div>
@@ -1412,16 +1407,16 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                     </div>
 
                     <div style={{ background: '#f0fdf4', padding: '20px', borderRadius: '20px', border: '1px solid rgba(46, 204, 113, 0.2)' }}>
-                       <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                          <span style={{ fontSize: '20px' }}>📢</span>
-                          <div>
-                             <div style={{ fontSize: '14px', fontWeight: '800', color: '#166534', marginBottom: '4px' }}>파트너 페이지 이용 안내</div>
-                             <div style={{ fontSize: '13px', color: '#166534', opacity: 0.8, lineHeight: '1.6' }}>
-                                승인 완료 후에는 상단 '[판매자/라이더 메뉴]'를 통해 전용 대시보드로 이동하실 수 있습니다. <br/>
-                                기타 문의 사항은 고객센터(1588-0000)를 이용해 주세요.
-                             </div>
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                        <span style={{ fontSize: '20px' }}>📢</span>
+                        <div>
+                          <div style={{ fontSize: '14px', fontWeight: '800', color: '#166534', marginBottom: '4px' }}>파트너 페이지 이용 안내</div>
+                          <div style={{ fontSize: '13px', color: '#166534', opacity: 0.8, lineHeight: '1.6' }}>
+                            승인 완료 후에는 상단 '[판매자/라이더 메뉴]'를 통해 전용 대시보드로 이동하실 수 있습니다. <br />
+                            기타 문의 사항은 고객센터(1588-0000)를 이용해 주세요.
                           </div>
-                       </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1432,21 +1427,21 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
       default:
         return (
           <>
-            <Hero 
+            <Hero
               onShopClick={() => {
                 const grid = document.getElementById('store-grid-section');
                 if (grid) grid.scrollIntoView({ behavior: 'smooth' });
-              }} 
-              onPromoClick={() => setActiveTab('special')} 
+              }}
+              onPromoClick={() => setActiveTab('special')}
             />
-            
+
             <div className="container" id="store-grid-section" style={{ margin: '80px auto' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
                 <h2 style={{ fontSize: '28px', fontWeight: '800', margin: 0 }}>오늘의 추천 상점</h2>
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                   <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       placeholder="가게명, 상품명 검색"
                       value={localSearchTerm}
                       onChange={(e) => {
@@ -1483,12 +1478,12 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                   </div>
 
                   {isLoggedIn && (
-                    <button 
+                    <button
                       onClick={() => setIsLocationModalOpen(true)}
-                      style={{ 
+                      style={{
                         display: 'flex', alignItems: 'center', gap: '4px',
-                        padding: '6px 12px', borderRadius: '20px', border: '2px solid var(--primary)', 
-                        background: 'rgba(46, 204, 113, 0.05)', color: 'var(--primary)', 
+                        padding: '6px 12px', borderRadius: '20px', border: '2px solid var(--primary)',
+                        background: 'rgba(46, 204, 113, 0.05)', color: 'var(--primary)',
                         fontSize: '13px', fontWeight: '800', cursor: 'pointer',
                         transition: 'all 0.2s',
                         whiteSpace: 'nowrap',
@@ -1499,17 +1494,17 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                     </button>
                   )}
                   {['주문 많은 순', '거리순', '평점순', '배달비순'].map(sort => (
-                    <button 
-                      key={sort} 
+                    <button
+                      key={sort}
                       onClick={() => showToast(`${sort}으로 정렬되었습니다.`)}
                       style={{ padding: '6px 12px', borderRadius: '20px', border: '1px solid var(--border)', background: 'white', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>{sort}</button>
                   ))}
                 </div>
               </div>
               <div className="main-layout" style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1fr) 4fr', gap: '30px' }}>
-                <CategorySidebar 
-                  selectedCategory={selectedCategory} 
-                  setSelectedCategory={setSelectedCategory} 
+                <CategorySidebar
+                  selectedCategory={selectedCategory}
+                  setSelectedCategory={setSelectedCategory}
                 />
                 <StoreGrid selectedCategory={selectedCategory} searchQuery={searchQuery} onAddToCart={onAddToCart} onStoreClick={(store) => {
                   setSelectedStore(store);
@@ -1524,30 +1519,30 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
 
   return (
     <div className="customer-dashboard" style={{ backgroundColor: 'var(--bg-main)', minHeight: '100vh' }}>      {toast && (
-        <div style={{
-          position: 'fixed',
-          bottom: '100px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          backgroundColor: '#1e293b',
-          color: 'white',
-          padding: '12px 24px',
-          borderRadius: '24px',
-          fontSize: '14px',
-          fontWeight: '700',
-          zIndex: 2000,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-          animation: 'slideUp 0.3s ease-out'
-        }}>
-          ✨ {toast}
-          <style>{`
+      <div style={{
+        position: 'fixed',
+        bottom: '100px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        backgroundColor: '#1e293b',
+        color: 'white',
+        padding: '12px 24px',
+        borderRadius: '24px',
+        fontSize: '14px',
+        fontWeight: '700',
+        zIndex: 2000,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+        animation: 'slideUp 0.3s ease-out'
+      }}>
+        ✨ {toast}
+        <style>{`
             @keyframes slideUp {
               from { transform: translate(-50%, 20px); opacity: 0; }
               to { transform: translate(-50%, 0); opacity: 1; }
             }
           `}</style>
-        </div>
-      )}
+      </div>
+    )}
 
       {/* Order Cancel Modal */}
       {isCancelModalOpen && (
@@ -1555,11 +1550,11 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
           <div style={{ background: 'white', width: '90%', maxWidth: '450px', borderRadius: '24px', padding: '32px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
             <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '8px' }}>주문 취소</h2>
             <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '24px' }}>주문을 취소하시는 사유를 알려주세요.</p>
-            
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>취소 사유 선택</label>
-                <select 
+                <select
                   value={cancelReason}
                   onChange={(e) => setCancelReason(e.target.value)}
                   style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0', outline: 'none' }}
@@ -1575,7 +1570,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
               {cancelReason === 'other' && (
                 <div>
                   <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#334155' }}>사유 직접 입력</label>
-                  <textarea 
+                  <textarea
                     value={cancelDetail}
                     onChange={(e) => setCancelDetail(e.target.value)}
                     placeholder="취소 사유를 자세히 입력해주세요. (부적절한 언어 사용 시 제재될 수 있습니다.)"
@@ -1585,16 +1580,16 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
               )}
 
               <div style={{ padding: '16px', backgroundColor: '#f8fafc', borderRadius: '12px', fontSize: '13px', color: '#64748b', lineHeight: '1.6' }}>
-                • 취소 완료 후 결제 수단에 따라 환불까지 1~3영업일이 소요될 수 있습니다.<br/>
+                • 취소 완료 후 결제 수단에 따라 환불까지 1~3영업일이 소요될 수 있습니다.<br />
                 • 일부 상품의 경우 발주 단계에 따라 취소가 거절될 수 있습니다.
               </div>
 
               <div style={{ display: 'flex', gap: '12px' }}>
-                <button 
+                <button
                   onClick={() => setIsCancelModalOpen(false)}
                   style={{ flex: 1, padding: '14px', borderRadius: '12px', background: '#f1f5f9', border: 'none', fontWeight: '700', cursor: 'pointer' }}
                 >닫기</button>
-                <button 
+                <button
                   onClick={submitCancelOrder}
                   style={{ flex: 1, padding: '14px', borderRadius: '12px', background: '#ef4444', color: 'white', border: 'none', fontWeight: '800', cursor: 'pointer' }}
                 >취소 확정</button>
@@ -1604,7 +1599,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
         </div>
       )}
 
-      <Header 
+      <Header
         activeTab={activeTab}
         onTabChange={handleTabChange}
         isLoggedIn={isLoggedIn}
@@ -1614,14 +1609,14 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
         notificationCount={notificationCount}
         isResidentRider={isResidentRider}
       />
-      
+
       <div style={{ minHeight: 'calc(100vh - 200px)' }}>
         {selectedStore ? (
           <div style={{
             animation: 'fadeInLayer 0.3s ease-out'
           }}>
-            <StoreDetailView 
-              store={selectedStore} 
+            <StoreDetailView
+              store={selectedStore}
               onBack={() => {
                 setSelectedStore(null);
                 window.scrollTo(0, 0);
@@ -1658,50 +1653,50 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
       {isReviewModalOpen && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
           <div style={{ background: 'white', width: '100%', maxWidth: '450px', borderRadius: '24px', padding: '32px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-            
+
             {viewingReview ? (
-               // Read-only View
-               <>
-                 <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '8px' }}>내가 쓴 리뷰</h2>
-                 <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '24px' }}>{selectedOrderForReview?.store}</p>
-                 <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                    <div style={{ fontSize: '32px', color: '#f59e0b', marginBottom: '8px' }}>
-                       {'★'.repeat(viewingReview.rate)}{'☆'.repeat(5-viewingReview.rate)}
-                    </div>
-                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#f59e0b' }}>
-                       {['매우 아쉬워요', '아쉬워요', '보통이에요', '만족해요', '최고예요'][viewingReview.rate - 1]}
-                    </div>
-                 </div>
-                  <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', fontSize: '15px', color: '#334155', lineHeight: '1.6', marginBottom: '32px' }}>
-                    {viewingReview.content}
+              // Read-only View
+              <>
+                <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '8px' }}>내가 쓴 리뷰</h2>
+                <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '24px' }}>{selectedOrderForReview?.store}</p>
+                <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                  <div style={{ fontSize: '32px', color: '#f59e0b', marginBottom: '8px' }}>
+                    {'★'.repeat(viewingReview.rate)}{'☆'.repeat(5 - viewingReview.rate)}
                   </div>
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                     <button 
-                       onClick={handleEditReview}
-                       style={{ flex: 1, padding: '14px', borderRadius: '12px', background: 'white', border: '1px solid #e2e8f0', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}
-                     >리뷰 수정</button>
-                     <button 
-                       onClick={handleDeleteReview}
-                       style={{ flex: 1, padding: '14px', borderRadius: '12px', background: 'white', border: '1px solid #fee2e2', color: '#ef4444', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}
-                     >삭제하기</button>
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#f59e0b' }}>
+                    {['매우 아쉬워요', '아쉬워요', '보통이에요', '만족해요', '최고예요'][viewingReview.rate - 1]}
                   </div>
-                  <button 
-                    onClick={() => { setIsReviewModalOpen(false); setViewingReview(null); }}
-                    style={{ width: '100%', marginTop: '16px', padding: '14px', background: 'transparent', border: 'none', color: '#94a3b8', fontWeight: '700', cursor: 'pointer' }}
-                  >닫기</button>
-               </>
+                </div>
+                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', fontSize: '15px', color: '#334155', lineHeight: '1.6', marginBottom: '32px' }}>
+                  {viewingReview.content}
+                </div>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button
+                    onClick={handleEditReview}
+                    style={{ flex: 1, padding: '14px', borderRadius: '12px', background: 'white', border: '1px solid #e2e8f0', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}
+                  >리뷰 수정</button>
+                  <button
+                    onClick={handleDeleteReview}
+                    style={{ flex: 1, padding: '14px', borderRadius: '12px', background: 'white', border: '1px solid #fee2e2', color: '#ef4444', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}
+                  >삭제하기</button>
+                </div>
+                <button
+                  onClick={() => { setIsReviewModalOpen(false); setViewingReview(null); }}
+                  style={{ width: '100%', marginTop: '16px', padding: '14px', background: 'transparent', border: 'none', color: '#94a3b8', fontWeight: '700', cursor: 'pointer' }}
+                >닫기</button>
+              </>
             ) : (
-               // Write View
-               <>
+              // Write View
+              <>
                 <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '8px' }}>리뷰 작성하기</h2>
                 <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '24px' }}>{selectedOrderForReview?.store}에서의 주문은 어떠셨나요?</p>
-                
+
                 <form onSubmit={handleSaveReview} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '32px', display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
                       {[1, 2, 3, 4, 5].map(star => (
-                        <span 
-                          key={star} 
+                        <span
+                          key={star}
                           onClick={() => setReviewForm({ ...reviewForm, rate: star })}
                           style={{ cursor: 'pointer', color: star <= reviewForm.rate ? '#f59e0b' : '#e2e8f0' }}
                         >★</span>
@@ -1714,7 +1709,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
 
                   <div>
                     <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>리뷰 내용</label>
-                    <textarea 
+                    <textarea
                       required
                       value={reviewForm.content}
                       onChange={e => setReviewForm({ ...reviewForm, content: e.target.value })}
@@ -1724,18 +1719,18 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                   </div>
 
                   <div style={{ display: 'flex', gap: '12px' }}>
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => setIsReviewModalOpen(false)}
                       style={{ flex: 1, padding: '14px', borderRadius: '12px', background: '#f1f5f9', border: 'none', fontWeight: '700', cursor: 'pointer' }}
                     >취소</button>
-                    <button 
+                    <button
                       type="submit"
                       style={{ flex: 2, padding: '14px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
                     >리뷰 등록</button>
                   </div>
                 </form>
-               </>
+              </>
             )}
           </div>
         </div>
@@ -1749,10 +1744,10 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
           transform: translateY(-5px);
         }
       `}</style>
-      
+
       {/* Floating Action Buttons */}
       <div style={{ position: 'fixed', bottom: '30px', right: '120px', display: 'flex', flexDirection: 'column', gap: '16px', zIndex: 1000 }}>
-        <button 
+        <button
           onClick={() => setIsTrackingOpen(true)}
           style={{
             width: '60px', height: '60px', borderRadius: '50%', border: 'none',
@@ -1765,7 +1760,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
         >
           🚲
         </button>
-        <button 
+        <button
           onClick={() => setIsCartOpen(true)}
           style={{
             width: '60px', height: '60px', borderRadius: '50%', border: 'none',
@@ -1792,7 +1787,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
         </button>
       </div>
 
-      <CartModal 
+      <CartModal
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
         cartItems={cartItems}
@@ -1806,13 +1801,13 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
         onOpenAuth={onOpenAuth}
       />
 
-      <TrackingModal 
+      <TrackingModal
         isOpen={isTrackingOpen}
         onClose={() => setIsTrackingOpen(false)}
         orderId={trackingOrderId}
       />
 
-      <LocationModal 
+      <LocationModal
         isOpen={isLocationModalOpen}
         onClose={() => setIsLocationModalOpen(false)}
         currentLocation={currentLocation}
@@ -1822,7 +1817,7 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
         }}
       />
 
-      <PaymentSuccessModal 
+      <PaymentSuccessModal
         isOpen={isSuccessModalOpen}
         onClose={() => {
           setIsSuccessModalOpen(false);
@@ -1860,7 +1855,7 @@ const PaymentSuccessModal = ({ isOpen, onClose, onViewOrder }) => {
           margin: '0 auto 24px', display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: '40px'
         }}>🎉</div>
-        
+
         <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '12px', color: '#1e293b' }}>결제가 완료되었습니다!</h2>
         <p style={{ color: '#64748b', lineHeight: '1.6', marginBottom: '32px' }}>
           주문하신 상품이 곧 준비될 예정입니다.<br />
@@ -1868,20 +1863,20 @@ const PaymentSuccessModal = ({ isOpen, onClose, onViewOrder }) => {
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <button 
+          <button
             onClick={onViewOrder}
-            style={{ 
-              padding: '16px', borderRadius: '16px', background: 'var(--primary)', 
-              color: 'white', border: 'none', fontWeight: '800', fontSize: '16px', 
-              cursor: 'pointer', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)' 
+            style={{
+              padding: '16px', borderRadius: '16px', background: 'var(--primary)',
+              color: 'white', border: 'none', fontWeight: '800', fontSize: '16px',
+              cursor: 'pointer', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)'
             }}
           >주문서 확인하기</button>
-          <button 
+          <button
             onClick={onClose}
-            style={{ 
-              padding: '16px', borderRadius: '16px', background: '#f1f5f9', 
-              color: '#475569', border: 'none', fontWeight: '800', fontSize: '16px', 
-              cursor: 'pointer' 
+            style={{
+              padding: '16px', borderRadius: '16px', background: '#f1f5f9',
+              color: '#475569', border: 'none', fontWeight: '800', fontSize: '16px',
+              cursor: 'pointer'
             }}
           >홈으로 이동</button>
         </div>

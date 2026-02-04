@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import StoreDetailModal from './StoreDetailModal';
+import StoreDetailModal from '../modals/StoreDetailModal';
 
-import { stores } from '../data/mockData';
+import { stores } from '../../data/mockData';
 
 const StoreGrid = ({ selectedCategory, searchQuery, onStoreClick }) => {
   const [visibleCount, setVisibleCount] = useState(4);
