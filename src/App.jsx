@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import './styles/global.css';
 import { authApi } from './api/authApi';
-import Header from './components/Header';
-import CustomerView from './components/CustomerView';
-import StoreDashboard from './components/StoreDashboard';
-import RiderDashboard from './components/RiderDashboard';
-import AdminDashboard from './components/AdminDashboard';
-import NotificationPanel from './components/NotificationPanel';
-import AuthModal from './components/AuthModal';
+import Header from './components/common/Header';
+import CustomerView from './components/views/CustomerView';
+import StoreDashboard from './components/views/StoreDashboard';
+import RiderDashboard from './components/views/RiderDashboard';
+import AdminDashboard from './components/views/AdminDashboard';
+import NotificationPanel from './components/common/NotificationPanel';
+import AuthModal from './components/modals/AuthModal';
 import { Agentation } from "agentation";
 
 import { checkAuth, logout } from './api/authApi';

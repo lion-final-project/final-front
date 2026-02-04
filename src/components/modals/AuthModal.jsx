@@ -8,7 +8,7 @@ import {
   sendVerification, 
   verifyPhone, 
   socialSignupComplete 
-} from '../api/authApi';
+} from '../../api/authApi';
 
 // 카카오 인증 URL (백엔드 프록시 또는 직접 호출)
 const KAKAO_OAUTH_AUTHORIZE_URL = 'http://localhost:8080/oauth2/authorization/kakao';
@@ -20,8 +20,6 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
-  const [addressDetail, setAddressDetail] = useState('');
   const [apiLoading, setApiLoading] = useState(false);
   
   // Validation States for Signup
@@ -69,8 +67,6 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
       setPassword('');
       setName('');
       setPhone('');
-      setAddress('');
-      setAddressDetail('');
       setIsEmailChecked(false);
       setIsPhoneSent(false);
       setIsPhoneVerified(false);
@@ -172,12 +168,6 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
     }
   };
 
-  const handleSearchAddress = () => {
-    // 데모: 주소 검색 시 기본값 (실제 연동 시 Daum 우편번호 API 등 사용)
-    setAddress('서울특별시 강남구 테헤란로 123');
-    alert('주소 검색은 데모 모드입니다. 상세 주소를 입력해주세요.');
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -185,8 +175,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
     if (mode === 'signup') {
       if (!isEmailChecked) return alert('이메일 중복 확인이 필요합니다.');
       if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.');
-      // 주소 검증은 필수 아닐 수 있음, 필요하면 주석 해제
-      // if (!address || !addressDetail) return alert('주소를 입력해주세요.');
+      // 주소 검증은 필수 아님 (미수집)
       if (!agreements.service || !agreements.privacy) return alert('필수 약관에 동의해주세요.');
       if (!password || password.length < 8) return alert('비밀번호는 8자 이상이어야 합니다.');
       
@@ -222,23 +211,20 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
     // 2. 소셜 가입 추가 정보
     if (mode === 'social-extra') {
       if (!name || !phone) return alert('이름과 휴대폰 번호를 모두 입력해주세요.');
-      // if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.'); // 소셜은 인증 생략 가능 여부 체크
-      // if (!address || !addressDetail) return alert('주소를 입력해주세요.'); // 주소 미입력
+      if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.');
+      if (!email?.trim()) return alert('이메일을 입력해주세요.');
       if (!agreements.service || !agreements.privacy) return alert('필수 약관에 동의해주세요.');
       
       setApiLoading(true);
       try {
         const data = {
           name: name.trim(),
-          email: email.trim(), // 소셜 이메일 확인용 (읽기 전용일 수 있음)
+          email: email.trim(),
           phone: phone.trim(),
           termsAgreed: agreements.service,
           privacyAgreed: agreements.privacy,
-          marketingAgreed: agreements.marketing, // 마케팅 동의 추가
-          // addressLine1: address.trim(),
-          // addressLine2: addressDetail.trim()
+          marketingAgreed: agreements.marketing,
         };
-        
         const user = await socialSignupComplete(data);
         onLoginSuccess(user);
         onClose();
@@ -309,7 +295,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* 일반 회원가입과 소셜 로그인 후 추가 정보: 동일한 폼·규약 (비밀번호만 일반 가입 시에만 표시) */}
+          {/* 일반 회원가입과 소셜 회원가입: 동일한 양식·규약. 비밀번호는 일반 가입 시에만 표시(소셜은 미표시) */}
           {(mode === 'signup' || mode === 'social-extra') && (
             <>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -320,6 +306,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
                 />
               </div>
 
+              {/* 비밀번호: 일반 회원가입에만 표시. 소셜(social-extra) 회원가입창에는 없음 */}
               {mode === 'signup' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>비밀번호</label>
@@ -377,26 +364,6 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
                   </div>
                 )}
               </div>
-
-              {/* 주소 입력 필드 (미사용) */}
-              {/* <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>주소</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input 
-                    type="text" placeholder="주소를 검색해주세요" readOnly value={address}
-                    style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px', backgroundColor: '#f8fafc', color: '#64748b' }} 
-                  />
-                  <button type="button" onClick={handleSearchAddress} style={{
-                    padding: '0 16px', borderRadius: '12px', border: 'none', background: '#334155', color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
-                  }}>
-                    검색
-                  </button>
-                </div>
-                <input 
-                  type="text" placeholder="상세 주소를 입력해주세요" required value={addressDetail} onChange={(e) => setAddressDetail(e.target.value)}
-                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }} 
-                />
-              </div> */}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#f8fafc', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingBottom: '12px', borderBottom: '1px solid #e2e8f0', marginBottom: '4px' }}>
