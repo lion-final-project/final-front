@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { inquiries } from '../data/mockData';
-import { getNoticesForCustomer } from '../api/noticeApi';
-import { getFaqsForCustomer } from '../api/faqApi';
+import { inquiries } from '../../data/mockData';
+import { getNoticesForCustomer } from '../../api/noticeApi';
+import { getFaqsForCustomer } from '../../api/faqApi';
 
 const SupportView = ({ isLoggedIn, onOpenAuth, isEmbedded = false }) => {
   const [activeTab, setActiveTab] = useState('notice'); // notice, faq, inquiry
