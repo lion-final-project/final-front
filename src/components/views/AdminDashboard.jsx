@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { getNotices, createNotice, updateNotice, deleteNotice } from '../../api/noticeApi';
+import { getFaqsForAdmin, createFaq, updateFaq, deleteFaq } from '../../api/faqApi';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const BASIC_AUTH = import.meta.env.VITE_BASIC_AUTH || 'admin:admin1234';
@@ -651,10 +653,7 @@ const AdminDashboard = () => {
   const [settlementStatusFilter, setSettlementStatusFilter] = useState('ALL');
   const [inquiryFilter, setInquiryFilter] = useState('ALL'); // ALL, PENDING, COMPLETED
 
-  const [faqs, setFaqs] = useState([
-    { id: 1, question: '배송이 지연되면 어떻게 하나요?', answer: '고객센터로 즉시 연락 주시면 배달원과 확인 후 조치해 드립니다.' },
-    { id: 2, question: '마트 입점 절차가 궁금합니다.', answer: '상단 신청 관리 메뉴에서 서류를 제출하시면 영업일 기준 3일 내 심사가 진행됩니다.' }
-  ]);
+  const [faqs, setFaqs] = useState([]);
 
   const [settlementFilter, setSettlementFilter] = useState('STORE'); // STORE, RIDER
   const [settlements, setSettlements] = useState([
@@ -697,10 +696,45 @@ const AdminDashboard = () => {
   const [selectedInquiry, setSelectedInquiry] = useState(null);
   const [inquiryAnswer, setInquiryAnswer] = useState('');
 
-  const [noticeList, setNoticeList] = useState([
-    { id: 1, title: '[공지] 동네마켓 서비스 지역 확대 안내', date: '2024.01.20', content: '마포구와 서대문구 전 지역으로 서비스를 확대하게 되었습니다.' },
-    { id: 2, title: '[이벤트] 친구 초대하고 5,000원 쿠폰 받자!', date: '2024.01.15', content: '친구에게 동네마켓을 소개하고 할인 쿠폰을 받아보세요.' }
-  ]);
+  const [noticeList, setNoticeList] = useState([]);
+
+  const fetchNotices = useCallback(async () => {
+    try {
+      const page = await getNotices(0, 100);
+      const list = (page.content || []).map(n => ({
+        id: n.noticeId,
+        title: n.title,
+        content: n.content,
+        date: n.createdAt ? n.createdAt.substring(0, 10).replace(/-/g, '.') : '',
+      }));
+      setNoticeList(list);
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNotices();
+  }, [fetchNotices]);
+
+  const fetchFaqs = useCallback(async () => {
+    try {
+      const page = await getFaqsForAdmin(0, 100);
+      const list = (page.content || []).map(f => ({
+        id: f.faqId,
+        question: f.question,
+        answer: f.answer,
+      }));
+      setFaqs(list);
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFaqs();
+  }, [fetchFaqs]);
+
   const [isNoticeModalOpen, setIsNoticeModalOpen] = useState(false);
   const [currentNotice, setCurrentNotice] = useState(null);
 
@@ -710,6 +744,9 @@ const AdminDashboard = () => {
   ]);
   const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
   const [currentBanner, setCurrentBanner] = useState(null);
+
+  const [isFAQModalOpen, setIsFAQModalOpen] = useState(false);
+  const [currentFAQ, setCurrentFAQ] = useState(null);
 
   const [promotions, setPromotions] = useState([
     { 
@@ -1482,9 +1519,14 @@ const AdminDashboard = () => {
                              }}
                              style={{ border: 'none', background: 'transparent', color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>수정</button>
                            <button 
-                             onClick={() => {
+                             onClick={async () => {
                                if (window.confirm('공지사항을 삭제하시겠습니까?')) {
-                                  setNoticeList(noticeList.filter(n => n.id !== notice.id));
+                                  try {
+                                    await deleteNotice(notice.id);
+                                    fetchNotices();
+                                  } catch (e) {
+                                    alert('삭제에 실패했습니다.');
+                                  }
                                }
                              }}
                              style={{ border: 'none', background: 'transparent', color: '#ef4444', fontSize: '12px', cursor: 'pointer' }}>삭제</button>
@@ -1506,7 +1548,10 @@ const AdminDashboard = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                 <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0 }}>자주 묻는 질문 (FAQ) 관리</h2>
                 <button 
-                  onClick={() => alert('신규 FAQ 등록 화면으로 이동')}
+                  onClick={() => {
+                    setCurrentFAQ({ question: '', answer: '' });
+                    setIsFAQModalOpen(true);
+                  }}
                   style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: '#38bdf8', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
                 >+ FAQ 등록</button>
               </div>
@@ -1516,9 +1561,23 @@ const AdminDashboard = () => {
                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px', marginBottom: '12px' }}>
                         <div style={{ fontWeight: '800', color: '#38bdf8' }}>Q. {faq.question}</div>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                           <button style={{ border: 'none', background: 'transparent', color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>수정</button>
                            <button 
-                             onClick={() => setFaqs(faqs.filter(f => f.id !== faq.id))}
+                             onClick={() => {
+                               setCurrentFAQ(faq);
+                               setIsFAQModalOpen(true);
+                             }}
+                             style={{ border: 'none', background: 'transparent', color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>수정</button>
+                           <button
+                             onClick={async () => {
+                               if (!window.confirm('정말 삭제하시겠습니까?')) return;
+                               try {
+                                 await deleteFaq(faq.id);
+                                 setFaqs(faqs.filter(f => f.id !== faq.id));
+                                 alert('삭제되었습니다.');
+                               } catch (e) {
+                                 alert('삭제 실패: ' + e.message);
+                               }
+                             }}
                              style={{ border: 'none', background: 'transparent', color: '#ef4444', fontSize: '12px', cursor: 'pointer' }}>삭제</button>
                         </div>
                      </div>
@@ -2462,15 +2521,74 @@ const AdminDashboard = () => {
                <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
                   <button onClick={() => setIsNoticeModalOpen(false)} style={{ flex: 1, padding: '14px', borderRadius: '12px', background: '#334155', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}>취소</button>
                   <button 
-                    onClick={() => {
-                      if (currentNotice.id) {
-                        setNoticeList(noticeList.map(n => n.id === currentNotice.id ? currentNotice : n));
-                        alert('수정되었습니다.');
-                      } else {
-                        setNoticeList([{ ...currentNotice, id: Date.now() }, ...noticeList]);
-                        alert('등록되었습니다.');
+                    onClick={async () => {
+                      try {
+                        if (currentNotice.id) {
+                          await updateNotice(currentNotice.id, currentNotice.title, currentNotice.content);
+                          alert('수정되었습니다.');
+                        } else {
+                          await createNotice(currentNotice.title, currentNotice.content);
+                          alert('등록되었습니다.');
+                        }
+                        setIsNoticeModalOpen(false);
+                        fetchNotices();
+                      } catch (e) {
+                        alert('저장에 실패했습니다.');
                       }
-                      setIsNoticeModalOpen(false);
+                    }}
+                    style={{ flex: 2, padding: '14px', borderRadius: '12px', background: '#38bdf8', color: '#0f172a', border: 'none', fontWeight: '800', cursor: 'pointer' }}>저장하기</button>
+               </div>
+            </div>
+          </div>
+        )}
+
+        {isFAQModalOpen && currentFAQ && (
+          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 2200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+            <div style={{ background: '#1e293b', width: '100%', maxWidth: '600px', borderRadius: '24px', padding: '32px', border: '1px solid #334155' }}>
+               <h3 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '24px' }}>{currentFAQ.id ? 'FAQ 수정' : '새 FAQ 등록'}</h3>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>질문 (Question)</label>
+                    <input 
+                      type="text" 
+                      placeholder="질문을 입력하세요"
+                      value={currentFAQ.question}
+                      onChange={(e) => setCurrentFAQ({...currentFAQ, question: e.target.value})}
+                      style={{ width: '100%', padding: '12px', borderRadius: '8px', background: '#0f172a', border: '1px solid #334155', color: 'white' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>답변 (Answer)</label>
+                    <textarea 
+                      placeholder="답변을 입력하세요"
+                      value={currentFAQ.answer}
+                      onChange={(e) => setCurrentFAQ({...currentFAQ, answer: e.target.value})}
+                      style={{ width: '100%', height: '200px', padding: '12px', borderRadius: '8px', background: '#0f172a', border: '1px solid #334155', color: 'white', resize: 'none' }}
+                    />
+                  </div>
+               </div>
+               <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
+                  <button onClick={() => setIsFAQModalOpen(false)} style={{ flex: 1, padding: '14px', borderRadius: '12px', background: '#334155', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}>취소</button>
+                  <button
+                    onClick={async () => {
+                      if (!currentFAQ.question || !currentFAQ.answer) {
+                        alert('질문과 답변을 모두 입력해주세요.');
+                        return;
+                      }
+                      try {
+                        if (currentFAQ.id) {
+                          await updateFaq(currentFAQ.id, currentFAQ.question, currentFAQ.answer);
+                          setFaqs(faqs.map(f => f.id === currentFAQ.id ? currentFAQ : f));
+                          alert('수정되었습니다.');
+                        } else {
+                          const created = await createFaq(currentFAQ.question, currentFAQ.answer);
+                          setFaqs([{ id: created.faqId, question: created.question, answer: created.answer }, ...faqs]);
+                          alert('등록되었습니다.');
+                        }
+                        setIsFAQModalOpen(false);
+                      } catch (e) {
+                        alert('저장 실패: ' + e.message);
+                      }
                     }}
                     style={{ flex: 2, padding: '14px', borderRadius: '12px', background: '#38bdf8', color: '#0f172a', border: 'none', fontWeight: '800', cursor: 'pointer' }}>저장하기</button>
                </div>

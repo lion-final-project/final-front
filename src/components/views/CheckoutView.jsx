@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { EffectCube, Pagination } from 'swiper/modules';
-import { addresses, paymentMethods } from '../data/mockData';
+import { addresses, paymentMethods } from '../../data/mockData';
 
 // Import Swiper styles
 import 'swiper/css';
