@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getNotices, createNotice, updateNotice, deleteNotice } from '../../api/noticeApi';
+import { getFaqsForAdmin, createFaq, updateFaq, deleteFaq } from '../../api/faqApi';
 
 const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowReports }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -621,10 +622,7 @@ const AdminDashboard = () => {
   const [settlementStatusFilter, setSettlementStatusFilter] = useState('ALL');
   const [inquiryFilter, setInquiryFilter] = useState('ALL'); // ALL, PENDING, COMPLETED
 
-  const [faqs, setFaqs] = useState([
-    { id: 1, question: '배송이 지연되면 어떻게 하나요?', answer: '고객센터로 즉시 연락 주시면 배달원과 확인 후 조치해 드립니다.' },
-    { id: 2, question: '마트 입점 절차가 궁금합니다.', answer: '상단 신청 관리 메뉴에서 서류를 제출하시면 영업일 기준 3일 내 심사가 진행됩니다.' }
-  ]);
+  const [faqs, setFaqs] = useState([]);
 
   const [settlementFilter, setSettlementFilter] = useState('STORE'); // STORE, RIDER
   const [settlements, setSettlements] = useState([
@@ -687,6 +685,25 @@ const AdminDashboard = () => {
   useEffect(() => {
     fetchNotices();
   }, [fetchNotices]);
+
+  const fetchFaqs = useCallback(async () => {
+    try {
+      const page = await getFaqsForAdmin(0, 100);
+      const list = (page.content || []).map(f => ({
+        id: f.faqId,
+        question: f.question,
+        answer: f.answer,
+      }));
+      setFaqs(list);
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFaqs();
+  }, [fetchFaqs]);
+
   const [isNoticeModalOpen, setIsNoticeModalOpen] = useState(false);
   const [currentNotice, setCurrentNotice] = useState(null);
 
@@ -1424,8 +1441,17 @@ const AdminDashboard = () => {
                                setIsFAQModalOpen(true);
                              }}
                              style={{ border: 'none', background: 'transparent', color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>수정</button>
-                           <button 
-                             onClick={() => setFaqs(faqs.filter(f => f.id !== faq.id))}
+                           <button
+                             onClick={async () => {
+                               if (!window.confirm('정말 삭제하시겠습니까?')) return;
+                               try {
+                                 await deleteFaq(faq.id);
+                                 setFaqs(faqs.filter(f => f.id !== faq.id));
+                                 alert('삭제되었습니다.');
+                               } catch (e) {
+                                 alert('삭제 실패: ' + e.message);
+                               }
+                             }}
                              style={{ border: 'none', background: 'transparent', color: '#ef4444', fontSize: '12px', cursor: 'pointer' }}>삭제</button>
                         </div>
                      </div>
@@ -2403,20 +2429,26 @@ const AdminDashboard = () => {
                </div>
                <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
                   <button onClick={() => setIsFAQModalOpen(false)} style={{ flex: 1, padding: '14px', borderRadius: '12px', background: '#334155', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}>취소</button>
-                  <button 
-                    onClick={() => {
+                  <button
+                    onClick={async () => {
                       if (!currentFAQ.question || !currentFAQ.answer) {
                         alert('질문과 답변을 모두 입력해주세요.');
                         return;
                       }
-                      if (currentFAQ.id) {
-                        setFaqs(faqs.map(f => f.id === currentFAQ.id ? currentFAQ : f));
-                        alert('수정되었습니다.');
-                      } else {
-                        setFaqs([{ ...currentFAQ, id: Date.now() }, ...faqs]);
-                        alert('등록되었습니다.');
+                      try {
+                        if (currentFAQ.id) {
+                          await updateFaq(currentFAQ.id, currentFAQ.question, currentFAQ.answer);
+                          setFaqs(faqs.map(f => f.id === currentFAQ.id ? currentFAQ : f));
+                          alert('수정되었습니다.');
+                        } else {
+                          const created = await createFaq(currentFAQ.question, currentFAQ.answer);
+                          setFaqs([{ id: created.faqId, question: created.question, answer: created.answer }, ...faqs]);
+                          alert('등록되었습니다.');
+                        }
+                        setIsFAQModalOpen(false);
+                      } catch (e) {
+                        alert('저장 실패: ' + e.message);
                       }
-                      setIsFAQModalOpen(false);
                     }}
                     style={{ flex: 2, padding: '14px', borderRadius: '12px', background: '#38bdf8', color: '#0f172a', border: 'none', fontWeight: '800', cursor: 'pointer' }}>저장하기</button>
                </div>
