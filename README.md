@@ -52,35 +52,36 @@
 src/
 ├── App.jsx                    # 메인 앱 (역할별 라우팅, 전역 상태)
 ├── main.jsx                   # 엔트리 포인트
-├── components/                # 28개 컴포넌트
-│   │
-│   │  # 공통 UI
-│   ├── Header.jsx             # 공통 헤더
-│   ├── Footer.jsx             # 공통 푸터
-│   ├── Hero.jsx               # 랜딩 히어로 섹션 (Swiper)
-│   ├── AuthModal.jsx          # 로그인/회원가입 모달
-│   ├── LocationModal.jsx      # 배송지 선택 모달
-│   │
-│   │  # 고객 뷰
-│   ├── CustomerView.jsx       # 고객 메인 뷰
-│   ├── StoreGrid.jsx          # 마트 목록 그리드
-│   ├── StoreDetailView.jsx    # 마트 상세 페이지
-│   ├── CartModal.jsx          # 장바구니 모달
-│   ├── CheckoutView.jsx       # 결제 페이지
-│   ├── OrderTrackingView.jsx  # 주문 추적
-│   ├── OrderManagementView.jsx # 주문 관리
-│   │
-│   │  # 역할별 대시보드
-│   ├── StoreDashboard.jsx     # 마트 대시보드
-│   ├── RiderDashboard.jsx     # 배달원 대시보드
-│   ├── AdminDashboard.jsx     # 관리자 대시보드
-│   │
-│   │  # 가입/등록
-│   ├── StoreRegistrationView.jsx  # 마트 등록
-│   ├── RiderRegistrationView.jsx  # 배달원 가입
-│   └── ...
+├── api/                       # API 통신
+│   ├── axios.js               # Axios 인스턴스 설정
+│   ├── authApi.js             # 인증 관련 API
+│   ├── riderApi.js            # 라이더 관련 API
+│   └── storageApi.js          # 파일 업로드 API
+├── components/
+│   ├── common/                # 공통 UI 컴포넌트
+│   │   ├── Header.jsx         # 공통 헤더
+│   │   ├── Footer.jsx         # 공통 푸터
+│   │   ├── Hero.jsx           # 랜딩 히어로 섹션
+│   │   ├── StoreGrid.jsx      # 마트 목록 그리드
+│   │   ├── CategorySidebar.jsx # 카테고리 사이드바
+│   │   └── NotificationPanel.jsx # 알림 패널
+│   ├── modals/                # 팝업 모달
+│   │   ├── AuthModal.jsx      # 로그인/회원가입
+│   │   ├── CartModal.jsx      # 장바구니
+│   │   ├── OrderDetailModal.jsx # 주문 상세
+│   │   ├── LocationModal.jsx  # 배송지 선택
+│   │   └── ...
+│   └── views/                 # 주요 페이지 뷰
+│       ├── CustomerView.jsx   # 고객 메인 뷰
+│       ├── StoreDetailView.jsx # 마트 상세 페이지
+│       ├── CheckoutView.jsx   # 결제 페이지
+│       ├── OrderManagementView.jsx # 주문 관리
+│       ├── StoreDashboard.jsx # 마트 대시보드
+│       ├── RiderDashboard.jsx # 배달원 대시보드
+│       ├── AdminDashboard.jsx # 관리자 대시보드
+│       └── ...
 ├── data/
-│   └── mockData.js            # 목업 데이터
+│   └── mockData.js            # 목업 데이터 (점진적 제거 예정)
 └── styles/
     └── global.css             # 전역 스타일, 디자인 토큰
 ```
