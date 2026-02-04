@@ -223,6 +223,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
     if (mode === 'social-extra') {
       if (!name || !phone) return alert('이름과 휴대폰 번호를 모두 입력해주세요.');
       // if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.'); // 소셜은 인증 생략 가능 여부 체크
+      // if (!address || !addressDetail) return alert('주소를 입력해주세요.'); // 주소 미입력
       if (!agreements.service || !agreements.privacy) return alert('필수 약관에 동의해주세요.');
       
       setApiLoading(true);
@@ -233,6 +234,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
           phone: phone.trim(),
           termsAgreed: agreements.service,
           privacyAgreed: agreements.privacy,
+          marketingAgreed: agreements.marketing, // 마케팅 동의 추가
           // addressLine1: address.trim(),
           // addressLine2: addressDetail.trim()
         };
@@ -376,7 +378,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
                 )}
               </div>
 
-              {/* 주소 입력 필드 (필요시 활성화) */}
+              {/* 주소 입력 필드 (미사용) */}
               {/* <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>주소</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
