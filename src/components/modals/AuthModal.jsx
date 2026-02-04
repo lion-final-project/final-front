@@ -8,7 +8,7 @@ import {
   sendVerification, 
   verifyPhone, 
   socialSignupComplete 
-} from '../api/authApi';
+} from '../../api/authApi';
 
 // 카카오 인증 URL (백엔드 프록시 또는 직접 호출)
 const KAKAO_OAUTH_AUTHORIZE_URL = 'http://localhost:8080/oauth2/authorization/kakao';

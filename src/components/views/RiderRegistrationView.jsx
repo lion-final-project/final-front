@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { registerRider, getRiderApprovals, deleteRiderApproval } from '../api/riderApi';
-import { uploadFile } from '../api/storageApi';
+import { registerRider, getRiderApprovals, deleteRiderApproval } from '../../api/riderApi';
+import { uploadFile } from '../../api/storageApi';
 
 const RiderRegistrationView = ({ onBack, onComplete, userInfo }) => {
   const [formData, setFormData] = useState({

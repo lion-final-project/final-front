@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { faqs, notices, inquiries } from '../data/mockData';
+import { faqs, notices, inquiries } from '../../data/mockData';
 
 const SupportView = ({ isLoggedIn, onOpenAuth, isEmbedded = false }) => {
   const [activeTab, setActiveTab] = useState('notice'); // notice, faq, inquiry
