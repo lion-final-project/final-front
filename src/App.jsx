@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './styles/global.css';
+import { authApi } from './api/authApi';
 import Header from './components/Header';
 import CustomerView from './components/CustomerView';
 import StoreDashboard from './components/StoreDashboard';
@@ -44,6 +45,7 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userInfo, setUserInfo] = useState(null); // 사용자 정보 저장
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalInitialMode, setAuthModalInitialMode] = useState(null); // 'social-extra' | null
 
   const [isResidentRider, setIsResidentRider] = useState(false);
   const [storeRegistrationStatus, setStoreRegistrationStatus] = useState('NONE'); // NONE, PENDING, APPROVED
@@ -90,14 +92,49 @@ function App() {
       alert('로그아웃되었습니다.');
     } catch (error) {
       console.error('Logout failed', error);
+      // 강제 로그아웃 처리
+      setIsLoggedIn(false);
+      setUserInfo(null);
+      setUserRole('CUSTOMER');
     }
   };
 
-  const handleLoginSuccess = (user) => {
+  const handleLoginSuccess = (userData = {}) => {
     setIsLoggedIn(true);
-    setUserInfo(user);
-    setUserRole('CUSTOMER');
+    setUserInfo(userData);
+    const roles = userData.roles;
+    const role = Array.isArray(roles) && roles.length > 0 ? roles[0] : 'CUSTOMER';
+    setUserRole(role);
   };
+
+  // 카카오 로그인 콜백 후 5173으로 리다이렉트된 경우: URL 쿼리 처리 후 /me로 로그인 상태 반영
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const kakao = params.get('kakao');
+    const message = params.get('message');
+    if (kakao === 'error') {
+      if (message) alert(message);
+      window.history.replaceState({}, '', window.location.pathname || '/');
+      return;
+    }
+    if (kakao === 'success') {
+      // checkAuth 사용
+      checkAuth()
+        .then((user) => {
+           if (user) handleLoginSuccess(user);
+        })
+        .catch(() => {})
+        .finally(() => {
+          window.history.replaceState({}, '', window.location.pathname || '/');
+        });
+      return;
+    }
+    if (kakao === 'signup_required') {
+      setIsAuthModalOpen(true);
+      setAuthModalInitialMode('social-extra');
+      window.history.replaceState({}, '', window.location.pathname || '/');
+    }
+  }, []);
 
   const renderContent = () => {
     if (userRole === 'CUSTOMER') return (
@@ -203,8 +240,9 @@ function App() {
 
         <AuthModal
           isOpen={isAuthModalOpen}
-          onClose={() => setIsAuthModalOpen(false)}
+          onClose={() => { setIsAuthModalOpen(false); setAuthModalInitialMode(null); }}
           onLoginSuccess={handleLoginSuccess}
+          initialMode={authModalInitialMode}
         />
         {import.meta.env.DEV && <Agentation />}
       </div>
