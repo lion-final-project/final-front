@@ -1,4 +1,30 @@
 import React, { useState, useEffect } from 'react';
+import { subscriptionProductApi } from '../config/api';
+
+/** 백엔드 status -> 한글 */
+const STATUS_TO_KO = { ACTIVE: '운영중', INACTIVE: '숨김', PENDING_DELETE: '삭제 예정' };
+const KO_TO_STATUS = { '운영중': 'ACTIVE', '숨김': 'INACTIVE', '삭제 예정': 'PENDING_DELETE' };
+
+/** API 응답 → 프론트 sub 형식 */
+const mapApiToSub = (d) => ({
+  id: String(d.subscriptionProductId ?? d.id),
+  name: d.name ?? '',
+  price: (d.price ?? 0).toLocaleString() + '원/월',
+  subscribers: d.subscriberCount ?? 0,
+  status: STATUS_TO_KO[d.status] ?? d.status ?? '운영중',
+  monthlyTotal: d.totalDeliveryCount ?? 0,
+  weeklyFreq: d.weeklyFreq ?? null,
+  deliveryDays: d.deliveryDays ?? [],
+  selectedProducts: (d.items ?? []).map((i) => ({ id: String(i.productId), qty: i.quantity ?? 1, productName: i.productName })),
+  description: d.description ?? '',
+});
+
+const getSubscriptionHeaders = () => {
+  const h = { 'Content-Type': 'application/json' };
+  const sid = import.meta.env.VITE_STORE_ID;
+  if (sid) h['X-Store-Id'] = sid;
+  return h;
+};
 
 const StoreDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -31,6 +57,8 @@ const StoreDashboard = () => {
   const [productForm, setProductForm] = useState({ name: '', price: '', stock: 0, capacity: 0, category: '채소', origin: '', description: '', imageFile: null, imagePreview: null, discountRate: 0 });
 
   const [subscriptions, setSubscriptions] = useState([]);
+  const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
+  const [subscriptionsError, setSubscriptionsError] = useState(null);
   const [editingSubscription, setEditingSubscription] = useState(null);
   const [subscriptionForm, setSubscriptionForm] = useState({ name: '', price: '', weeklyFreq: 1, monthlyTotal: 4, deliveryDays: [], description: '', selectedProducts: [] });
   const [expandedSubscriptions, setExpandedSubscriptions] = useState(new Set());
@@ -93,6 +121,32 @@ const StoreDashboard = () => {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  const fetchSubscriptions = async () => {
+    setSubscriptionsLoading(true);
+    setSubscriptionsError(null);
+    try {
+      const res = await fetch(subscriptionProductApi.list(), {
+        credentials: 'include',
+        headers: getSubscriptionHeaders(),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json?.error?.message || json?.message || '구독 목록 조회 실패');
+      }
+      const list = Array.isArray(json.data) ? json.data : [];
+      setSubscriptions(list.map(mapApiToSub));
+    } catch (e) {
+      setSubscriptionsError(e.message || '구독 목록을 불러오지 못했습니다.');
+      setSubscriptions([]);
+    } finally {
+      setSubscriptionsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'subscriptions') fetchSubscriptions();
+  }, [activeTab]);
 
   const [businessHours, setBusinessHours] = useState([
     { day: '월요일', open: '09:00', close: '22:00', lastOrder: '21:30', isClosed: false },
@@ -323,21 +377,88 @@ const StoreDashboard = () => {
     setIsSubscriptionModalOpen(true);
   };
 
-  const handleSaveSubscription = (e) => {
+  const handleSaveSubscription = async (e) => {
     e.preventDefault();
-    if (editingSubscription) {
-      setSubscriptions(prev => prev.map(s => s.id === editingSubscription.id ? { ...s, ...subscriptionForm } : s));
-    } else {
-      const newSub = { ...subscriptionForm, id: Date.now().toString(), subscribers: 0, status: '운영중' };
-      setSubscriptions(prev => [...prev, newSub]);
+    const priceNum = parseInt(String(subscriptionForm.price).replace(/[^0-9]/g, ''), 10) || 0;
+    const items = (subscriptionForm.selectedProducts || []).map((sp) => ({
+      productId: Number(sp.id),
+      quantity: sp.qty || 1,
+    }));
+    if (items.length === 0) {
+      alert('구성 품목을 1개 이상 선택해주세요.');
+      return;
     }
-    setIsSubscriptionModalOpen(false);
+    const body = {
+      name: subscriptionForm.name,
+      description: subscriptionForm.description || '',
+      price: priceNum,
+      totalDeliveryCount: subscriptionForm.monthlyTotal || 4,
+      items,
+    };
+    try {
+      const url = editingSubscription
+        ? subscriptionProductApi.update(editingSubscription.id)
+        : subscriptionProductApi.create();
+      const method = editingSubscription ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
+        credentials: 'include',
+        headers: getSubscriptionHeaders(),
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json?.error?.message || json?.message || (editingSubscription ? '수정' : '등록') + ' 실패');
+      }
+      const saved = mapApiToSub(json.data);
+      setSubscriptions((prev) => {
+        if (editingSubscription) {
+          return prev.map((s) => (s.id === editingSubscription.id ? saved : s));
+        }
+        return [saved, ...prev];
+      });
+      setIsSubscriptionModalOpen(false);
+    } catch (err) {
+      alert(err.message || '처리 중 오류가 발생했습니다.');
+    }
   };
 
-  const deleteSubscription = (id) => {
-     if(confirm('구독 상품을 삭제하시겠습니까?')) {
-        setSubscriptions(prev => prev.map(s => s.id === id ? { ...s, status: '삭제 예정' } : s));
-     }
+  const deleteSubscription = async (sub) => {
+    const id = sub?.id ?? sub;
+    if (sub?.status === '삭제 예정' && sub?.subscribers === 0) {
+      if (!confirm('구독자가 없습니다. 즉시 삭제하시겠습니까?')) return;
+      try {
+        const res = await fetch(subscriptionProductApi.deleteImmediately(id), {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: getSubscriptionHeaders(),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json?.error?.message || json?.message || '삭제 실패');
+        setSubscriptions((prev) => prev.filter((s) => s.id !== id));
+      } catch (err) {
+        alert(err.message || '삭제 중 오류가 발생했습니다.');
+      }
+      return;
+    }
+    if (sub?.status !== '숨김') return;
+    if (!confirm('구독 상품을 삭제하시겠습니까? (구독자가 있으면 삭제 예정으로 전환됩니다)')) return;
+    try {
+      const res = await fetch(subscriptionProductApi.requestDeletion(id), {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: getSubscriptionHeaders(),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json?.error?.message || json?.message || '삭제 요청 실패');
+      if (json.data == null) {
+        setSubscriptions((prev) => prev.filter((s) => s.id !== id));
+      } else {
+        setSubscriptions((prev) => prev.map((s) => (s.id === id ? mapApiToSub(json.data) : s)));
+      }
+    } catch (err) {
+      alert(err.message || '삭제 요청 중 오류가 발생했습니다.');
+    }
   };
 
   const handleToggleSubscriptionExpand = (id) => {
@@ -1056,9 +1177,20 @@ const StoreDashboard = () => {
                    </div>
                    <button 
                      onClick={() => handleOpenSubscriptionModal()}
-                     style={{ padding: '12px 24px', borderRadius: '12px', background: '#8b5cf6', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)' }}>+ 새 구독 상품 추가</button>
+                     disabled={subscriptionsLoading}
+                     style={{ padding: '12px 24px', borderRadius: '12px', background: '#8b5cf6', color: 'white', border: 'none', fontWeight: '700', cursor: subscriptionsLoading ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)', opacity: subscriptionsLoading ? 0.7 : 1 }}>+ 새 구독 상품 추가</button>
                 </div>
 
+                {subscriptionsError && (
+                  <div style={{ padding: '12px 16px', marginBottom: '16px', backgroundColor: '#fee2e2', color: '#991b1b', borderRadius: '12px', fontSize: '14px' }}>
+                    {subscriptionsError}
+                    <button onClick={fetchSubscriptions} style={{ marginLeft: '12px', padding: '4px 8px', borderRadius: '6px', border: '1px solid #991b1b', background: 'transparent', cursor: 'pointer', fontSize: '12px' }}>재시도</button>
+                  </div>
+                )}
+
+                {subscriptionsLoading ? (
+                  <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>구독 목록을 불러오는 중...</div>
+                ) : (
                 <div className="table-responsive">
                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
@@ -1104,14 +1236,27 @@ const StoreDashboard = () => {
                                  <td style={{ padding: '16px' }}>
                                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                        <div 
-                                         onClick={() => {
-                                           if (sub.status === '운영중' || sub.status === '숨김') {
-                                             const newStatus = sub.status === '운영중' ? '숨김' : '운영중';
-                                             setSubscriptions(prev => prev.map(s => s.id === sub.id ? { ...s, status: newStatus } : s));
+                                         onClick={async () => {
+                                           if (sub.status !== '운영중' && sub.status !== '숨김') return;
+                                           const newStatusKo = sub.status === '운영중' ? '숨김' : '운영중';
+                                           const newStatus = KO_TO_STATUS[newStatusKo];
+                                           try {
+                                             const res = await fetch(subscriptionProductApi.updateStatus(sub.id), {
+                                               method: 'PATCH',
+                                               credentials: 'include',
+                                               headers: getSubscriptionHeaders(),
+                                               body: JSON.stringify({ status: newStatus }),
+                                             });
+                                             const json = await res.json();
+                                             if (!res.ok || !json.success) throw new Error(json?.error?.message || json?.message || '상태 변경 실패');
+                                             setSubscriptions((prev) => prev.map((s) => (s.id === sub.id ? mapApiToSub(json.data) : s)));
+                                           } catch (err) {
+                                             alert(err.message || '상태 변경 중 오류가 발생했습니다.');
                                            }
                                          }}
                                          style={{ 
-                                           display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer',
+                                           display: 'flex', alignItems: 'center', gap: '4px',
+                                           cursor: (sub.status === '운영중' || sub.status === '숨김') ? 'pointer' : 'default',
                                            padding: '6px 12px', borderRadius: '12px', border: '1px solid #e2e8f0',
                                            backgroundColor: sub.status === '운영중' ? '#ecfdf5' : '#f1f5f9',
                                            transition: 'all 0.2s'
@@ -1133,10 +1278,10 @@ const StoreDashboard = () => {
                                        
                                        <button 
                                          onClick={() => {
-                                           if (sub.status === '숨김') {
-                                             deleteSubscription(sub.id);
+                                           if (sub.status === '숨김' || (sub.status === '삭제 예정' && sub.subscribers === 0)) {
+                                             deleteSubscription(sub);
                                            } else if (sub.status === '삭제 예정') {
-                                             // already scheduled
+                                             // 구독자 있음, 삭제 예약된 상태
                                            } else {
                                              alert('숨김 상태의 구독만 삭제 요청이 가능합니다. 먼저 노출 상태를 숨김으로 변경해주세요.');
                                            }
@@ -1147,14 +1292,19 @@ const StoreDashboard = () => {
                                            border: '1px solid #fee2e2', 
                                            background: sub.status === '삭제 예정' ? '#ef4444' : 'white', 
                                            color: sub.status === '삭제 예정' ? 'white' : '#ef4444', 
-                                           cursor: sub.status === '삭제 예정' ? 'default' : 'pointer', 
+                                           cursor: (sub.status === '숨김' || (sub.status === '삭제 예정' && sub.subscribers === 0)) ? 'pointer' : 'default', 
                                            opacity: (sub.status !== '숨김' && sub.status !== '삭제 예정') ? 0.5 : 1,
                                            fontSize: '12px', 
                                            fontWeight: '600' 
                                          }}>
-                                         {sub.status === '삭제 예정' ? '삭제 예약됨' : '삭제 요청'}
+                                         {sub.status === '삭제 예정' ? (sub.subscribers === 0 ? '즉시 삭제' : '삭제 예약됨') : '삭제 요청'}
                                        </button>
                                        
+                                       <button 
+                                         onClick={() => handleOpenSubscriptionModal(sub)}
+                                         disabled={sub.status === '삭제 예정'}
+                                         style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', color: '#64748b', cursor: sub.status === '삭제 예정' ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: '600', opacity: sub.status === '삭제 예정' ? 0.5 : 1 }}
+                                       >수정</button>
                                        <button 
                                          onClick={() => sendSubscriptionNotification(sub)}
                                          style={{ padding: '6px 12px', borderRadius: '8px', border: sub.status === '삭제 예정' ? '1px solid #8b5cf6' : '1px solid #e2e8f0', background: 'white', color: sub.status === '삭제 예정' ? '#8b5cf6' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: '800' }}>🔔 알림</button>
@@ -1185,14 +1335,16 @@ const StoreDashboard = () => {
                                           <div style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', marginBottom: '12px' }}>구성 품목 상세</div>
                                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
                                             {(sub.selectedProducts || []).map(item => {
-                                              const p = products.find(p => p.id === item.id);
-                                              return p ? (
+                                              const p = products.find((pr) => String(pr.id) === String(item.id));
+                                              const displayName = p?.name ?? item.productName ?? `상품 ${item.id}`;
+                                              const displayImg = p?.img ?? '📦';
+                                              return (
                                                 <div key={item.id} style={{ backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                  <span style={{ fontSize: '16px' }}>{p.img}</span>
-                                                  <span style={{ fontSize: '13px', fontWeight: '600' }}>{p.name}</span>
+                                                  <span style={{ fontSize: '16px' }}>{displayImg}</span>
+                                                  <span style={{ fontSize: '13px', fontWeight: '600' }}>{displayName}</span>
                                                   <span style={{ fontSize: '12px', color: '#8b5cf6', fontWeight: '700' }}>x{item.qty}</span>
                                                 </div>
-                                              ) : null;
+                                              );
                                             })}
                                           </div>
                                          <div style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', marginBottom: '8px' }}>상품 상세 설명</div>
@@ -1210,6 +1362,7 @@ const StoreDashboard = () => {
                       </tbody>
                    </table>
                 </div>
+                )}
               </div>
 
               {/* Split Section: Next Delivery & Weekly Schedule */}
