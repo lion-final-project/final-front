@@ -1,4 +1,4 @@
-import { categories } from '../data/mockData';
+import { categories } from '../../data/mockData';
 
 const CategorySidebar = ({ selectedCategory, setSelectedCategory }) => {
 
