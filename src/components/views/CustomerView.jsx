@@ -424,14 +424,59 @@ const CustomerView = ({
         return;
       }
 
-      const result = await cartAPI.updateCartQuantity(
-        item.productId,
-        newQuantity,
-      );
-      setCartItems(result.items);
+      // 수량을 줄이는 경우(delta < 0)이고 현재 수량이 재고보다 많은 경우,
+      // 재고 검증을 건너뛰기 위해 먼저 로컬 상태를 업데이트하고 API 호출
+      const isDecreasing = delta < 0;
+      const currentStock = item.stock ?? 999;
+      const isOverStock = item.quantity > currentStock;
+
+      // 수량을 줄이는 경우이거나, 재고보다 적거나 같은 수량으로 변경하는 경우에만 API 호출
+      if (isDecreasing || newQuantity <= currentStock) {
+        const result = await cartAPI.updateCartQuantity(
+          item.productId,
+          newQuantity,
+        );
+        setCartItems(result.items);
+      } else {
+        // 재고보다 많은 수량으로 증가하려는 경우는 에러 표시
+        showToast(`재고가 부족합니다. (재고: ${currentStock}개)`);
+      }
     } catch (error) {
       console.error("수량 업데이트 실패:", error);
-      showToast(error.message || "수량 업데이트에 실패했습니다.");
+      // 수량을 줄이는 경우에는 재고 부족 에러를 무시하고 로컬 상태만 업데이트
+      if (delta < 0) {
+        const item = cartItems.find(
+          (item) => item.id === id || item.cartProductId === id,
+        );
+        if (item) {
+          const newQuantity = item.quantity + delta;
+          if (newQuantity > 0) {
+            // 로컬 상태만 업데이트 (재고보다 많아도 수량을 줄이는 것은 허용)
+            setCartItems(prevItems =>
+              prevItems.map(cartItem =>
+                (cartItem.id === id || cartItem.cartProductId === id)
+                  ? { ...cartItem, quantity: newQuantity }
+                  : cartItem
+              )
+            );
+            // 백엔드 동기화를 위해 다시 시도 (재고보다 적거나 같은 수량이 될 때까지)
+            if (newQuantity <= (item.stock ?? 999)) {
+              try {
+                const result = await cartAPI.updateCartQuantity(
+                  item.productId,
+                  newQuantity,
+                );
+                setCartItems(result.items);
+              } catch (retryError) {
+                // 재시도 실패해도 로컬 상태는 이미 업데이트됨
+                console.error("재시도 실패:", retryError);
+              }
+            }
+          }
+        }
+      } else {
+        showToast(error.message || "수량 업데이트에 실패했습니다.");
+      }
     }
   };
 
