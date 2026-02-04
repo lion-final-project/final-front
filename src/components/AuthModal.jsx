@@ -1,20 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { login, signup } from '../api/authApi';
+import { 
+  authApi, 
+  login, 
+  signup, 
+  checkEmail, 
+  checkPhone, 
+  sendVerification, 
+  verifyPhone, 
+  socialSignupComplete 
+} from '../api/authApi';
 
-const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
-  const [mode, setMode] = useState('login'); // 'login' or 'signup'
+// 카카오 인증 URL (백엔드 프록시 또는 직접 호출)
+const KAKAO_OAUTH_AUTHORIZE_URL = 'http://localhost:8080/oauth2/authorization/kakao';
+
+const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
+  /** onLoginSuccess(userData): userData = { userId, email, name, roles } (로그인/회원가입 성공 시 백엔드 data) */
+  const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'social-extra'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-
-
+  const [address, setAddress] = useState('');
+  const [addressDetail, setAddressDetail] = useState('');
+  const [apiLoading, setApiLoading] = useState(false);
+  
   // Validation States for Signup
   const [isEmailChecked, setIsEmailChecked] = useState(false);
   const [isPhoneSent, setIsPhoneSent] = useState(false);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [verifyCode, setVerifyCode] = useState('');
-
+  const [phoneVerificationToken, setPhoneVerificationToken] = useState('');
+  
   // Agreements State
   const [agreements, setAgreements] = useState({
     all: false,
@@ -48,17 +64,23 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
   useEffect(() => {
     if (!isOpen) {
       setMode('login');
-      // Reset other states
+      // Reset states
       setEmail('');
       setPassword('');
       setName('');
       setPhone('');
+      setAddress('');
+      setAddressDetail('');
       setIsEmailChecked(false);
       setIsPhoneSent(false);
       setIsPhoneVerified(false);
       setVerifyCode('');
+      setPhoneVerificationToken('');
+      setAgreements({ all: false, service: false, privacy: false, marketing: false });
+    } else if (initialMode) {
+      setMode(initialMode);
     }
-  }, [isOpen]);
+  }, [isOpen, initialMode]);
 
   if (!isOpen) return null;
 
@@ -73,95 +95,193 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
     }
   };
 
-  const handleCheckEmail = () => {
-    if (!email.includes('@')) {
-      alert('올바른 이메일 형식을 입력해주세요.');
-      return;
-    }
-    // Simulate API call - 실제로는 서버 중복 체크가 필요할 수 있음
-    setTimeout(() => {
-      setIsEmailChecked(true);
-      alert('사용 가능한 이메일입니다.');
-    }, 500);
+  const getErrorMessage = (error, fallback) => {
+    return error.response?.data?.message || fallback;
   };
 
-  const handleSendVerifyCode = () => {
+  const handleCheckEmail = async () => {
+    const emailWithDomain = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailWithDomain.test(email)) {
+      alert('이메일은 정확하게 입력해주세요.');
+      return;
+    }
+    setApiLoading(true);
+    try {
+      const res = await checkEmail(email);
+      if (res.duplicated) {
+        alert('이미 사용 중인 이메일입니다.');
+        return;
+      }
+      setIsEmailChecked(true);
+      alert('사용 가능한 이메일입니다.');
+    } catch (err) {
+      alert(getErrorMessage(err, '이메일 확인에 실패했습니다.'));
+    } finally {
+      setApiLoading(false);
+    }
+  };
+
+  const handleSendVerifyCode = async () => {
     if (phone.length < 10) {
       alert('올바른 휴대폰 번호를 입력해주세요.');
       return;
     }
-    if (resendCount >= 5) {
-      alert('인증번호 재발송 횟수(5회)를 초과하였습니다. 나중에 다시 시도해주세요.');
+    setApiLoading(true);
+    try {
+      // 1. 휴대폰 중복 체크
+      const checkRes = await checkPhone(phone);
+      if (checkRes.duplicated) {
+        alert('이미 가입된 휴대폰 번호입니다.');
+        return;
+      }
+      
+      // 2. 인증번호 발송
+      const res = await sendVerification(phone);
+      
+      setIsPhoneSent(true);
+      setTimeLeft(res.expiresIn || 180);
+      setResendCount((prev) => prev + 1);
+      alert(res.message || '인증번호가 발송되었습니다.');
+    } catch (err) {
+      alert(getErrorMessage(err, '인증번호 발송에 실패했습니다.'));
+    } finally {
+      setApiLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    if (!verifyCode.trim()) {
+      alert('인증번호를 입력해주세요.');
       return;
     }
-    setIsPhoneSent(true);
-    setTimeLeft(180); // 3 minutes
-    setResendCount(prev => prev + 1);
-    alert(`인증번호가 발송되었습니다. (테스트 번호: 1234)\n잔여 재발송 횟수: ${5 - (resendCount + 1)}회`);
-  };
-
-  const handleVerifyCode = () => {
-    if (verifyCode === '1234') {
-      setIsPhoneVerified(true);
-      alert('휴대폰 인증이 완료되었습니다.');
-    } else {
-      alert('인증번호가 일치하지 않습니다.');
+    setApiLoading(true);
+    try {
+      const res = await verifyPhone(phone, verifyCode.trim());
+      
+      if (res.verified) {
+        setPhoneVerificationToken(res.phoneVerificationToken);
+        setIsPhoneVerified(true);
+        alert('휴대폰 인증이 완료되었습니다.');
+      } else {
+        alert('인증에 실패했습니다.');
+      }
+    } catch (err) {
+      alert(getErrorMessage(err, '인증 확인에 실패했습니다.'));
+    } finally {
+      setApiLoading(false);
     }
   };
 
-
+  const handleSearchAddress = () => {
+    // 데모: 주소 검색 시 기본값 (실제 연동 시 Daum 우편번호 API 등 사용)
+    setAddress('서울특별시 강남구 테헤란로 123');
+    alert('주소 검색은 데모 모드입니다. 상세 주소를 입력해주세요.');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    try {
-      if (mode === 'signup') {
-        if (!isEmailChecked) return alert('이메일 중복 확인이 필요합니다.');
-        if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.');
-        if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.');
-        if (!agreements.service || !agreements.privacy) return alert('필수 약관에 동의해주세요.');
-
-        // 회원가입 API 호출
+    
+    // 1. 회원가입
+    if (mode === 'signup') {
+      if (!isEmailChecked) return alert('이메일 중복 확인이 필요합니다.');
+      if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.');
+      // 주소 검증은 필수 아닐 수 있음, 필요하면 주석 해제
+      // if (!address || !addressDetail) return alert('주소를 입력해주세요.');
+      if (!agreements.service || !agreements.privacy) return alert('필수 약관에 동의해주세요.');
+      if (!password || password.length < 8) return alert('비밀번호는 8자 이상이어야 합니다.');
+      
+      setApiLoading(true);
+      try {
         const signupData = {
           email,
           password,
+          phone,
           name,
-          phone
+          phoneVerificationToken,
+          marketingAgreed: agreements.marketing,
+          termsAgreed: agreements.service,
+          privacyAgreed: agreements.privacy,
+          // 주소 필드가 API 스펙에 있다면 추가
         };
-        await signup(signupData);
-
+        
+        const res = await signup(signupData);
         alert('회원가입이 완료되었습니다! 반갑습니다.');
-        // 회원가입 후 자동 로그인 시도
+        
+        // 자동 로그인
         const user = await login(email, password);
         onLoginSuccess(user);
         onClose();
-
-      } else if (mode === 'login') {
-        // 로그인 API 호출
-        const user = await login(email, password);
-        onLoginSuccess(user);
-        onClose();
+      } catch (err) {
+        alert(getErrorMessage(err, '회원가입에 실패했습니다.'));
+      } finally {
+        setApiLoading(false);
       }
-
-    } catch (error) {
-      console.error('Auth Error:', error);
-      alert('오류가 발생했습니다: ' + (error.response?.data?.message || '로그인/회원가입 실패'));
+      return;
+    }
+    
+    // 2. 소셜 가입 추가 정보
+    if (mode === 'social-extra') {
+      if (!name || !phone) return alert('이름과 휴대폰 번호를 모두 입력해주세요.');
+      // if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.'); // 소셜은 인증 생략 가능 여부 체크
+      if (!agreements.service || !agreements.privacy) return alert('필수 약관에 동의해주세요.');
+      
+      setApiLoading(true);
+      try {
+        const data = {
+          name: name.trim(),
+          email: email.trim(), // 소셜 이메일 확인용 (읽기 전용일 수 있음)
+          phone: phone.trim(),
+          termsAgreed: agreements.service,
+          privacyAgreed: agreements.privacy,
+          // addressLine1: address.trim(),
+          // addressLine2: addressDetail.trim()
+        };
+        
+        const user = await socialSignupComplete(data);
+        onLoginSuccess(user);
+        onClose();
+      } catch (err) {
+        alert(getErrorMessage(err, '회원가입 처리에 실패했습니다.'));
+      } finally {
+        setApiLoading(false);
+      }
+      return;
+    }
+    
+    // 3. 로그인
+    if (mode === 'login') {
+      if (!email || !password) return alert('이메일과 비밀번호를 입력해주세요.');
+      setApiLoading(true);
+      try {
+        const user = await login(email, password);
+        onLoginSuccess(user);
+        onClose();
+      } catch (err) {
+        const msg = getErrorMessage(err, '로그인에 실패했습니다.');
+        // 에러 코드별 메시지 처리 가능
+        alert(msg);
+      } finally {
+        setApiLoading(false);
+      }
+      return;
     }
   };
 
   const handleSocialLogin = (platform) => {
-    alert(`${platform} 로그인을 진행합니다.`);
-    // Simulate social login success, then go to extra info page
-    setMode('social-extra');
+    if (platform === '카카오') {
+      window.location.href = KAKAO_OAUTH_AUTHORIZE_URL;
+      return;
+    }
+    alert(`${platform} 로그인은 준비 중입니다.`);
   };
 
   const toggleMode = () => {
     setMode(mode === 'login' ? 'signup' : 'login');
-    // Reset states
     setIsEmailChecked(false);
     setIsPhoneSent(false);
     setIsPhoneVerified(false);
     setVerifyCode('');
+    setPhoneVerificationToken('');
   };
 
   return (
@@ -179,17 +299,17 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
 
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <h2 style={{ fontSize: (mode === 'signup' || mode === 'social-extra') ? '24px' : '28px', fontWeight: '800', marginBottom: '8px', color: '#1e293b' }}>
-            {mode === 'login' ? '다시 만나서 반가워요!' : mode === 'signup' ? '새로운 시작, 동네마켓' : '추가 정보 입력'}
+            {mode === 'login' ? '다시 만나서 반가워요!' : '새로운 시작, 동네마켓'}
           </h2>
           <p style={{ color: '#64748b', fontSize: '15px' }}>
-            {mode === 'login' ? '로그인하고 우리 동네 소식을 확인하세요' : mode === 'signup' ? '단 1분만에 가입하고 신선함을 배달받으세요' : '원활한 서비스를 위해 추가 정보를 입력해주세요'}
+            {mode === 'login' ? '로그인하고 우리 동네 소식을 확인하세요' : '단 1분만에 가입하고 신선함을 배달받으세요'}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {mode === 'signup' && (
+          {/* 일반 회원가입과 소셜 로그인 후 추가 정보: 동일한 폼·규약 (비밀번호만 일반 가입 시에만 표시) */}
+          {(mode === 'signup' || mode === 'social-extra') && (
             <>
-              {/* Name Section */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>이름</label>
                 <input
@@ -198,15 +318,24 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
                 />
               </div>
 
-              {/* Email with Duplicate Check */}
+              {mode === 'signup' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>비밀번호</label>
+                  <input 
+                    type="password" placeholder="8자 이상, 영문·숫자·특수문자 포함" required value={password} onChange={(e) => setPassword(e.target.value)}
+                    style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }} 
+                  />
+                </div>
+              )}
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>이메일 (아이디)</label>
+                <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>이메일 {mode === 'signup' ? '(아이디)' : ''}</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <input
                     type="email" placeholder="example@email.com" required value={email} onChange={(e) => { setEmail(e.target.value); setIsEmailChecked(false); }}
                     style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: isEmailChecked ? '2px solid #10b981' : '1px solid #e2e8f0', fontSize: '15px' }}
                   />
-                  <button type="button" onClick={handleCheckEmail} disabled={isEmailChecked} style={{
+                  <button type="button" onClick={handleCheckEmail} disabled={isEmailChecked || apiLoading} style={{
                     padding: '0 16px', borderRadius: '12px', border: 'none', background: isEmailChecked ? '#10b981' : '#334155', color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
                   }}>
                     {isEmailChecked ? '확인됨' : '중복확인'}
@@ -214,16 +343,6 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
                 </div>
               </div>
 
-              {/* Password Section */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>비밀번호</label>
-                <input
-                  type="password" placeholder="비밀번호를 입력하세요" required value={password} onChange={(e) => setPassword(e.target.value)}
-                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }}
-                />
-              </div>
-
-              {/* Phone with Verification */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>휴대폰 번호</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -232,7 +351,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
                     style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: isPhoneVerified ? '2px solid #10b981' : '1px solid #e2e8f0', fontSize: '15px' }}
                   />
                   {!isPhoneVerified && (
-                    <button type="button" onClick={handleSendVerifyCode} style={{
+                    <button type="button" onClick={handleSendVerifyCode} disabled={apiLoading} style={{
                       padding: '0 16px', borderRadius: '12px', border: 'none', background: '#334155', color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
                     }}>
                       {isPhoneSent ? '재발송' : '인증요청'}
@@ -257,9 +376,26 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
                 )}
               </div>
 
+              {/* 주소 입력 필드 (필요시 활성화) */}
+              {/* <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>주소</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input 
+                    type="text" placeholder="주소를 검색해주세요" readOnly value={address}
+                    style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px', backgroundColor: '#f8fafc', color: '#64748b' }} 
+                  />
+                  <button type="button" onClick={handleSearchAddress} style={{
+                    padding: '0 16px', borderRadius: '12px', border: 'none', background: '#334155', color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
+                  }}>
+                    검색
+                  </button>
+                </div>
+                <input 
+                  type="text" placeholder="상세 주소를 입력해주세요" required value={addressDetail} onChange={(e) => setAddressDetail(e.target.value)}
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }} 
+                />
+              </div> */}
 
-
-              {/* Agreements Section */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#f8fafc', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingBottom: '12px', borderBottom: '1px solid #e2e8f0', marginBottom: '4px' }}>
                   <input type="checkbox" id="agree-all" checked={agreements.all} onChange={() => handleAgreementChange('all')} style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#10b981' }} />
@@ -283,55 +419,6 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
             </>
           )}
 
-          {mode === 'social-extra' && (
-            <>
-              {/* Name Section */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>이름</label>
-                <input
-                  type="text" placeholder="성함을 입력하세요" required value={name} onChange={(e) => setName(e.target.value)}
-                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }}
-                />
-              </div>
-
-
-
-              {/* Phone with Verification */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>휴대폰 번호</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    type="tel" placeholder="01012345678" required value={phone} disabled={isPhoneVerified} onChange={(e) => setPhone(e.target.value)}
-                    style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: isPhoneVerified ? '2px solid #10b981' : '1px solid #e2e8f0', fontSize: '15px' }}
-                  />
-                  {!isPhoneVerified && (
-                    <button type="button" onClick={handleSendVerifyCode} style={{
-                      padding: '0 16px', borderRadius: '12px', border: 'none', background: '#334155', color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
-                    }}>
-                      {isPhoneSent ? '재발송' : '인증요청'}
-                    </button>
-                  )}
-                </div>
-                {isPhoneSent && !isPhoneVerified && (
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px', alignItems: 'center' }}>
-                    <div style={{ position: 'relative', flex: 1 }}>
-                      <input
-                        type="text" placeholder="인증번호 4자리" value={verifyCode} onChange={(e) => setVerifyCode(e.target.value)}
-                        style={{ width: '100%', padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px' }}
-                      />
-                      <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: '#ef4444', fontWeight: '700' }}>
-                        {formatTime(timeLeft)}
-                      </span>
-                    </div>
-                    <button type="button" onClick={handleVerifyCode} style={{
-                      padding: '0 16px', height: '38px', borderRadius: '10px', border: 'none', background: '#10b981', color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
-                    }}>인증확인</button>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
           {mode === 'login' && (
             <>
               <div>
@@ -351,11 +438,11 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
             </>
           )}
 
-          <button type="submit" style={{
-            marginTop: '10px', padding: '16px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '16px',
-            fontWeight: '800', fontSize: '16px', cursor: 'pointer', boxShadow: '0 8px 16px rgba(16, 185, 129, 0.25)', transition: 'all 0.2s'
+          <button type="submit" disabled={apiLoading} style={{
+            marginTop: '10px', padding: '16px', backgroundColor: apiLoading ? '#94a3b8' : '#10b981', color: 'white', border: 'none', borderRadius: '16px',
+            fontWeight: '800', fontSize: '16px', cursor: apiLoading ? 'wait' : 'pointer', boxShadow: '0 8px 16px rgba(16, 185, 129, 0.25)', transition: 'all 0.2s'
           }}>
-            {mode === 'login' ? '로그인하기' : mode === 'signup' ? '동네마켓 가입 완료' : '입력 완료'}
+            {apiLoading ? '처리 중...' : mode === 'login' ? '로그인하기' : '동네마켓 가입 완료'}
           </button>
         </form>
 
@@ -376,10 +463,15 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
               <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }}></div>
             </div>
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => handleSocialLogin('카카오')} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: '600', fontSize: '13px' }}>
+              {/* 카카오 버튼: onClick에서 URL 이동 처리 */}
+              <button 
+                type="button" 
+                onClick={() => handleSocialLogin('카카오')} 
+                style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: '600', fontSize: '13px', color: '#1e293b' }}
+              >
                 <span style={{ fontSize: '18px' }}>💬</span> 카카오
               </button>
-              <button onClick={() => handleSocialLogin('네이버')} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: '600', fontSize: '13px' }}>
+              <button type="button" onClick={() => handleSocialLogin('네이버')} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: '600', fontSize: '13px' }}>
                 <span style={{ fontSize: '18px' }}>🟢</span> 네이버
               </button>
             </div>
