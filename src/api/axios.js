@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: 'http://localhost:8080', // Spring Boot 기본 포트
+    baseURL: '', // Vite 프록시를 통해 API 호출
     timeout: 10000,
     headers: {
         'Content-Type': 'application/json',
