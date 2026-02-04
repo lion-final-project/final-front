@@ -27,7 +27,16 @@ api.interceptors.response.use(
     },
     (error) => {
         // 공통 에러 처리 로직
-        console.error('API Error:', error);
+        if (error.response && error.response.data) {
+            const apiResponse = error.response.data;
+            if (apiResponse.error && apiResponse.error.message) {
+                console.error('API Error:', apiResponse.error.message);
+                // 에러 객체에 서버 메시지 추가
+                error.message = apiResponse.error.message;
+            } else if (apiResponse.message) {
+                error.message = apiResponse.message;
+            }
+        }
         return Promise.reject(error);
     }
 );
