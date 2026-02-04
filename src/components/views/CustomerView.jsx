@@ -1,22 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import Header from './Header';
-import Hero from './Hero';
-import StoreGrid from './StoreGrid';
-import CategorySidebar from './CategorySidebar';
+import Header from '../common/Header';
+import Hero from '../common/Hero';
+import StoreGrid from '../common/StoreGrid';
+import CategorySidebar from '../common/CategorySidebar';
 import SearchResultsView from './SearchResultsView';
 import CheckoutView from './CheckoutView';
 import OrderTrackingView from './OrderTrackingView';
 import ResidentDeliveryView from './ResidentDeliveryView';
 import SupportView from './SupportView';
 import PartnerPage from './PartnerPage';
-import Footer from './Footer';
-import { orders, subscriptions, reviews, stores, addresses, paymentMethods, faqs, categories, coupons, inquiries, loyaltyPoints, subscriptionPayments } from '../data/mockData';
-import CartModal from './CartModal';
+import Footer from '../common/Footer';
+import { orders, subscriptions, reviews, stores, addresses, paymentMethods, faqs, categories, coupons, inquiries, loyaltyPoints, subscriptionPayments } from '../../data/mockData';
+import CartModal from '../modals/CartModal';
 import StoreDetailView from './StoreDetailView';
 import StoreRegistrationView from './StoreRegistrationView';
 import RiderRegistrationView from './RiderRegistrationView';
 import OrderManagementView from './OrderManagementView';
-import LocationModal from './LocationModal';
+import LocationModal from '../modals/LocationModal';
 
 // Import Swiper React components
 import { Swiper, SwiperSlide } from 'swiper/react';
