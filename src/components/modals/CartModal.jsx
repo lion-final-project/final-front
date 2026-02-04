@@ -96,9 +96,16 @@ const CartModal = ({
   );
   const totalPrice = productPrice + shippingPrice;
 
+  // 재고 부족 체크: 품절이거나 수량이 재고보다 많은 경우
   const hasOutOfStockInSelection = selectedItems.some((item) => {
-    const stock = item.stock ?? 999; // Assume in stock if property missing
+    const stock = item.stock ?? 999;
     return stock <= 0 || item.quantity > stock;
+  });
+
+  // 재고 부족 상품 목록 (사용자에게 표시용)
+  const insufficientStockItems = selectedItems.filter((item) => {
+    const stock = item.stock ?? 999;
+    return stock > 0 && item.quantity > stock;
   });
 
   return (
@@ -119,8 +126,8 @@ const CartModal = ({
         style={{
           backgroundColor: "white",
           width: "100%",
-          maxWidth: "500px",
-          height: "80vh",
+          maxWidth: "560px",
+          height: "85vh",
           borderRadius: "24px",
           display: "flex",
           flexDirection: "column",
@@ -132,14 +139,14 @@ const CartModal = ({
         {/* Header */}
         <div
           style={{
-            padding: "20px",
+            padding: "18px 24px",
             borderBottom: "1px solid #f1f5f9",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
           }}
         >
-          <h2 style={{ fontSize: "20px", fontWeight: "800" }}>장바구니</h2>
+          <h2 style={{ fontSize: "22px", fontWeight: "800" }}>장바구니</h2>
           <button
             onClick={onClose}
             style={{
@@ -219,7 +226,7 @@ const CartModal = ({
             </div>
           ) : (
             <div
-              style={{ display: "flex", flexDirection: "column", gap: "20px" }}
+              style={{ display: "flex", flexDirection: "column", gap: "14px" }}
             >
               {Object.entries(groupedItems).map(([storeName, items]) => (
                 <div
@@ -235,7 +242,7 @@ const CartModal = ({
                   <div
                     onClick={() => toggleStore(storeName)}
                     style={{
-                      padding: "16px",
+                      padding: "14px 18px",
                       borderBottom: "1px solid #f1f5f9",
                       display: "flex",
                       alignItems: "center",
@@ -249,8 +256,8 @@ const CartModal = ({
                   >
                     <div
                       style={{
-                        width: "24px",
-                        height: "24px",
+                        width: "26px",
+                        height: "26px",
                         borderRadius: "50%",
                         border: selectedStores.has(storeName)
                           ? "none"
@@ -262,7 +269,7 @@ const CartModal = ({
                         alignItems: "center",
                         justifyContent: "center",
                         color: "white",
-                        fontSize: "14px",
+                        fontSize: "15px",
                       }}
                     >
                       {selectedStores.has(storeName) && "✓"}
@@ -271,7 +278,7 @@ const CartModal = ({
                       <span
                         style={{
                           fontWeight: "700",
-                          fontSize: "16px",
+                          fontSize: "17px",
                           color: "#1e293b",
                         }}
                       >
@@ -280,7 +287,7 @@ const CartModal = ({
                       {selectedStores.has(storeName) && items.length > 0 && (
                         <span
                           style={{
-                            fontSize: "13px",
+                            fontSize: "14px",
                             color: "#64748b",
                             fontWeight: "600",
                           }}
@@ -294,46 +301,56 @@ const CartModal = ({
                   {/* Items List */}
                   <div
                     style={{
-                      padding: "16px",
+                      padding: "16px 18px",
                       display: "flex",
                       flexDirection: "column",
                       gap: "16px",
                     }}
                   >
-                    {items.map((item) => (
+                    {items.map((item) => {
+                      const stock = item.stock ?? 999;
+                      const isOutOfStock = stock <= 0;
+                      const isLowStock = stock > 0 && stock <= 5;
+                      const isInsufficientStock = stock > 0 && item.quantity > stock;
+                      
+                      return (
                       <div
                         key={item.id}
-                        style={{ display: "flex", gap: "12px" }}
+                        style={{ 
+                          display: "flex", 
+                          gap: "14px",
+                          alignItems: "center",
+                        }}
                       >
                         <img
                           src={item.img}
                           alt={item.name}
                           onError={(e) => {
-                            // 이미지 로드 실패 시 base64 인코딩된 기본 이미지로 대체
                             e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YxZjVmOSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjEyIiBmaWxsPSIjOTRhM2I4IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+';
                           }}
                           style={{
-                            width: "70px",
-                            height: "70px",
+                            width: "80px",
+                            height: "80px",
                             borderRadius: "12px",
                             objectFit: "cover",
                             backgroundColor: "#f1f5f9",
+                            flexShrink: 0,
                           }}
                         />
-                        <div style={{ flexGrow: 1 }}>
+                        <div style={{ flexGrow: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "6px", justifyContent: "center" }}>
                           <div
                             style={{
-                              fontSize: "15px",
+                              fontSize: "16px",
                               fontWeight: "600",
                               color: "#334155",
-                              marginBottom: "4px",
+                              lineHeight: "1.4",
                             }}
                           >
                             {item.name}
                           </div>
                           <div
                             style={{
-                              fontSize: "15px",
+                              fontSize: "16px",
                               fontWeight: "800",
                               color: "#1e293b",
                             }}
@@ -346,9 +363,12 @@ const CartModal = ({
                             display: "flex",
                             flexDirection: "column",
                             alignItems: "flex-end",
-                            justifyContent: "space-between",
+                            gap: "8px",
+                            flexShrink: 0,
+                            justifyContent: "flex-start",
                           }}
                         >
+                          {/* X 버튼 - 맨 위 */}
                           <button
                             onClick={() => onRemoveFromCart(item.id)}
                             style={{
@@ -356,54 +376,59 @@ const CartModal = ({
                               background: "none",
                               color: "#94a3b8",
                               cursor: "pointer",
-                              padding: "8px",
+                              padding: "2px",
                               fontSize: "18px",
                               lineHeight: "1",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
+                              flexShrink: 0,
                             }}
                           >
                             ✕
                           </button>
-                          {item.stock <= 0 ? (
+                          {/* 재고 상태 표시 - 중간 (품절/품절임박만 표시, 재고 부족은 Footer에서 표시) */}
+                          {isOutOfStock ? (
                             <div
                               style={{
-                                fontSize: "11px",
+                                fontSize: "12px",
                                 color: "#ef4444",
-                                fontWeight: "800",
+                                fontWeight: "700",
                                 background: "#fef2f2",
-                                padding: "2px 8px",
-                                borderRadius: "4px",
+                                padding: "5px 10px",
+                                borderRadius: "6px",
                                 border: "1px solid #fee2e2",
+                                whiteSpace: "nowrap",
                               }}
                             >
                               품절
                             </div>
-                          ) : item.quantity > item.stock ? (
+                          ) : isLowStock && !isInsufficientStock ? (
                             <div
                               style={{
-                                fontSize: "11px",
+                                fontSize: "12px",
                                 color: "#f59e0b",
-                                fontWeight: "800",
+                                fontWeight: "700",
                                 background: "#fffbeb",
-                                padding: "2px 8px",
-                                borderRadius: "4px",
+                                padding: "5px 10px",
+                                borderRadius: "6px",
                                 border: "1px solid #fef3c7",
+                                whiteSpace: "nowrap",
                               }}
                             >
-                              재고 {item.stock}개 남음
+                              품절임박
                             </div>
                           ) : null}
+                          {/* 수량 조절 바 - 맨 아래 */}
                           <div
                             style={{
                               display: "flex",
                               alignItems: "center",
-                              gap: "8px",
+                              gap: "10px",
                               backgroundColor: "#f1f5f9",
-                              padding: "4px 8px",
+                              padding: "5px 10px",
                               borderRadius: "24px",
-                              opacity: item.stock <= 0 ? 0.5 : 1,
+                              opacity: isOutOfStock ? 0.5 : 1,
                             }}
                           >
                             <button
@@ -415,7 +440,8 @@ const CartModal = ({
                                 cursor:
                                   item.stock <= 0 ? "not-allowed" : "pointer",
                                 fontWeight: "800",
-                                width: "20px",
+                                width: "24px",
+                                fontSize: "18px",
                               }}
                             >
                               -
@@ -423,27 +449,26 @@ const CartModal = ({
                             <input
                               type="number"
                               min="0"
-                              max={item.stock}
                               value={item.quantity}
                               onChange={(e) => {
                                 const val = parseInt(e.target.value);
                                 if (isNaN(val) || val < 0) return;
                                 const diff = val - item.quantity;
                                 if (val === 0) {
-                                  // 수량이 0이면 삭제
                                   onRemoveFromCart(item.id);
-                                } else if (val <= (item.stock || 999)) {
+                                } else {
+                                  // 재고보다 많아도 수량을 줄이는 것은 허용
                                   onUpdateQuantity(item.id, diff);
                                 }
                               }}
                               disabled={item.stock <= 0}
                               style={{
-                                width: "30px",
+                                width: "45px",
                                 textAlign: "center",
                                 fontWeight: "700",
                                 border: "none",
                                 background: "transparent",
-                                fontSize: "13px",
+                                fontSize: "15px",
                                 outline: "none",
                                 cursor: item.stock <= 0 ? "not-allowed" : "text",
                                 MozAppearance: "textfield",
@@ -470,7 +495,8 @@ const CartModal = ({
                                     ? "not-allowed"
                                     : "pointer",
                                 fontWeight: "800",
-                                width: "20px",
+                                width: "24px",
+                                fontSize: "18px",
                               }}
                             >
                               +
@@ -478,7 +504,8 @@ const CartModal = ({
                           </div>
                         </div>
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 </div>
               ))}
@@ -490,17 +517,43 @@ const CartModal = ({
         {isLoggedIn && cartItems.length > 0 && (
           <div
             style={{
-              padding: "20px",
+              padding: "20px 24px",
               borderTop: "1px solid #f1f5f9",
               background: "white",
             }}
           >
+            {/* 재고 부족 경고 */}
+            {insufficientStockItems.length > 0 && (
+              <div
+                style={{
+                  padding: "10px 12px",
+                  marginBottom: "12px",
+                  backgroundColor: "#fffbeb",
+                  border: "1px solid #fef3c7",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  color: "#92400e",
+                  lineHeight: "1.5",
+                }}
+              >
+                <div style={{ fontWeight: "700", marginBottom: "4px" }}>
+                  ⚠️ 재고 부족 상품
+                </div>
+                {insufficientStockItems.map((item) => (
+                  <div key={item.id} style={{ marginTop: "2px" }}>
+                    · {item.name}: 재고 {item.stock}개 (담은 수량: {item.quantity}개)
+                  </div>
+                ))}
+              </div>
+            )}
+            
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
                 marginBottom: "8px",
                 color: "#64748b",
+                fontSize: "15px",
               }}
             >
               <span>선택 상품 금액</span>
@@ -510,8 +563,9 @@ const CartModal = ({
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                marginBottom: "16px",
+                marginBottom: "14px",
                 color: "#64748b",
+                fontSize: "15px",
               }}
             >
               <span>배송비</span>
@@ -521,7 +575,9 @@ const CartModal = ({
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                marginBottom: "20px",
+                marginBottom: "16px",
+                paddingTop: "14px",
+                borderTop: "1px solid #f1f5f9",
               }}
             >
               <span style={{ fontWeight: "700", fontSize: "18px" }}>
@@ -544,18 +600,25 @@ const CartModal = ({
                   return;
                 }
                 if (hasOutOfStockInSelection) {
-                  alert(
-                    "품절되었거나 재고가 부족한 상품이 포함되어 있습니다. 해당 상품을 삭제하거나 수량을 조절해 주세요.",
-                  );
+                  if (insufficientStockItems.length > 0) {
+                    alert(
+                      `재고가 부족한 상품이 있습니다.\n\n${insufficientStockItems.map(item => `· ${item.name}: 재고 ${item.stock}개 (담은 수량: ${item.quantity}개)`).join('\n')}\n\n수량을 조절해주세요.`
+                    );
+                  } else {
+                    alert(
+                      "품절된 상품이 포함되어 있습니다. 해당 상품을 삭제해주세요."
+                    );
+                  }
                   return;
                 }
                 onClose();
                 onCheckout(selectedItems);
               }}
+              disabled={activeSelectedStoreCount === 0 || hasOutOfStockInSelection}
               style={{
                 width: "100%",
-                padding: "16px",
-                borderRadius: "12px",
+                padding: "14px",
+                borderRadius: "10px",
                 background:
                   activeSelectedStoreCount > 0 && !hasOutOfStockInSelection
                     ? "var(--primary)"
@@ -563,7 +626,7 @@ const CartModal = ({
                 color: "white",
                 border: "none",
                 fontWeight: "700",
-                fontSize: "16px",
+                fontSize: "15px",
                 cursor:
                   activeSelectedStoreCount > 0 && !hasOutOfStockInSelection
                     ? "pointer"
@@ -572,10 +635,13 @@ const CartModal = ({
                   activeSelectedStoreCount > 0 && !hasOutOfStockInSelection
                     ? "0 4px 14px rgba(16, 185, 129, 0.4)"
                     : "none",
+                transition: "all 0.2s",
               }}
             >
               {hasOutOfStockInSelection
-                ? "품절 상품 포함됨"
+                ? insufficientStockItems.length > 0
+                  ? "재고 부족 상품 수량 조절 필요"
+                  : "품절 상품 포함됨"
                 : `${activeSelectedStoreCount}개 상점 결제하기`}
             </button>
           </div>
