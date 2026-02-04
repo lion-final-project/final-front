@@ -31,3 +31,23 @@ export const deleteRiderApproval = async (approvalId) => {
         throw error;
     }
 };
+
+// 라이더 정보 조회
+export const getRiderInfo = async () => {
+    try {
+        const response = await api.get('/api/riders');
+        return response.data; // ApiResponse<RiderResponse>
+    } catch (error) {
+        throw error;
+    }
+};
+
+// 라이더 영업 상태 변경
+export const updateRiderStatus = async (status) => { // status: 'RUNNING' or 'STOP'
+    try {
+        const response = await api.patch('/api/riders/status', { "operation-status": status });
+        return response.data; // ApiResponse<RiderResponse>
+    } catch (error) {
+        throw error;
+    }
+};
