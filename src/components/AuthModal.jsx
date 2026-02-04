@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { login, signup } from '../api/authApi';
 
 const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
   const [mode, setMode] = useState('login'); // 'login' or 'signup'
@@ -6,16 +7,15 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
-  const [addressDetail, setAddressDetail] = useState('');
-  
+
+
   // Validation States for Signup
   const [isEmailChecked, setIsEmailChecked] = useState(false);
   const [isPhoneSent, setIsPhoneSent] = useState(false);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [verifyCode, setVerifyCode] = useState('');
-  
-  // Terms and Agreements State
+
+  // Agreements State
   const [agreements, setAgreements] = useState({
     all: false,
     service: false,
@@ -49,6 +49,10 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
     if (!isOpen) {
       setMode('login');
       // Reset other states
+      setEmail('');
+      setPassword('');
+      setName('');
+      setPhone('');
       setIsEmailChecked(false);
       setIsPhoneSent(false);
       setIsPhoneVerified(false);
@@ -74,7 +78,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
       alert('올바른 이메일 형식을 입력해주세요.');
       return;
     }
-    // Simulate API call
+    // Simulate API call - 실제로는 서버 중복 체크가 필요할 수 있음
     setTimeout(() => {
       setIsEmailChecked(true);
       alert('사용 가능한 이메일입니다.');
@@ -105,28 +109,44 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
     }
   };
 
-  const handleSearchAddress = () => {
-    // Simulate address search
-    setAddress('서울특별시 강남구 테헤란로 123');
-    alert('주 검색 기능은 현재 데모 모드입니다. 상세 주소를 입력해주세요.');
-  };
 
-  const handleSubmit = (e) => {
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (mode === 'signup') {
-      if (!isEmailChecked) return alert('이메일 중복 확인이 필요합니다.');
-      if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.');
-      if (!address || !addressDetail) return alert('주소를 입력해주세요.');
-      if (!agreements.service || !agreements.privacy) return alert('필수 약관에 동의해주세요.');
-      alert('회원가입이 완료되었습니다! 반갑습니다.');
-    } else if (mode === 'social-extra') {
-      if (!name || !phone) return alert('이름과 휴대폰 번호를 모두 입력해주세요.');
-      if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.');
-      alert('추가 정보 입력이 완료되었습니다.');
+
+    try {
+      if (mode === 'signup') {
+        if (!isEmailChecked) return alert('이메일 중복 확인이 필요합니다.');
+        if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.');
+        if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.');
+        if (!agreements.service || !agreements.privacy) return alert('필수 약관에 동의해주세요.');
+
+        // 회원가입 API 호출
+        const signupData = {
+          email,
+          password,
+          name,
+          phone
+        };
+        await signup(signupData);
+
+        alert('회원가입이 완료되었습니다! 반갑습니다.');
+        // 회원가입 후 자동 로그인 시도
+        const user = await login(email, password);
+        onLoginSuccess(user);
+        onClose();
+
+      } else if (mode === 'login') {
+        // 로그인 API 호출
+        const user = await login(email, password);
+        onLoginSuccess(user);
+        onClose();
+      }
+
+    } catch (error) {
+      console.error('Auth Error:', error);
+      alert('오류가 발생했습니다: ' + (error.response?.data?.message || '로그인/회원가입 실패'));
     }
-    // Simulate authentication
-    onLoginSuccess();
-    onClose();
   };
 
   const handleSocialLogin = (platform) => {
@@ -172,9 +192,9 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
               {/* Name Section */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>이름</label>
-                <input 
+                <input
                   type="text" placeholder="성함을 입력하세요" required value={name} onChange={(e) => setName(e.target.value)}
-                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }} 
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }}
                 />
               </div>
 
@@ -182,9 +202,9 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>이메일 (아이디)</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <input 
+                  <input
                     type="email" placeholder="example@email.com" required value={email} onChange={(e) => { setEmail(e.target.value); setIsEmailChecked(false); }}
-                    style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: isEmailChecked ? '2px solid #10b981' : '1px solid #e2e8f0', fontSize: '15px' }} 
+                    style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: isEmailChecked ? '2px solid #10b981' : '1px solid #e2e8f0', fontSize: '15px' }}
                   />
                   <button type="button" onClick={handleCheckEmail} disabled={isEmailChecked} style={{
                     padding: '0 16px', borderRadius: '12px', border: 'none', background: isEmailChecked ? '#10b981' : '#334155', color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
@@ -194,13 +214,22 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
                 </div>
               </div>
 
+              {/* Password Section */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>비밀번호</label>
+                <input
+                  type="password" placeholder="비밀번호를 입력하세요" required value={password} onChange={(e) => setPassword(e.target.value)}
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }}
+                />
+              </div>
+
               {/* Phone with Verification */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>휴대폰 번호</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <input 
+                  <input
                     type="tel" placeholder="01012345678" required value={phone} disabled={isPhoneVerified} onChange={(e) => setPhone(e.target.value)}
-                    style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: isPhoneVerified ? '2px solid #10b981' : '1px solid #e2e8f0', fontSize: '15px' }} 
+                    style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: isPhoneVerified ? '2px solid #10b981' : '1px solid #e2e8f0', fontSize: '15px' }}
                   />
                   {!isPhoneVerified && (
                     <button type="button" onClick={handleSendVerifyCode} style={{
@@ -213,9 +242,9 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
                 {isPhoneSent && !isPhoneVerified && (
                   <div style={{ display: 'flex', gap: '8px', marginTop: '4px', alignItems: 'center' }}>
                     <div style={{ position: 'relative', flex: 1 }}>
-                      <input 
+                      <input
                         type="text" placeholder="인증번호 4자리" value={verifyCode} onChange={(e) => setVerifyCode(e.target.value)}
-                        style={{ width: '100%', padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px' }} 
+                        style={{ width: '100%', padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px' }}
                       />
                       <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: '#ef4444', fontWeight: '700' }}>
                         {formatTime(timeLeft)}
@@ -228,25 +257,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
                 )}
               </div>
 
-              {/* Address Section */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>주소</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input 
-                    type="text" placeholder="주소를 검색해주세요" required readOnly value={address}
-                    style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px', backgroundColor: '#f8fafc', color: '#64748b' }} 
-                  />
-                  <button type="button" onClick={handleSearchAddress} style={{
-                    padding: '0 16px', borderRadius: '12px', border: 'none', background: '#334155', color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
-                  }}>
-                    검색
-                  </button>
-                </div>
-                <input 
-                  type="text" placeholder="상세 주소를 입력해주세요" required value={addressDetail} onChange={(e) => setAddressDetail(e.target.value)}
-                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }} 
-                />
-              </div>
+
 
               {/* Agreements Section */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#f8fafc', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
@@ -254,7 +265,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
                   <input type="checkbox" id="agree-all" checked={agreements.all} onChange={() => handleAgreementChange('all')} style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#10b981' }} />
                   <label htmlFor="agree-all" style={{ fontSize: '15px', fontWeight: '800', color: '#1e293b', cursor: 'pointer' }}>전체 동의하기</label>
                 </div>
-                
+
                 {[
                   { key: 'service', label: '[필수] 서비스 이용약관 동의', required: true },
                   { key: 'privacy', label: '[필수] 개인정보 수집 및 이용 동의', required: true },
@@ -277,9 +288,9 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
               {/* Name Section */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>이름</label>
-                <input 
+                <input
                   type="text" placeholder="성함을 입력하세요" required value={name} onChange={(e) => setName(e.target.value)}
-                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }} 
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }}
                 />
               </div>
 
@@ -289,9 +300,9 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>휴대폰 번호</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <input 
+                  <input
                     type="tel" placeholder="01012345678" required value={phone} disabled={isPhoneVerified} onChange={(e) => setPhone(e.target.value)}
-                    style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: isPhoneVerified ? '2px solid #10b981' : '1px solid #e2e8f0', fontSize: '15px' }} 
+                    style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: isPhoneVerified ? '2px solid #10b981' : '1px solid #e2e8f0', fontSize: '15px' }}
                   />
                   {!isPhoneVerified && (
                     <button type="button" onClick={handleSendVerifyCode} style={{
@@ -304,9 +315,9 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
                 {isPhoneSent && !isPhoneVerified && (
                   <div style={{ display: 'flex', gap: '8px', marginTop: '4px', alignItems: 'center' }}>
                     <div style={{ position: 'relative', flex: 1 }}>
-                      <input 
+                      <input
                         type="text" placeholder="인증번호 4자리" value={verifyCode} onChange={(e) => setVerifyCode(e.target.value)}
-                        style={{ width: '100%', padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px' }} 
+                        style={{ width: '100%', padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px' }}
                       />
                       <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: '#ef4444', fontWeight: '700' }}>
                         {formatTime(timeLeft)}
@@ -325,16 +336,16 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }) => {
             <>
               <div>
                 <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#475569' }}>이메일</label>
-                <input 
+                <input
                   type="email" placeholder="example@email.com" required value={email} onChange={(e) => setEmail(e.target.value)}
-                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }} 
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }}
                 />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#475569' }}>비밀번호</label>
-                <input 
+                <input
                   type="password" placeholder="••••••••" required value={password} onChange={(e) => setPassword(e.target.value)}
-                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }} 
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }}
                 />
               </div>
             </>
