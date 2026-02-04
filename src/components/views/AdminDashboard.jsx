@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getNotices, createNotice, updateNotice, deleteNotice } from '../api/noticeApi';
+import { getNotices, createNotice, updateNotice, deleteNotice } from '../../api/noticeApi';
 
 const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowReports }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
