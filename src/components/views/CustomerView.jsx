@@ -112,6 +112,7 @@ const CustomerView = ({
   isLoggedIn,
   onLogout,
   onOpenAuth,
+  onOpenNotifications,
   isResidentRider,
   setIsResidentRider,
   notificationCount,
@@ -120,6 +121,11 @@ const CustomerView = ({
   riderInfo,
   setRiderInfo,
   userInfo,
+  isNotificationOpen,
+  notifications,
+  onMarkAsRead,
+  onClearAll,
+  onCloseNotifications,
 }) => {
   const [activeTab, setActiveTab] = useState("home");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -888,7 +894,7 @@ const CustomerView = ({
           />
         );
       case "support":
-        return <SupportView userRole={userRole} onOpenAuth={onOpenAuth} />;
+        return <SupportView isLoggedIn={isLoggedIn} onOpenAuth={onOpenAuth} />;
       case "partner":
         return (
           <PartnerPage
@@ -4027,9 +4033,15 @@ const CustomerView = ({
         isLoggedIn={isLoggedIn}
         onLogout={onLogout}
         onOpenAuth={onOpenAuth}
+        onOpenNotifications={onOpenNotifications}
         cartCount={cartItems.length}
         notificationCount={notificationCount}
         isResidentRider={isResidentRider}
+        isNotificationOpen={isNotificationOpen}
+        notifications={notifications}
+        onMarkAsRead={onMarkAsRead}
+        onClearAll={onClearAll}
+        onCloseNotifications={onCloseNotifications}
       />
       <div style={{ minHeight: "calc(100vh - 200px)" }}>
         {selectedStore ? (
