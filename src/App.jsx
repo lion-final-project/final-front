@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './styles/global.css';
+import { authApi } from './config/api';
 import Header from './components/Header';
 import CustomerView from './components/CustomerView';
 import StoreDashboard from './components/StoreDashboard';
@@ -13,6 +14,7 @@ function App() {
   const [userRole, setUserRole] = useState('CUSTOMER'); // CUSTOMER, STORE, RIDER, ADMIN
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalInitialMode, setAuthModalInitialMode] = useState(null); // 'social-extra' | null
 
   const [isResidentRider, setIsResidentRider] = useState(false);
   const [storeRegistrationStatus, setStoreRegistrationStatus] = useState('NONE'); // NONE, PENDING, APPROVED
@@ -34,15 +36,55 @@ function App() {
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch(authApi.logout(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      });
+    } catch (_) {
+      // 네트워크 오류 등 무시 (클라이언트 상태는 초기화)
+    }
     setIsLoggedIn(false);
-    setUserRole('CUSTOMER'); // Default back to customer view as guest
-  };
-
-  const handleLoginSuccess = () => {
-    setIsLoggedIn(true);
     setUserRole('CUSTOMER');
   };
+
+  const handleLoginSuccess = (userData = {}) => {
+    setIsLoggedIn(true);
+    const roles = userData.roles;
+    const role = Array.isArray(roles) && roles.length > 0 ? roles[0] : 'CUSTOMER';
+    setUserRole(role);
+  };
+
+  // 카카오 로그인 콜백 후 5173으로 리다이렉트된 경우: URL 쿼리 처리 후 /me로 로그인 상태 반영
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const kakao = params.get('kakao');
+    const message = params.get('message');
+    if (kakao === 'error') {
+      if (message) alert(message);
+      window.history.replaceState({}, '', window.location.pathname || '/');
+      return;
+    }
+    if (kakao === 'success') {
+      fetch(authApi.me(), { credentials: 'include' })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((json) => {
+          const data = json?.data;
+          if (data) handleLoginSuccess({ userId: data.userId, email: data.email, name: data.name, roles: data.roles });
+        })
+        .catch(() => {})
+        .finally(() => {
+          window.history.replaceState({}, '', window.location.pathname || '/');
+        });
+      return;
+    }
+    if (kakao === 'signup_required') {
+      window.history.replaceState({}, '', window.location.pathname || '/');
+    }
+  }, []);
 
   const renderContent = () => {
     if (userRole === 'CUSTOMER') return (
@@ -146,8 +188,9 @@ function App() {
 
       <AuthModal 
         isOpen={isAuthModalOpen} 
-        onClose={() => setIsAuthModalOpen(false)} 
-        onLoginSuccess={handleLoginSuccess} 
+        onClose={() => { setIsAuthModalOpen(false); setAuthModalInitialMode(null); }} 
+        onLoginSuccess={handleLoginSuccess}
+        initialMode={authModalInitialMode}
       />
       {process.env.NODE_ENV === "development" && <Agentation />}
     </div>
