@@ -1,12 +1,51 @@
-import React, { useState } from 'react';
-import { faqs, notices, inquiries } from '../data/mockData';
+import React, { useState, useEffect, useCallback } from 'react';
+import { inquiries } from '../data/mockData';
+import { getNoticesForCustomer } from '../api/noticeApi';
+import { getFaqsForCustomer } from '../api/faqApi';
 
 const SupportView = ({ isLoggedIn, onOpenAuth, isEmbedded = false }) => {
   const [activeTab, setActiveTab] = useState('notice'); // notice, faq, inquiry
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedFaq, setExpandedFaq] = useState(null);
+  const [notices, setNotices] = useState([]);
+  const [faqs, setFaqs] = useState([]);
 
   const [selectedCategory, setSelectedCategory] = useState('전체');
+
+  const fetchNotices = useCallback(async () => {
+    try {
+      const page = await getNoticesForCustomer(0, 100);
+      const list = page.content.map(n => ({
+        id: n.noticeId,
+        title: n.title,
+        content: n.content,
+        date: n.createdAt ? n.createdAt.split('T')[0].replace(/-/g, '.') : ''
+      }));
+      setNotices(list);
+    } catch (err) {
+      console.error('공지사항 조회 실패:', err);
+    }
+  }, []);
+
+  const fetchFaqs = useCallback(async () => {
+    try {
+      const page = await getFaqsForCustomer(0, 100);
+      const list = page.content.map(f => ({
+        id: f.faqId,
+        question: f.question,
+        answer: f.answer,
+        category: '일반'
+      }));
+      setFaqs(list);
+    } catch (err) {
+      console.error('FAQ 조회 실패:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNotices();
+    fetchFaqs();
+  }, [fetchNotices, fetchFaqs]);
 
   const filteredFaqs = faqs.filter(f => 
     (selectedCategory === '전체' || f.category === selectedCategory) &&
