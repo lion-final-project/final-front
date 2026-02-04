@@ -2,7 +2,9 @@ const BASE_URL = '/api/admin/notices';
 const CUSTOMER_BASE_URL = '/api/notices';
 
 export async function getNotices(page = 0, size = 20) {
-  const res = await fetch(`${BASE_URL}?page=${page}&size=${size}`);
+  const res = await fetch(`${BASE_URL}?page=${page}&size=${size}`, {
+    credentials: 'include',
+  });
   if (!res.ok) throw new Error('공지사항 목록 조회 실패');
   const json = await res.json();
   return json.data;
@@ -13,6 +15,7 @@ export async function createNotice(title, content) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ title, content }),
+    credentials: 'include',
   });
   if (!res.ok) throw new Error('공지사항 등록 실패');
   const json = await res.json();
@@ -24,6 +27,7 @@ export async function updateNotice(noticeId, title, content) {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ title, content }),
+    credentials: 'include',
   });
   if (!res.ok) throw new Error('공지사항 수정 실패');
   const json = await res.json();
@@ -33,6 +37,7 @@ export async function updateNotice(noticeId, title, content) {
 export async function deleteNotice(noticeId) {
   const res = await fetch(`${BASE_URL}/${noticeId}`, {
     method: 'DELETE',
+    credentials: 'include',
   });
   if (!res.ok) throw new Error('공지사항 삭제 실패');
   const json = await res.json();
