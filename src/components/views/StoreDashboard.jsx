@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { subscriptionProductApi } from '../config/api';
+import { subscriptionProductApi } from '../../config/api';
 
 /** 백엔드 status -> 한글 */
 const STATUS_TO_KO = { ACTIVE: '운영중', INACTIVE: '숨김', PENDING_DELETE: '삭제 예정' };
