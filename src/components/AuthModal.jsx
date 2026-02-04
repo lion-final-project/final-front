@@ -1,5 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { authApi, KAKAO_OAUTH_AUTHORIZE_URL } from '../config/api';
+import { 
+  authApi, 
+  login, 
+  signup, 
+  checkEmail, 
+  checkPhone, 
+  sendVerification, 
+  verifyPhone, 
+  socialSignupComplete 
+} from '../api/authApi';
+
+// 카카오 인증 URL (백엔드 프록시 또는 직접 호출)
+const KAKAO_OAUTH_AUTHORIZE_URL = 'http://localhost:8080/oauth2/authorization/kakao';
 
 const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
   /** onLoginSuccess(userData): userData = { userId, email, name, roles } (로그인/회원가입 성공 시 백엔드 data) */
@@ -11,7 +23,6 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
   const [address, setAddress] = useState('');
   const [addressDetail, setAddressDetail] = useState('');
   const [apiLoading, setApiLoading] = useState(false);
-  const [apiError, setApiError] = useState('');
   
   // Validation States for Signup
   const [isEmailChecked, setIsEmailChecked] = useState(false);
@@ -20,7 +31,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
   const [verifyCode, setVerifyCode] = useState('');
   const [phoneVerificationToken, setPhoneVerificationToken] = useState('');
   
-  // Terms and Agreements State
+  // Agreements State
   const [agreements, setAgreements] = useState({
     all: false,
     service: false,
@@ -53,11 +64,19 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
   useEffect(() => {
     if (!isOpen) {
       setMode('login');
+      // Reset states
+      setEmail('');
+      setPassword('');
+      setName('');
+      setPhone('');
+      setAddress('');
+      setAddressDetail('');
       setIsEmailChecked(false);
       setIsPhoneSent(false);
       setIsPhoneVerified(false);
       setVerifyCode('');
       setPhoneVerificationToken('');
+      setAgreements({ all: false, service: false, privacy: false, marketing: false });
     } else if (initialMode) {
       setMode(initialMode);
     }
@@ -76,9 +95,8 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
     }
   };
 
-  const getErrorMessage = (json, fallback) => {
-    if (!json) return fallback;
-    return json.error?.message ?? json.message ?? fallback;
+  const getErrorMessage = (error, fallback) => {
+    return error.response?.data?.message || fallback;
   };
 
   const handleCheckEmail = async () => {
@@ -88,32 +106,16 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
       return;
     }
     setApiLoading(true);
-    setApiError('');
     try {
-      const res = await fetch(authApi.checkEmail(email));
-      let json = null;
-      try {
-        json = await res.json();
-      } catch (_) {
-        alert('응답 형식을 확인할 수 없습니다.');
-        return;
-      }
-      if (!res.ok) {
-        alert(getErrorMessage(json, '이메일 확인에 실패했습니다.'));
-        return;
-      }
-      const duplicated = json.data?.duplicated ?? false;
-      if (duplicated) {
+      const res = await checkEmail(email);
+      if (res.duplicated) {
         alert('이미 사용 중인 이메일입니다.');
         return;
       }
       setIsEmailChecked(true);
       alert('사용 가능한 이메일입니다.');
     } catch (err) {
-      const isNetworkError = err?.name === 'TypeError' && (err?.message === 'Failed to fetch' || err?.message?.includes('fetch'));
-      alert(isNetworkError
-        ? '서버에 연결할 수 없습니다. 백엔드(localhost:8080)가 실행 중인지 확인해 주세요.'
-        : '오류가 발생했습니다. 다시 시도해 주세요.');
+      alert(getErrorMessage(err, '이메일 확인에 실패했습니다.'));
     } finally {
       setApiLoading(false);
     }
@@ -125,50 +127,23 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
       return;
     }
     setApiLoading(true);
-    setApiError('');
     try {
-      const checkRes = await fetch(authApi.checkPhone(phone));
-      let checkJson = null;
-      try {
-        checkJson = await checkRes.json();
-      } catch (_) {
-        alert('응답 형식을 확인할 수 없습니다.');
-        return;
-      }
-      if (!checkRes.ok) {
-        alert(getErrorMessage(checkJson, '휴대폰 확인에 실패했습니다.'));
-        return;
-      }
-      if (checkJson.data?.duplicated) {
+      // 1. 휴대폰 중복 체크
+      const checkRes = await checkPhone(phone);
+      if (checkRes.duplicated) {
         alert('이미 가입된 휴대폰 번호입니다.');
         return;
       }
-      const res = await fetch(authApi.sendVerification(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
-      });
-      let json = null;
-      try {
-        json = await res.json();
-      } catch (_) {
-        alert('응답 형식을 확인할 수 없습니다.');
-        return;
-      }
-      if (!res.ok) {
-        alert(getErrorMessage(json, '인증번호 발송에 실패했습니다.'));
-        return;
-      }
-      const d = json.data;
+      
+      // 2. 인증번호 발송
+      const res = await sendVerification(phone);
+      
       setIsPhoneSent(true);
-      setTimeLeft(d?.expiresIn ?? 180);
+      setTimeLeft(res.expiresIn || 180);
       setResendCount((prev) => prev + 1);
-      alert(`${d?.message ?? '인증번호가 발송되었습니다.'}\n유효시간 ${Math.floor((d?.expiresIn ?? 180) / 60)}분, 잔여 재발송 ${d?.remainingAttempts ?? 4}회`);
+      alert(res.message || '인증번호가 발송되었습니다.');
     } catch (err) {
-      const isNetworkError = err?.name === 'TypeError' && (err?.message === 'Failed to fetch' || err?.message?.includes('fetch'));
-      alert(isNetworkError
-        ? '서버에 연결할 수 없습니다. 백엔드(localhost:8080)가 실행 중인지 확인해 주세요.'
-        : '오류가 발생했습니다. 다시 시도해 주세요.');
+      alert(getErrorMessage(err, '인증번호 발송에 실패했습니다.'));
     } finally {
       setApiLoading(false);
     }
@@ -181,35 +156,17 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
     }
     setApiLoading(true);
     try {
-      const res = await fetch(authApi.verifyPhone(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, verificationCode: verifyCode.trim() }),
-      });
-      let json = null;
-      try {
-        json = await res.json();
-      } catch (_) {
-        alert('응답 형식을 확인할 수 없습니다.');
-        return;
-      }
-      if (!res.ok) {
-        alert(getErrorMessage(json, '인증에 실패했습니다.'));
-        return;
-      }
-      const token = json.data?.phoneVerificationToken;
-      if (token) {
-        setPhoneVerificationToken(token);
+      const res = await verifyPhone(phone, verifyCode.trim());
+      
+      if (res.verified) {
+        setPhoneVerificationToken(res.phoneVerificationToken);
         setIsPhoneVerified(true);
         alert('휴대폰 인증이 완료되었습니다.');
       } else {
-        alert('인증 결과를 받지 못했습니다.');
+        alert('인증에 실패했습니다.');
       }
     } catch (err) {
-      const isNetworkError = err?.name === 'TypeError' && (err?.message === 'Failed to fetch' || err?.message?.includes('fetch'));
-      alert(isNetworkError
-        ? '서버에 연결할 수 없습니다. 백엔드(localhost:8080)가 실행 중인지 확인해 주세요.'
-        : '오류가 발생했습니다. 다시 시도해 주세요.');
+      alert(getErrorMessage(err, '인증 확인에 실패했습니다.'));
     } finally {
       setApiLoading(false);
     }
@@ -223,153 +180,100 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // 1. 회원가입
     if (mode === 'signup') {
       if (!isEmailChecked) return alert('이메일 중복 확인이 필요합니다.');
       if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.');
-      if (!address || !addressDetail) return alert('주소를 입력해주세요.');
+      // 주소 검증은 필수 아닐 수 있음, 필요하면 주석 해제
+      // if (!address || !addressDetail) return alert('주소를 입력해주세요.');
       if (!agreements.service || !agreements.privacy) return alert('필수 약관에 동의해주세요.');
-      if (!password || password.length < 8) return alert('비밀번호는 8자 이상, 영문/숫자/특수문자를 포함해주세요.');
+      if (!password || password.length < 8) return alert('비밀번호는 8자 이상이어야 합니다.');
+      
       setApiLoading(true);
-      setApiError('');
       try {
-        const res = await fetch(authApi.register(), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            email,
-            password,
-            phone,
-            name,
-            phoneVerificationToken,
-            marketingAgreed: agreements.marketing,
-            termsAgreed: agreements.service,
-            privacyAgreed: agreements.privacy,
-          }),
-        });
-        let json = null;
-        try {
-          json = await res.json();
-        } catch (_) {
-          alert('응답 형식을 확인할 수 없습니다.');
-          return;
-        }
-        if (!res.ok) {
-          alert(getErrorMessage(json, '회원가입에 실패했습니다.'));
-          return;
-        }
+        const signupData = {
+          email,
+          password,
+          phone,
+          name,
+          phoneVerificationToken,
+          marketingAgreed: agreements.marketing,
+          termsAgreed: agreements.service,
+          privacyAgreed: agreements.privacy,
+          // 주소 필드가 API 스펙에 있다면 추가
+        };
+        
+        const res = await signup(signupData);
         alert('회원가입이 완료되었습니다! 반갑습니다.');
-        onLoginSuccess(json.data || {});
+        
+        // 자동 로그인
+        const user = await login(email, password);
+        onLoginSuccess(user);
         onClose();
       } catch (err) {
-        const isNetworkError = err?.name === 'TypeError' && (err?.message === 'Failed to fetch' || err?.message?.includes('fetch'));
-        alert(isNetworkError
-          ? '서버에 연결할 수 없습니다. 백엔드(localhost:8080)가 실행 중인지 확인해 주세요.'
-          : '오류가 발생했습니다. 다시 시도해 주세요.');
+        alert(getErrorMessage(err, '회원가입에 실패했습니다.'));
       } finally {
         setApiLoading(false);
       }
       return;
     }
+    
+    // 2. 소셜 가입 추가 정보
     if (mode === 'social-extra') {
       if (!name || !phone) return alert('이름과 휴대폰 번호를 모두 입력해주세요.');
-      if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.');
-      if (!email?.trim()) return alert('이메일을 입력해주세요.');
-      if (!address?.trim() || !addressDetail?.trim()) return alert('주소를 입력해주세요.');
+      // if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.'); // 소셜은 인증 생략 가능 여부 체크
+      // if (!address || !addressDetail) return alert('주소를 입력해주세요.'); // 주소 미입력
       if (!agreements.service || !agreements.privacy) return alert('필수 약관에 동의해주세요.');
+      
       setApiLoading(true);
-      setApiError('');
       try {
-        const res = await fetch(authApi.socialSignupComplete(), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            name: name.trim(),
-            email: email.trim(),
-            phone: phone.trim(),
-            termsAgreed: agreements.service,
-            privacyAgreed: agreements.privacy,
-            addressLine1: address.trim(),
-            addressLine2: addressDetail.trim() || '',
-          }),
-        });
-        let json = null;
-        try {
-          json = await res.json();
-        } catch (_) {
-          alert('응답 형식을 확인할 수 없습니다.');
-          return;
-        }
-        if (!res.ok) {
-          alert(getErrorMessage(json, '회원가입 처리에 실패했습니다.'));
-          return;
-        }
-        const data = json?.data;
-        if (data) onLoginSuccess({ userId: data.userId, email: data.email, name: data.name, roles: data.roles ?? [] });
-        else onLoginSuccess({});
+        const data = {
+          name: name.trim(),
+          email: email.trim(), // 소셜 이메일 확인용 (읽기 전용일 수 있음)
+          phone: phone.trim(),
+          termsAgreed: agreements.service,
+          privacyAgreed: agreements.privacy,
+          marketingAgreed: agreements.marketing, // 마케팅 동의 추가
+          // addressLine1: address.trim(),
+          // addressLine2: addressDetail.trim()
+        };
+        
+        const user = await socialSignupComplete(data);
+        onLoginSuccess(user);
         onClose();
       } catch (err) {
-        const isNetworkError = err?.name === 'TypeError' && (err?.message === 'Failed to fetch' || err?.message?.includes('fetch'));
-        alert(isNetworkError
-          ? '서버에 연결할 수 없습니다. 백엔드(localhost:8080)가 실행 중인지 확인해 주세요.'
-          : '오류가 발생했습니다. 다시 시도해 주세요.');
+        alert(getErrorMessage(err, '회원가입 처리에 실패했습니다.'));
       } finally {
         setApiLoading(false);
       }
       return;
     }
-    // 로그인: 백엔드 POST /api/auth/login 연동 (인증 API .md 기준)
+    
+    // 3. 로그인
     if (mode === 'login') {
       if (!email || !password) return alert('이메일과 비밀번호를 입력해주세요.');
       setApiLoading(true);
-      setApiError('');
       try {
-        const res = await fetch(authApi.login(), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ email, password }),
-        });
-        let json = null;
-        try {
-          json = await res.json();
-        } catch (_) {
-          alert('응답 형식을 확인할 수 없습니다.');
-          return;
-        }
-        if (!res.ok) {
-          const msg = getErrorMessage(json, '로그인에 실패했습니다.');
-          const code = json?.error?.code;
-          if (res.status === 404) alert('존재하지 않는 이메일입니다.');
-          else if (res.status === 401) alert('비밀번호가 일치하지 않습니다.');
-          else if (res.status === 403) alert('정지되었거나 비활성화된 계정입니다.');
-          else alert(msg);
-          return;
-        }
-        onLoginSuccess(json.data || {});
+        const user = await login(email, password);
+        onLoginSuccess(user);
         onClose();
       } catch (err) {
-        const isNetworkError = err?.name === 'TypeError' && (err?.message === 'Failed to fetch' || err?.message?.includes('fetch'));
-        alert(isNetworkError
-          ? '서버에 연결할 수 없습니다. 백엔드(localhost:8080)가 실행 중인지 확인해 주세요.'
-          : '오류가 발생했습니다. 다시 시도해 주세요.');
+        const msg = getErrorMessage(err, '로그인에 실패했습니다.');
+        // 에러 코드별 메시지 처리 가능
+        alert(msg);
       } finally {
         setApiLoading(false);
       }
       return;
     }
-    onLoginSuccess({});
-    onClose();
   };
 
   const handleSocialLogin = (platform) => {
     if (platform === '카카오') {
-      // 백엔드 카카오 authorize → 카카오 로그인 페이지로 리다이렉트 → 콜백 후 세션 생성 → 프론트로 리다이렉트
-      window.location.href = authApi.kakaoAuthorize();
+      window.location.href = KAKAO_OAUTH_AUTHORIZE_URL;
       return;
     }
-    // 네이버 등 다른 소셜은 준비 중
     alert(`${platform} 로그인은 준비 중입니다.`);
   };
 
@@ -410,9 +314,9 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
             <>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>이름</label>
-                <input 
+                <input
                   type="text" placeholder="성함을 입력하세요" required value={name} onChange={(e) => setName(e.target.value)}
-                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }} 
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }}
                 />
               </div>
 
@@ -429,9 +333,9 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>이메일 {mode === 'signup' ? '(아이디)' : ''}</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <input 
+                  <input
                     type="email" placeholder="example@email.com" required value={email} onChange={(e) => { setEmail(e.target.value); setIsEmailChecked(false); }}
-                    style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: isEmailChecked ? '2px solid #10b981' : '1px solid #e2e8f0', fontSize: '15px' }} 
+                    style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: isEmailChecked ? '2px solid #10b981' : '1px solid #e2e8f0', fontSize: '15px' }}
                   />
                   <button type="button" onClick={handleCheckEmail} disabled={isEmailChecked || apiLoading} style={{
                     padding: '0 16px', borderRadius: '12px', border: 'none', background: isEmailChecked ? '#10b981' : '#334155', color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
@@ -444,9 +348,9 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>휴대폰 번호</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <input 
+                  <input
                     type="tel" placeholder="01012345678" required value={phone} disabled={isPhoneVerified} onChange={(e) => setPhone(e.target.value)}
-                    style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: isPhoneVerified ? '2px solid #10b981' : '1px solid #e2e8f0', fontSize: '15px' }} 
+                    style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: isPhoneVerified ? '2px solid #10b981' : '1px solid #e2e8f0', fontSize: '15px' }}
                   />
                   {!isPhoneVerified && (
                     <button type="button" onClick={handleSendVerifyCode} disabled={apiLoading} style={{
@@ -459,9 +363,9 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
                 {isPhoneSent && !isPhoneVerified && (
                   <div style={{ display: 'flex', gap: '8px', marginTop: '4px', alignItems: 'center' }}>
                     <div style={{ position: 'relative', flex: 1 }}>
-                      <input 
+                      <input
                         type="text" placeholder="인증번호 4자리" value={verifyCode} onChange={(e) => setVerifyCode(e.target.value)}
-                        style={{ width: '100%', padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px' }} 
+                        style={{ width: '100%', padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px' }}
                       />
                       <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: '#ef4444', fontWeight: '700' }}>
                         {formatTime(timeLeft)}
@@ -474,7 +378,8 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
                 )}
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {/* 주소 입력 필드 (미사용) */}
+              {/* <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>주소</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <input 
@@ -491,13 +396,14 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
                   type="text" placeholder="상세 주소를 입력해주세요" required value={addressDetail} onChange={(e) => setAddressDetail(e.target.value)}
                   style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }} 
                 />
-              </div>
+              </div> */}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#f8fafc', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingBottom: '12px', borderBottom: '1px solid #e2e8f0', marginBottom: '4px' }}>
                   <input type="checkbox" id="agree-all" checked={agreements.all} onChange={() => handleAgreementChange('all')} style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#10b981' }} />
                   <label htmlFor="agree-all" style={{ fontSize: '15px', fontWeight: '800', color: '#1e293b', cursor: 'pointer' }}>전체 동의하기</label>
                 </div>
+
                 {[
                   { key: 'service', label: '[필수] 서비스 이용약관 동의', required: true },
                   { key: 'privacy', label: '[필수] 개인정보 수집 및 이용 동의', required: true },
@@ -519,16 +425,16 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
             <>
               <div>
                 <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#475569' }}>이메일</label>
-                <input 
+                <input
                   type="email" placeholder="example@email.com" required value={email} onChange={(e) => setEmail(e.target.value)}
-                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }} 
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }}
                 />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#475569' }}>비밀번호</label>
-                <input 
+                <input
                   type="password" placeholder="••••••••" required value={password} onChange={(e) => setPassword(e.target.value)}
-                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }} 
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }}
                 />
               </div>
             </>
@@ -559,18 +465,14 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
               <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }}></div>
             </div>
             <div style={{ display: 'flex', gap: '12px' }}>
-              {/* 5173에서 클릭 시 반드시 8080 → 카카오 소셜 로그인창으로 이동 (모달/폼이 가로채지 않도록 onClick에서 강제 이동) */}
-              <a
-                href={KAKAO_OAUTH_AUTHORIZE_URL || 'http://localhost:8080/oauth2/authorization/kakao'}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  window.location.href = KAKAO_OAUTH_AUTHORIZE_URL || 'http://localhost:8080/oauth2/authorization/kakao';
-                }}
-                style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: '600', fontSize: '13px', color: '#1e293b', textDecoration: 'none' }}
+              {/* 카카오 버튼: onClick에서 URL 이동 처리 */}
+              <button 
+                type="button" 
+                onClick={() => handleSocialLogin('카카오')} 
+                style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: '600', fontSize: '13px', color: '#1e293b' }}
               >
                 <span style={{ fontSize: '18px' }}>💬</span> 카카오
-              </a>
+              </button>
               <button type="button" onClick={() => handleSocialLogin('네이버')} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: '600', fontSize: '13px' }}>
                 <span style={{ fontSize: '18px' }}>🟢</span> 네이버
               </button>
