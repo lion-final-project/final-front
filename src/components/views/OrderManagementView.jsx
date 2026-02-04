@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import OrderDetailModal from './OrderDetailModal';
-import OrderDetailFullModal from './OrderDetailFullModal';
-import ReceiptModal from './ReceiptModal';
-import InquiryModal from './InquiryModal';
-import OrderReportModal from './OrderReportModal';
+import OrderDetailModal from '../modals/OrderDetailModal';
+import OrderDetailFullModal from '../modals/OrderDetailFullModal';
+import ReceiptModal from '../modals/ReceiptModal';
+import InquiryModal from '../modals/InquiryModal';
+import OrderReportModal from '../modals/OrderReportModal';
 
 const OrderManagementView = ({ orders, onTracking, onWriteReview, onCancelOrder, onViewReview, onBack }) => {
   const [searchTerm, setSearchTerm] = useState('');
