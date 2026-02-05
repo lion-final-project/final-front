@@ -190,14 +190,14 @@ function App() {
     try {
       // 백엔드에 읽음 처리
       await markAsRead(id);
-      // 로컬 상태 업데이트
+      // SSE 이벤트로 개수와 목록이 자동 업데이트되므로 로컬 상태는 즉시 업데이트하지 않음
+      // 대신 알림 목록에서만 읽음 표시 (UI 반응성 향상)
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-      setUnreadCount(prev => Math.max(0, prev - 1));
+      // 개수는 SSE 이벤트로 업데이트될 때까지 기다림
     } catch (error) {
       console.error('알림 읽음 처리 실패:', error);
-      // 에러가 발생해도 로컬 상태는 업데이트 (UX 개선)
+      // 에러 발생 시에도 UI 반응성 위해 읽음 표시
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-      setUnreadCount(prev => Math.max(0, prev - 1));
     }
   };
 
