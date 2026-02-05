@@ -106,6 +106,8 @@ const CustomerView = ({
   notificationCount,
   storeRegistrationStatus,
   setStoreRegistrationStatus,
+  storeRegistrationStoreName,
+  setStoreRegistrationStoreName,
   riderInfo,
   setRiderInfo,
   userInfo,

@@ -17,7 +17,7 @@ const Header = ({
   notifications,
   onMarkAsRead,
   onClearAll,
-  onCloseNotifications
+  onCloseNotifications,
 }) => {
   const notificationButtonRef = useRef(null);
   const [buttonPosition, setButtonPosition] = useState({ top: 0, right: 0 });
@@ -54,9 +54,9 @@ const Header = ({
           <div className="header-icons">
 
             {/* Notifications */}
-            <div
+            <div 
               ref={notificationButtonRef}
-              style={{ position: 'relative', cursor: 'pointer' }}
+              style={{ position: 'relative', cursor: 'pointer' }} 
               onClick={() => {
                 if (isNotificationOpen) {
                   onCloseNotifications();
@@ -86,7 +86,7 @@ const Header = ({
                   {notificationCount}
                 </span>
               )}
-
+              
               {/* 말풍선 형태 알림 패널 */}
               {isNotificationOpen && (
                 <NotificationDropdown
@@ -127,7 +127,7 @@ const Header = ({
 
             {/* 사장님 페이지로 */}
             {hasStoreRole && onGoToStoreDashboard && (
-              <div
+              <div 
                 style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', cursor: 'pointer' }}
                 onClick={() => onGoToStoreDashboard(storeId)}
               >
@@ -297,7 +297,7 @@ const NotificationDropdown = ({ buttonRef, notifications, onMarkAsRead, onClearA
   return (
     <>
       {/* 오버레이 */}
-      <div
+      <div 
         onClick={onClose}
         style={{
           position: 'fixed',
@@ -309,9 +309,9 @@ const NotificationDropdown = ({ buttonRef, notifications, onMarkAsRead, onClearA
           backgroundColor: 'transparent'
         }}
       />
-
+      
       {/* 말풍선 패널 */}
-      <div
+      <div 
         onClick={(e) => e.stopPropagation()}
         style={{
           position: 'fixed',
@@ -346,23 +346,23 @@ const NotificationDropdown = ({ buttonRef, notifications, onMarkAsRead, onClearA
         />
 
         {/* 헤더 */}
-        <div style={{
-          padding: '16px 20px',
-          borderBottom: '1px solid #f1f5f9',
-          display: 'flex',
-          justifyContent: 'space-between',
+        <div style={{ 
+          padding: '16px 20px', 
+          borderBottom: '1px solid #f1f5f9', 
+          display: 'flex', 
+          justifyContent: 'space-between', 
           alignItems: 'center',
           backgroundColor: '#fafbfc'
         }}>
           <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0, color: '#1e293b' }}>알림</h3>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: '20px',
-              cursor: 'pointer',
-              color: '#94a3b8',
+          <button 
+            onClick={onClose} 
+            style={{ 
+              background: 'none', 
+              border: 'none', 
+              fontSize: '20px', 
+              cursor: 'pointer', 
+              color: '#94a3b8', 
               padding: '0',
               width: '24px',
               height: '24px',
@@ -386,10 +386,10 @@ const NotificationDropdown = ({ buttonRef, notifications, onMarkAsRead, onClearA
         </div>
 
         {/* 알림 목록 */}
-        <div style={{
-          flexGrow: 1,
-          overflowY: 'auto',
-          padding: '8px',
+        <div style={{ 
+          flexGrow: 1, 
+          overflowY: 'auto', 
+          padding: '8px', 
           maxHeight: '420px',
           backgroundColor: '#fafbfc'
         }}>
@@ -400,13 +400,13 @@ const NotificationDropdown = ({ buttonRef, notifications, onMarkAsRead, onClearA
             </div>
           ) : (
             notifications.map(notif => (
-              <div
-                key={notif.id}
+              <div 
+                key={notif.id} 
                 onClick={() => onMarkAsRead && onMarkAsRead(notif.id)}
-                style={{
-                  padding: '14px 16px',
-                  borderRadius: '8px',
-                  marginBottom: '4px',
+                style={{ 
+                  padding: '14px 16px', 
+                  borderRadius: '8px', 
+                  marginBottom: '4px', 
                   backgroundColor: notif.read ? 'white' : '#f0fdf4',
                   border: notif.read ? 'none' : '1px solid #dcfce7',
                   cursor: 'pointer',
@@ -422,36 +422,36 @@ const NotificationDropdown = ({ buttonRef, notifications, onMarkAsRead, onClearA
                 }}
               >
                 {!notif.read && (
-                  <span style={{
-                    position: 'absolute',
-                    top: '16px',
-                    left: '12px',
-                    width: '8px',
-                    height: '8px',
-                    backgroundColor: 'var(--primary)',
+                  <span style={{ 
+                    position: 'absolute', 
+                    top: '16px', 
+                    left: '12px', 
+                    width: '8px', 
+                    height: '8px', 
+                    backgroundColor: 'var(--primary)', 
                     borderRadius: '50%',
                     boxShadow: '0 0 0 2px white'
                   }} />
                 )}
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
                   alignItems: 'flex-start',
-                  marginBottom: '6px',
-                  paddingLeft: notif.read ? '0' : '20px'
+                  marginBottom: '6px', 
+                  paddingLeft: notif.read ? '0' : '20px' 
                 }}>
-                  <span style={{
-                    fontSize: '14px',
-                    fontWeight: '600',
+                  <span style={{ 
+                    fontSize: '14px', 
+                    fontWeight: '600', 
                     flex: 1,
                     color: '#1e293b',
                     lineHeight: '1.4'
                   }}>
                     {notif.title}
                   </span>
-                  <span style={{
-                    fontSize: '11px',
-                    color: '#94a3b8',
+                  <span style={{ 
+                    fontSize: '11px', 
+                    color: '#94a3b8', 
                     marginLeft: '12px',
                     whiteSpace: 'nowrap',
                     fontWeight: '500'
@@ -459,11 +459,11 @@ const NotificationDropdown = ({ buttonRef, notifications, onMarkAsRead, onClearA
                     {notif.time}
                   </span>
                 </div>
-                <p style={{
-                  margin: 0,
-                  fontSize: '13px',
-                  color: '#64748b',
-                  lineHeight: '1.5',
+                <p style={{ 
+                  margin: 0, 
+                  fontSize: '13px', 
+                  color: '#64748b', 
+                  lineHeight: '1.5', 
                   paddingLeft: notif.read ? '0' : '20px',
                   fontWeight: '400'
                 }}>
@@ -476,21 +476,21 @@ const NotificationDropdown = ({ buttonRef, notifications, onMarkAsRead, onClearA
 
         {/* 푸터 */}
         {notifications.length > 0 && (
-          <div style={{
-            padding: '12px 16px',
+          <div style={{ 
+            padding: '12px 16px', 
             borderTop: '1px solid #f1f5f9',
             backgroundColor: 'white'
           }}>
-            <button
+            <button 
               onClick={onClearAll}
-              style={{
-                width: '100%',
-                padding: '10px',
-                borderRadius: '8px',
-                background: '#f1f5f9',
-                border: 'none',
-                color: '#475569',
-                fontWeight: '600',
+              style={{ 
+                width: '100%', 
+                padding: '10px', 
+                borderRadius: '8px', 
+                background: '#f1f5f9', 
+                border: 'none', 
+                color: '#475569', 
+                fontWeight: '600', 
                 cursor: 'pointer',
                 fontSize: '13px',
                 transition: 'all 0.2s'
@@ -507,7 +507,7 @@ const NotificationDropdown = ({ buttonRef, notifications, onMarkAsRead, onClearA
           </div>
         )}
       </div>
-
+      
       <style>{`
         @keyframes fadeInDown {
           from {
