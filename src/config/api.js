@@ -28,3 +28,13 @@ export const authApi = {
   /** 카카오 최초 로그인 후 추가 회원가입 완료 (세션에 kakao_pending 필요, credentials 포함) */
   socialSignupComplete: () => `${API_BASE_URL}/api/auth/social-signup/complete`,
 };
+
+/** 마트(사장님) 구독 상품 API - API-SOP-009, API-SOP-010 등 */
+export const subscriptionProductApi = {
+  list: () => `${API_BASE_URL}/api/store/subscription-products`,
+  create: () => `${API_BASE_URL}/api/store/subscription-products`,
+  update: (id) => `${API_BASE_URL}/api/store/subscription-products/${id}`,
+  updateStatus: (id) => `${API_BASE_URL}/api/store/subscription-products/${id}/status`,
+  requestDeletion: (id) => `${API_BASE_URL}/api/store/subscription-products/${id}/deletion`,
+  deleteImmediately: (id) => `${API_BASE_URL}/api/store/subscription-products/${id}`,
+};
