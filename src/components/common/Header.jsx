@@ -9,7 +9,10 @@ const Header = ({
   notificationCount, 
   onOpenNotifications,
   isResidentRider,
-  onLogout
+  onLogout,
+  hasStoreRole,
+  onGoToStoreDashboard,
+  storeId,
 }) => {
   return (
     <header className="header-glass" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -93,6 +96,17 @@ const Header = ({
                 </span>
               )}
             </div>
+
+            {/* 사장님 페이지로 */}
+            {hasStoreRole && onGoToStoreDashboard && (
+              <div 
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', cursor: 'pointer' }}
+                onClick={() => onGoToStoreDashboard(storeId)}
+              >
+                <span style={{ color: activeTab === 'store' ? 'var(--primary)' : 'inherit', fontSize: '20px' }}>🏪</span>
+                <span className="header-icon-label" style={{ fontSize: '10px', fontWeight: '700', color: activeTab === 'store' ? 'var(--primary)' : '#94a3b8' }}>사장님</span>
+              </div>
+            )}
 
             {/* Profile / Auth */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginLeft: '4px' }}>
