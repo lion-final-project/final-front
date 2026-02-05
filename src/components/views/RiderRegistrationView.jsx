@@ -68,7 +68,7 @@ const RiderRegistrationView = ({ onBack, onComplete, userInfo }) => {
     try {
       setIsLoading(true);
 
-      const userId = userInfo?.id || 1; // Fallback to 1 if not logged in (though normally should be filtered)
+      const userId = userInfo?.userId || 1; // Fallback to 1 if not logged in (though normally should be filtered)
 
       // 1. 파일 업로드 (병렬 처리)
       const uploadPromises = [
