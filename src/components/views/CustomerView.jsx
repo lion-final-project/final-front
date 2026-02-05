@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Header from '../common/Header';
 import Hero from '../common/Hero';
 import StoreGrid from '../common/StoreGrid';
@@ -182,6 +182,51 @@ const CustomerView = ({
     fetchCart();
   }, [isLoggedIn]);
 
+  const fetchAddresses = useCallback(async () => {
+    if (!isLoggedIn) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/me/addresses`, {
+        credentials: "include",
+      });
+      if (response.ok) {
+        const json = await response.json();
+        const list = (json.data || []).map((addr) => ({
+          id: addr.addressId,
+          label: addr.addressName,
+          address: addr.addressLine1,
+          detail: addr.addressLine2,
+          contact: addr.contact,
+          isDefault: addr.isDefault,
+          latitude: addr.latitude,
+          longitude: addr.longitude,
+          postalCode: addr.postalCode,
+        }));
+        setAddressList(list);
+
+        // Update currentLocation if there is a default address
+        const defaultAddr = list.find((a) => a.isDefault);
+        if (defaultAddr) {
+          setCurrentLocation(`${defaultAddr.address} ${defaultAddr.detail}`);
+        }
+      }
+    } catch (err) {
+      console.error("배송지 목록 조회 실패:", err);
+    }
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    fetchAddresses();
+  }, [fetchAddresses]);
+
+  // Kakao Maps SDK Manual Initialization
+  useEffect(() => {
+    if (window.kakao && window.kakao.maps && !window.kakao.maps.Geocoder) {
+      window.kakao.maps.load(() => {
+        console.log("Kakao Maps SDK loaded manually");
+      });
+    }
+  }, []);
+
   // Show toast feedback for interactions
   const showToast = (message) => {
     setToast(message);
@@ -206,7 +251,7 @@ const CustomerView = ({
   const [cancelDetail, setCancelDetail] = useState("");
 
   /* Address Management State */
-  const [addressList, setAddressList] = useState(addresses);
+  const [addressList, setAddressList] = useState([]);
   const [paymentMethodList, setPaymentMethodList] = useState(paymentMethods);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -227,6 +272,9 @@ const CustomerView = ({
     entranceType: "FREE", // FREE: 자율출입, LOCKED: 공동현관비번
     entrancePassword: "",
     isDefault: false,
+    latitude: null,
+    longitude: null,
+    postalCode: "", // 추가: 우편번호
   });
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [viewingReview, setViewingReview] = useState(null);
@@ -245,12 +293,15 @@ const CustomerView = ({
         entranceType: "FREE",
         entrancePassword: "",
         isDefault: false,
+        latitude: null,
+        longitude: null,
+        postalCode: "", // 추가
       });
     }
     setIsAddressModalOpen(true);
   };
 
-  const handleSaveAddress = () => {
+  const handleSaveAddress = async () => {
     if (
       !newAddress.label ||
       !newAddress.contact ||
@@ -261,54 +312,77 @@ const CustomerView = ({
       return;
     }
 
-    let updatedList = [...addressList];
+    try {
+      const isEdit = !!editingAddress;
+      const url = isEdit
+        ? `${API_BASE_URL}/api/users/me/addresses/${editingAddress.id}`
+        : `${API_BASE_URL}/api/users/me/addresses`;
+      const method = isEdit ? "PUT" : "POST";
 
-    // If new address is default, unset previous default
-    if (newAddress.isDefault) {
-      updatedList = updatedList.map((addr) => ({ ...addr, isDefault: false }));
-    }
-
-    if (editingAddress) {
-      updatedList = updatedList.map((addr) =>
-        addr.id === editingAddress.id ? { ...newAddress } : addr,
-      );
-      setAddressList(updatedList);
-      showToast("배송 정보가 수정되었습니다.");
-    } else {
-      const newId = Date.now();
-      // If it's the first address, make it default automatically
-      const isFirst = updatedList.length === 0;
-
-      updatedList.push({
-        id: newId,
-        ...newAddress,
-        isDefault: isFirst || newAddress.isDefault,
+      const response = await fetch(url, {
+        method: method,
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          addressName: newAddress.label,
+          addressLine1: newAddress.address,
+          addressLine2: newAddress.detail,
+          contact: newAddress.contact,
+          latitude: newAddress.latitude,
+          longitude: newAddress.longitude,
+          postalCode: newAddress.postalCode,
+          isDefault: newAddress.isDefault,
+        }),
       });
-      setAddressList(updatedList);
-      showToast("새 배송지가 추가되었습니다.");
-    }
 
-    setIsAddressModalOpen(false);
-    setEditingAddress(null);
-    setNewAddress({
-      label: "",
-      contact: "",
-      address: "",
-      detail: "",
-      entranceType: "FREE",
-      entrancePassword: "",
-      isDefault: false,
-    });
+      if (!response.ok) {
+        throw new Error("배송지 저장에 실패했습니다.");
+      }
+
+      showToast(
+        isEdit ? "배송 정보가 수정되었습니다." : "새 배송지가 추가되었습니다.",
+      );
+      fetchAddresses();
+
+      setIsAddressModalOpen(false);
+      setEditingAddress(null);
+      setNewAddress({
+        label: "",
+        contact: "",
+        address: "",
+        detail: "",
+        entranceType: "FREE",
+        entrancePassword: "",
+        isDefault: false,
+        latitude: null,
+        longitude: null,
+        postalCode: "",
+      });
+    } catch (error) {
+      console.error("배송지 저장 실패:", error);
+      alert("배송지 저장 중 오류가 발생했습니다.");
+    }
   };
 
-  const handleSetDefaultAddress = (id) => {
-    setAddressList((prev) =>
-      prev.map((addr) => ({
-        ...addr,
-        isDefault: addr.id === id,
-      })),
-    );
-    showToast("기본 배송지로 변경되었습니다.");
+  const handleSetDefaultAddress = async (id) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/users/me/addresses/${id}/default`,
+        {
+          method: "PATCH",
+          credentials: "include",
+        },
+      );
+      if (response.ok) {
+        showToast("기본 배송지로 변경되었습니다.");
+        fetchAddresses();
+      } else {
+        throw new Error();
+      }
+    } catch (error) {
+      console.error("기본 배송지 변경 실패:", error);
+      alert("기본 배송지 변경에 실패했습니다.");
+    }
   };
 
   const handleOpenReviewModal = (order) => {
@@ -2091,21 +2165,29 @@ const CustomerView = ({
                                 수정
                               </span>
                               <span
-                                onClick={(e) => {
+                                onClick={async (e) => {
                                   e.stopPropagation();
                                   if (
                                     window.confirm("정말 삭제하시겠습니까?")
                                   ) {
-                                    if (addressList.length <= 1) {
-                                      alert(
-                                        "최소 1개의 배송지는 등록되어 있어야 합니다.",
+                                    try {
+                                      const response = await fetch(
+                                        `${API_BASE_URL}/api/users/me/addresses/${addr.id}`,
+                                        {
+                                          method: "DELETE",
+                                          credentials: "include",
+                                        },
                                       );
-                                      return;
+                                      if (response.ok) {
+                                        showToast("배송지가 삭제되었습니다.");
+                                        fetchAddresses();
+                                      } else {
+                                        throw new Error();
+                                      }
+                                    } catch (err) {
+                                      console.error("배송지 삭제 실패:", err);
+                                      alert("배송지 삭제에 실패했습니다.");
                                     }
-                                    setAddressList((prev) =>
-                                      prev.filter((a) => a.id !== addr.id),
-                                    );
-                                    showToast("배송지가 삭제되었습니다.");
                                   }
                                 }}
                                 style={{
@@ -2127,7 +2209,7 @@ const CustomerView = ({
                               marginBottom: "4px",
                             }}
                           >
-                            {addr.address}
+                            {addr.postalCode && `[${addr.postalCode}] `}{addr.address}
                           </div>
                           <div
                             style={{
@@ -2286,6 +2368,20 @@ const CustomerView = ({
                           >
                             <input
                               type="text"
+                              placeholder="우편번호"
+                              value={newAddress.postalCode}
+                              readOnly
+                              style={{
+                                width: "100px",
+                                padding: "12px",
+                                borderRadius: "8px",
+                                border: "1px solid #e2e8f0",
+                                backgroundColor: "#f8fafc",
+                                color: "#64748b",
+                              }}
+                            />
+                            <input
+                              type="text"
                               placeholder="주소 검색"
                               value={newAddress.address}
                               readOnly
@@ -2300,12 +2396,108 @@ const CustomerView = ({
                             />
                             <button
                               onClick={() => {
-                                setNewAddress({
-                                  ...newAddress,
-                                  address:
-                                    "서울시 강남구 테헤란로 123 (역삼동)",
-                                }); // Mock address search
-                                showToast("주소가 검색되었습니다.");
+                                if (!window.kakao?.Postcode) {
+                                  alert(
+                                    "주소 서비스가 로딩 중입니다. 잠시 후 다시 시도해주세요.",
+                                  );
+                                  return;
+                                }
+
+                                new window.kakao.Postcode({
+                                  oncomplete: (data) => {
+                                    let fullAddress = data.roadAddress;
+                                    let extraAddress = "";
+                                    if (
+                                      data.bname !== "" &&
+                                      /[동|로|가]$/g.test(data.bname)
+                                    ) {
+                                      extraAddress += data.bname;
+                                    }
+                                    if (
+                                      data.buildingName !== "" &&
+                                      data.apartment === "Y"
+                                    ) {
+                                      extraAddress +=
+                                        extraAddress !== ""
+                                          ? ", " + data.buildingName
+                                          : data.buildingName;
+                                    }
+                                    fullAddress +=
+                                      extraAddress !== ""
+                                        ? ` (${extraAddress})`
+                                        : "";
+
+                                    // Geocoder 로드 확인 및 좌표 변환
+                                    const performGeocoding = () => {
+                                      if (!window.kakao?.maps?.services?.Geocoder) {
+                                        console.warn("Kakao Geocoder를 사용할 수 없습니다.");
+                                        setNewAddress((prev) => ({
+                                          ...prev,
+                                          address: fullAddress,
+                                          postalCode: data.zonecode,
+                                          latitude: null,
+                                          longitude: null,
+                                        }));
+                                        showToast("주소가 입력되었습니다.");
+                                        return;
+                                      }
+
+                                      const geocoder =
+                                        new window.kakao.maps.services.Geocoder();
+                                      geocoder.addressSearch(
+                                        data.roadAddress,
+                                        (result, status) => {
+                                          if (
+                                            status ===
+                                              window.kakao.maps.services.Status.OK &&
+                                            result?.[0]
+                                          ) {
+                                            setNewAddress((prev) => ({
+                                              ...prev,
+                                              address: fullAddress,
+                                              postalCode: data.zonecode,
+                                              latitude: parseFloat(result[0].y),
+                                              longitude: parseFloat(result[0].x),
+                                            }));
+                                            showToast("주소가 입력되었습니다.");
+                                          } else {
+                                            console.warn("Geocoding 실패:", status);
+                                            setNewAddress((prev) => ({
+                                              ...prev,
+                                              address: fullAddress,
+                                              postalCode: data.zonecode,
+                                              latitude: null,
+                                              longitude: null,
+                                            }));
+                                            showToast("주소가 입력되었습니다.");
+                                          }
+                                        },
+                                      );
+                                    };
+
+                                    // Kakao Maps가 로드되었는지 확인 후 geocoding 실행
+                                    if (window.kakao?.maps?.services?.Geocoder) {
+                                      // 이미 로드됨
+                                      performGeocoding();
+                                    } else if (window.kakao?.maps?.load) {
+                                      // maps는 있지만 services가 없으면 load 호출
+                                      window.kakao.maps.load(() => {
+                                        performGeocoding();
+                                      });
+                                    } else {
+                                      // maps 자체가 없으면 좌표 없이 저장
+                                      console.warn("Kakao Maps API가 로드되지 않았습니다.");
+                                      setNewAddress((prev) => ({
+                                        ...prev,
+                                        address: fullAddress,
+                                        postalCode: data.zonecode,
+                                        latitude: null,
+                                        longitude: null,
+                                      }));
+                                      showToast("주소가 입력되었습니다.");
+                                    }
+                                  },
+                                }).open();
                               }}
                               style={{
                                 padding: "0 16px",
