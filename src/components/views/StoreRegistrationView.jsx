@@ -467,7 +467,7 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
         ) : (
           <div style={{ padding: '20px', backgroundColor: '#f8fafc', borderRadius: '12px', fontSize: '14px', color: '#475569' }}>
             <div style={{ fontWeight: '700', marginBottom: '8px' }}>신청 정보</div>
-            <div>{formData.storeName} ({storeCategories.find(c => c.code === formData.category)?.displayName ?? formData.category})</div>
+            <div>{formData.storeName} ({storeCategories.find(c => c.categoryName === formData.category)?.categoryName ?? formData.category})</div>
           </div>
         )}
         
@@ -527,7 +527,7 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
             >
               <option value="">선택</option>
               {storeCategories.map((cat) => (
-                <option key={cat.code} value={cat.code}>{cat.displayName}</option>
+                <option key={cat.id} value={cat.categoryName}>{cat.categoryName}</option>
               ))}
             </select>
             {errors.category && (
