@@ -11,6 +11,7 @@ import AuthModal from './components/modals/AuthModal';
 import { Agentation } from "agentation";
 
 import { checkAuth, logout } from './api/authApi';
+import { API_BASE_URL } from './config/api';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -49,6 +50,7 @@ function App() {
 
   const [isResidentRider, setIsResidentRider] = useState(false);
   const [storeRegistrationStatus, setStoreRegistrationStatus] = useState('NONE'); // NONE, PENDING, APPROVED
+  const [storeRegistrationStoreName, setStoreRegistrationStoreName] = useState(null); // 입점 신청한 상호명
   const [riderInfo, setRiderInfo] = useState(null);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState([
@@ -56,6 +58,27 @@ function App() {
     { id: 2, title: '특가 알림', body: '오늘만! 대추토마토 50% 타임 세일 시작', time: '1시간 전', type: 'promotion', read: false },
     { id: 3, title: '배달 완료', body: '박민수 라이더님이 배달을 완료했습니다.', time: '2시간 전', type: 'delivery', read: true }
   ]);
+
+  // 마트 입점 신청 현황 조회 (로그인 사용자)
+  const fetchStoreRegistration = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/stores/registration`, { credentials: 'include' });
+      if (res.ok) {
+        const json = await res.json();
+        const data = json?.data;
+        if (data?.status) {
+          setStoreRegistrationStatus(data.status === 'APPROVED' ? 'APPROVED' : 'PENDING');
+          setStoreRegistrationStoreName(data.storeName || null);
+        }
+      } else {
+        setStoreRegistrationStatus('NONE');
+        setStoreRegistrationStoreName(null);
+      }
+    } catch {
+      setStoreRegistrationStatus('NONE');
+      setStoreRegistrationStoreName(null);
+    }
+  };
 
   // 앱 로드 시 인증 상태 확인
   useEffect(() => {
@@ -65,6 +88,7 @@ function App() {
         if (user) {
           setIsLoggedIn(true);
           setUserInfo(user);
+          await fetchStoreRegistration();
         }
       } catch (error) {
         console.log('Not logged in');
@@ -103,8 +127,10 @@ function App() {
     setIsLoggedIn(true);
     setUserInfo(userData);
     const roles = userData.roles;
+    // STORE 역할 유저는 메인 페이지(CUSTOMER)를 먼저 보여주고, 헤더의 사장님 버튼으로 전환
     const role = Array.isArray(roles) && roles.length > 0 ? roles[0] : 'CUSTOMER';
-    setUserRole(role);
+    const normalizedRole = typeof role === 'string' ? role.replace('ROLE_', '') : role;
+    setUserRole(normalizedRole === 'STORE' ? 'CUSTOMER' : normalizedRole);
   };
 
   // 카카오 로그인 콜백 후 5173으로 리다이렉트된 경우: URL 쿼리 처리 후 /me로 로그인 상태 반영
@@ -118,10 +144,12 @@ function App() {
       return;
     }
     if (kakao === 'success') {
-      // checkAuth 사용
       checkAuth()
-        .then((user) => {
-           if (user) handleLoginSuccess(user);
+        .then(async (user) => {
+           if (user) {
+             handleLoginSuccess(user);
+             await fetchStoreRegistration();
+           }
         })
         .catch(() => {})
         .finally(() => {
@@ -137,7 +165,7 @@ function App() {
   }, []);
 
   const renderContent = () => {
-    if (userRole === 'CUSTOMER') return (
+    if (userRole === 'CUSTOMER' || userRole === 'USER') return (
       <CustomerView
         userRole={userRole}
         setUserRole={setUserRole}
@@ -149,13 +177,15 @@ function App() {
         setIsResidentRider={setIsResidentRider}
         storeRegistrationStatus={storeRegistrationStatus}
         setStoreRegistrationStatus={setStoreRegistrationStatus}
+        storeRegistrationStoreName={storeRegistrationStoreName}
+        setStoreRegistrationStoreName={setStoreRegistrationStoreName}
         riderInfo={riderInfo}
         setRiderInfo={setRiderInfo}
         notificationCount={unreadCount}
         userInfo={userInfo}
       />
     );
-    if (userRole === 'STORE') return <StoreDashboard />;
+    if (userRole === 'STORE') return <StoreDashboard userInfo={userInfo || { userId: 2 }} />;
     if (userRole === 'RIDER') return <RiderDashboard isResidentRider={isResidentRider} riderInfo={riderInfo} />;
     if (userRole === 'ADMIN') return <AdminDashboard />;
   };
