@@ -1,4 +1,26 @@
 import React, { useState, useEffect } from 'react';
+import { subscriptionProductApi } from '../../config/api';
+
+/** 백엔드 status -> 한글 */
+const STATUS_TO_KO = { ACTIVE: '운영중', INACTIVE: '숨김', PENDING_DELETE: '삭제 예정' };
+const KO_TO_STATUS = { '운영중': 'ACTIVE', '숨김': 'INACTIVE', '삭제 예정': 'PENDING_DELETE' };
+
+/** API 응답 → 프론트 sub 형식 */
+const mapApiToSub = (d) => ({
+  id: String(d.subscriptionProductId ?? d.id),
+  name: d.name ?? '',
+  price: (d.price ?? 0).toLocaleString() + '원/월',
+  subscribers: d.subscriberCount ?? 0,
+  status: STATUS_TO_KO[d.status] ?? d.status ?? '운영중',
+  monthlyTotal: d.totalDeliveryCount ?? 0,
+  weeklyFreq: d.weeklyFreq ?? null,
+  deliveryDays: d.deliveryDays ?? [],
+  selectedProducts: (d.items ?? []).map((i) => ({ id: String(i.productId), qty: i.quantity ?? 1, productName: i.productName })),
+  description: d.description ?? '',
+});
+
+/** 구독 상품 API 요청 시 JSON body용 헤더. storeId는 백엔드에서 JWT/세션 인증 사용자(owner)로 자동 결정 */
+const getSubscriptionHeaders = () => ({ 'Content-Type': 'application/json' });
 
 const parsePriceValue = (price) => {
   if (price === undefined || price === null) return 0;
@@ -73,9 +95,9 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   const [editingProduct, setEditingProduct] = useState(null);
   const [productForm, setProductForm] = useState(() => createEmptyProductForm());
 
-  const [subscriptions, setSubscriptions] = useState([
-    { id: 's1', name: '신선 채소 꾸러미', price: '19,900원/월', subscribers: 15, status: '운영중', weeklyFreq: 1, monthlyTotal: 4, deliveryDays: ['목'], selectedProducts: [{id: '3', qty: 1}], description: '매주 목요일 신선한 채소를 받아보세요.' }
-  ]);
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
+  const [subscriptionsError, setSubscriptionsError] = useState(null);
   const [editingSubscription, setEditingSubscription] = useState(null);
   const [subscriptionForm, setSubscriptionForm] = useState({ name: '', price: '', weeklyFreq: 1, monthlyTotal: 4, deliveryDays: [], description: '', selectedProducts: [] });
   const [expandedSubscriptions, setExpandedSubscriptions] = useState(new Set());
@@ -282,6 +304,38 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  const fetchSubscriptions = async () => {
+    setSubscriptionsLoading(true);
+    setSubscriptionsError(null);
+    try {
+      const res = await fetch(subscriptionProductApi.list(), {
+        credentials: 'include',
+        headers: getSubscriptionHeaders(),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json?.error?.message || json?.message || '구독 목록 조회 실패');
+      }
+      const list = Array.isArray(json.data) ? json.data : [];
+      setSubscriptions(list.map(mapApiToSub));
+    } catch (e) {
+      const msg = e?.message || '';
+      const isConnectionError = /failed to fetch|network error|connection refused|err_connection_refused/i.test(msg) || e?.name === 'TypeError';
+      setSubscriptionsError(
+        isConnectionError
+          ? '서버에 연결할 수 없습니다. 백엔드 서버(localhost:8080)가 실행 중인지 확인해 주세요.'
+          : (msg || '구독 목록을 불러오지 못했습니다.')
+      );
+      setSubscriptions([]);
+    } finally {
+      setSubscriptionsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'subscriptions') fetchSubscriptions();
+  }, [activeTab]);
 
   const [businessHours, setBusinessHours] = useState([
     { day: '월요일', open: '09:00', close: '22:00', lastOrder: '21:30', isClosed: false },
@@ -660,21 +714,88 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     setIsSubscriptionModalOpen(true);
   };
 
-  const handleSaveSubscription = (e) => {
+  const handleSaveSubscription = async (e) => {
     e.preventDefault();
-    if (editingSubscription) {
-      setSubscriptions(prev => prev.map(s => s.id === editingSubscription.id ? { ...s, ...subscriptionForm } : s));
-    } else {
-      const newSub = { ...subscriptionForm, id: Date.now().toString(), subscribers: 0, status: '운영중' };
-      setSubscriptions(prev => [...prev, newSub]);
+    const priceNum = parseInt(String(subscriptionForm.price).replace(/[^0-9]/g, ''), 10) || 0;
+    const items = (subscriptionForm.selectedProducts || []).map((sp) => ({
+      productId: Number(sp.id),
+      quantity: sp.qty || 1,
+    }));
+    if (items.length === 0) {
+      alert('구성 품목을 1개 이상 선택해주세요.');
+      return;
     }
-    setIsSubscriptionModalOpen(false);
+    const body = {
+      name: subscriptionForm.name,
+      description: subscriptionForm.description || '',
+      price: priceNum,
+      totalDeliveryCount: subscriptionForm.monthlyTotal || 4,
+      items,
+    };
+    try {
+      const url = editingSubscription
+        ? subscriptionProductApi.update(editingSubscription.id)
+        : subscriptionProductApi.create();
+      const method = editingSubscription ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
+        credentials: 'include',
+        headers: getSubscriptionHeaders(),
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json?.error?.message || json?.message || (editingSubscription ? '수정' : '등록') + ' 실패');
+      }
+      const saved = mapApiToSub(json.data);
+      setSubscriptions((prev) => {
+        if (editingSubscription) {
+          return prev.map((s) => (s.id === editingSubscription.id ? saved : s));
+        }
+        return [saved, ...prev];
+      });
+      setIsSubscriptionModalOpen(false);
+    } catch (err) {
+      alert(err.message || '처리 중 오류가 발생했습니다.');
+    }
   };
 
-  const deleteSubscription = (id) => {
-     if(confirm('구독 상품을 삭제하시겠습니까?')) {
-        setSubscriptions(prev => prev.map(s => s.id === id ? { ...s, status: '삭제 예정' } : s));
-     }
+  const deleteSubscription = async (sub) => {
+    const id = sub?.id ?? sub;
+    if (sub?.status === '삭제 예정' && sub?.subscribers === 0) {
+      if (!confirm('구독자가 없습니다. 즉시 삭제하시겠습니까?')) return;
+      try {
+        const res = await fetch(subscriptionProductApi.deleteImmediately(id), {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: getSubscriptionHeaders(),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json?.error?.message || json?.message || '삭제 실패');
+        setSubscriptions((prev) => prev.filter((s) => s.id !== id));
+      } catch (err) {
+        alert(err.message || '삭제 중 오류가 발생했습니다.');
+      }
+      return;
+    }
+    if (sub?.status !== '숨김') return;
+    if (!confirm('구독 상품을 삭제하시겠습니까? (구독자가 있으면 삭제 예정으로 전환됩니다)')) return;
+    try {
+      const res = await fetch(subscriptionProductApi.requestDeletion(id), {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: getSubscriptionHeaders(),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json?.error?.message || json?.message || '삭제 요청 실패');
+      if (json.data == null) {
+        setSubscriptions((prev) => prev.filter((s) => s.id !== id));
+      } else {
+        setSubscriptions((prev) => prev.map((s) => (s.id === id ? mapApiToSub(json.data) : s)));
+      }
+    } catch (err) {
+      alert(err.message || '삭제 요청 중 오류가 발생했습니다.');
+    }
   };
 
   const handleToggleSubscriptionExpand = (id) => {
@@ -1283,7 +1404,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
                               <span style={{ fontWeight: '800', color: isLow ? '#ef4444' : '#1e293b' }}>{product.stock}개</span>
                             </td>
                             <td style={{ padding: '12px' }}>
-                              <div 
+                              <div
                                 onClick={() => toggleSoldOut(product.id)}
                                 style={{ 
                                   display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer',
@@ -1442,9 +1563,20 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
                    </div>
                    <button 
                      onClick={() => handleOpenSubscriptionModal()}
-                     style={{ padding: '12px 24px', borderRadius: '12px', background: '#8b5cf6', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)' }}>+ 새 구독 상품 추가</button>
+                     disabled={subscriptionsLoading}
+                     style={{ padding: '12px 24px', borderRadius: '12px', background: '#8b5cf6', color: 'white', border: 'none', fontWeight: '700', cursor: subscriptionsLoading ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)', opacity: subscriptionsLoading ? 0.7 : 1 }}>+ 새 구독 상품 추가</button>
                 </div>
 
+                {subscriptionsError && (
+                  <div style={{ padding: '12px 16px', marginBottom: '16px', backgroundColor: '#fee2e2', color: '#991b1b', borderRadius: '12px', fontSize: '14px' }}>
+                    {subscriptionsError}
+                    <button onClick={fetchSubscriptions} style={{ marginLeft: '12px', padding: '4px 8px', borderRadius: '6px', border: '1px solid #991b1b', background: 'transparent', cursor: 'pointer', fontSize: '12px' }}>재시도</button>
+                  </div>
+                )}
+
+                {subscriptionsLoading ? (
+                  <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>구독 목록을 불러오는 중...</div>
+                ) : (
                 <div className="table-responsive">
                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
@@ -1490,14 +1622,27 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
                                  <td style={{ padding: '16px' }}>
                                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                        <div 
-                                         onClick={() => {
-                                           if (sub.status === '운영중' || sub.status === '숨김') {
-                                             const newStatus = sub.status === '운영중' ? '숨김' : '운영중';
-                                             setSubscriptions(prev => prev.map(s => s.id === sub.id ? { ...s, status: newStatus } : s));
+                                         onClick={async () => {
+                                           if (sub.status !== '운영중' && sub.status !== '숨김') return;
+                                           const newStatusKo = sub.status === '운영중' ? '숨김' : '운영중';
+                                           const newStatus = KO_TO_STATUS[newStatusKo];
+                                           try {
+                                             const res = await fetch(subscriptionProductApi.updateStatus(sub.id), {
+                                               method: 'PATCH',
+                                               credentials: 'include',
+                                               headers: getSubscriptionHeaders(),
+                                               body: JSON.stringify({ status: newStatus }),
+                                             });
+                                             const json = await res.json();
+                                             if (!res.ok || !json.success) throw new Error(json?.error?.message || json?.message || '상태 변경 실패');
+                                             setSubscriptions((prev) => prev.map((s) => (s.id === sub.id ? mapApiToSub(json.data) : s)));
+                                           } catch (err) {
+                                             alert(err.message || '상태 변경 중 오류가 발생했습니다.');
                                            }
                                          }}
                                          style={{ 
-                                           display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer',
+                                           display: 'flex', alignItems: 'center', gap: '4px',
+                                           cursor: (sub.status === '운영중' || sub.status === '숨김') ? 'pointer' : 'default',
                                            padding: '6px 12px', borderRadius: '12px', border: '1px solid #e2e8f0',
                                            backgroundColor: sub.status === '운영중' ? '#ecfdf5' : '#f1f5f9',
                                            transition: 'all 0.2s'
@@ -1519,10 +1664,10 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
                                        
                                        <button 
                                          onClick={() => {
-                                           if (sub.status === '숨김') {
-                                             deleteSubscription(sub.id);
+                                           if (sub.status === '숨김' || (sub.status === '삭제 예정' && sub.subscribers === 0)) {
+                                             deleteSubscription(sub);
                                            } else if (sub.status === '삭제 예정') {
-                                             // already scheduled
+                                             // 구독자 있음, 삭제 예약된 상태
                                            } else {
                                              alert('숨김 상태의 구독만 삭제 요청이 가능합니다. 먼저 노출 상태를 숨김으로 변경해주세요.');
                                            }
@@ -1533,15 +1678,20 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
                                            border: '1px solid #fee2e2', 
                                            background: sub.status === '삭제 예정' ? '#ef4444' : 'white', 
                                            color: sub.status === '삭제 예정' ? 'white' : '#ef4444', 
-                                           cursor: sub.status === '삭제 예정' ? 'default' : 'pointer', 
+                                           cursor: (sub.status === '숨김' || (sub.status === '삭제 예정' && sub.subscribers === 0)) ? 'pointer' : 'default',
                                            opacity: (sub.status !== '숨김' && sub.status !== '삭제 예정') ? 0.5 : 1,
                                            fontSize: '12px', 
                                            fontWeight: '600' 
                                          }}>
-                                         {sub.status === '삭제 예정' ? '삭제 예약됨' : '삭제 요청'}
+                                         {sub.status === '삭제 예정' ? (sub.subscribers === 0 ? '즉시 삭제' : '삭제 예약됨') : '삭제 요청'}
                                        </button>
                                        
-                                       <button 
+                                       <button
+                                         onClick={() => handleOpenSubscriptionModal(sub)}
+                                         disabled={sub.status === '삭제 예정'}
+                                         style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', color: '#64748b', cursor: sub.status === '삭제 예정' ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: '600', opacity: sub.status === '삭제 예정' ? 0.5 : 1 }}
+                                       >수정</button>
+                                       <button
                                          onClick={() => sendSubscriptionNotification(sub)}
                                          style={{ padding: '6px 12px', borderRadius: '8px', border: sub.status === '삭제 예정' ? '1px solid #8b5cf6' : '1px solid #e2e8f0', background: 'white', color: sub.status === '삭제 예정' ? '#8b5cf6' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: '800' }}>🔔 알림</button>
                                     </div>
@@ -1553,38 +1703,41 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
                                      <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #ede9fe', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
                                        <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '12px' }}>
                                          <div style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', marginBottom: '8px' }}>주당 배송 횟수</div>
-                                         <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>{sub.weeklyFreq || 1}회 <span style={{ fontSize: '13px', fontWeight: '500' }}>배송 / 주</span></div>
+                                         <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>{sub.weeklyFreq != null ? `${sub.weeklyFreq}회` : '-'} <span style={{ fontSize: '13px', fontWeight: '500' }}>배송 / 주</span></div>
                                        </div>
                                        <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '12px' }}>
                                          <div style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', marginBottom: '8px' }}>월간 총 배송 횟수</div>
-                                         <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>{sub.monthlyTotal || 4}회 <span style={{ fontSize: '13px', fontWeight: '500' }}>배송 / 월</span></div>
+                                         <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>{sub.monthlyTotal != null ? `${sub.monthlyTotal}회` : '-'} <span style={{ fontSize: '13px', fontWeight: '500' }}>배송 / 월</span></div>
                                        </div>
                                        <div style={{ backgroundColor: '#fdfaff', padding: '16px', borderRadius: '12px', border: '1px solid #f3e8ff' }}>
                                          <div style={{ fontSize: '12px', fontWeight: '700', color: '#8b5cf6', marginBottom: '8px' }}>배송 요일 설정</div>
                                          <div style={{ display: 'flex', gap: '6px' }}>
-                                           {(sub.deliveryDays || ['목']).map(day => (
+                                           {(sub.deliveryDays || []).map(day => (
                                              <span key={day} style={{ backgroundColor: '#8b5cf6', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '800' }}>{day}요일</span>
                                            ))}
                                          </div>
                                        </div>
                                        <div style={{ gridColumn: 'span 3', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
-                                          <div style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', marginBottom: '12px' }}>구성 품목 상세</div>
-                                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
-                                            {(sub.selectedProducts || []).map(item => {
-                                              const p = products.find(p => p.id === item.id);
-                                              return p ? (
-                                                <div key={item.id} style={{ backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                  {p.img && (p.img.startsWith('data:') || p.img.startsWith('http')) ? (
-                                                    <img src={p.img} alt={p.name} style={{ width: '32px', height: '32px', objectFit: 'cover', borderRadius: '6px' }} />
-                                                  ) : (
-                                                    <span style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0', borderRadius: '6px', fontSize: '14px' }}>📦</span>
-                                                  )}
-                                                  <span style={{ fontSize: '13px', fontWeight: '600' }}>{p.name}</span>
-                                                  <span style={{ fontSize: '12px', color: '#8b5cf6', fontWeight: '700' }}>x{item.qty}</span>
-                                                </div>
-                                              ) : null;
-                                            })}
-                                          </div>
+                                         <div style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', marginBottom: '12px' }}>구성 품목 상세</div>
+                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+                                           {(sub.selectedProducts || []).map(item => {
+                                             const p = products.find((pr) => String(pr.id) === String(item.id));
+                                             const displayName = p?.name ?? item.productName ?? `상품 ${item.id}`;
+                                             const displayImg = p?.img;
+                                             const hasValidImg = displayImg && (displayImg.startsWith('data:') || displayImg.startsWith('http'));
+                                             return (
+                                               <div key={item.id} style={{ backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                 {hasValidImg ? (
+                                                   <img src={displayImg} alt={displayName} style={{ width: '32px', height: '32px', objectFit: 'cover', borderRadius: '6px' }} />
+                                                 ) : (
+                                                   <span style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0', borderRadius: '6px', fontSize: '14px' }}>📦</span>
+                                                 )}
+                                                 <span style={{ fontSize: '13px', fontWeight: '600' }}>{displayName}</span>
+                                                 <span style={{ fontSize: '12px', color: '#8b5cf6', fontWeight: '700' }}>x{item.qty}</span>
+                                               </div>
+                                             );
+                                           })}
+                                         </div>
                                          <div style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', marginBottom: '8px' }}>상품 상세 설명</div>
                                          <div style={{ fontSize: '14px', color: '#475569', lineHeight: '1.6' }}>{sub.description || '구성된 상품 목록 및 서비스 안내 내용이 표시됩니다.'}</div>
                                        </div>
@@ -1600,6 +1753,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
                       </tbody>
                    </table>
                 </div>
+                )}
               </div>
 
               {/* Split Section: Next Delivery & Weekly Schedule */}
@@ -1607,30 +1761,10 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
                 {/* 1. Next Delivery Schedule & Required Status */}
                 <div style={{ background: 'white', padding: '32px', borderRadius: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                   <h2 style={{ fontSize: '20px', fontWeight: '800', margin: '0 0 24px 0' }}>다음 배송 일정 및 필요 물량</h2>
-                  
-                  <div style={{ marginBottom: '24px', padding: '20px', backgroundColor: '#f0fdf4', borderRadius: '16px', border: '1px solid #bbf7d0' }}>
-                     <div style={{ fontSize: '14px', fontWeight: '700', color: '#15803d', marginBottom: '8px' }}>다음 배송일</div>
-                     <div style={{ fontSize: '24px', fontWeight: '900', color: '#166534' }}>2월 1일 (목) <span style={{ fontSize: '16px', fontWeight: '600', color: '#15803d' }}>- 3일 뒤</span></div>
-                     <div style={{ marginTop: '12px', fontSize: '14px', fontWeight: '600', color: '#15803d' }}>총 배송 예정: 12건</div>
-                  </div>
-
+                  <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>다음 배송 일정 데이터가 없습니다.</div>
                   <h3 style={{ fontSize: '16px', fontWeight: '800', margin: '0 0 16px 0', color: '#475569' }}>준비 필요 상품 현황</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '300px', overflowY: 'auto' }}>
-                    {[
-                      { name: '신선 채소 꾸러미', count: 5, items: ['대추토마토 500g x5', '시금치 1단 x5'] },
-                      { name: '제철 과일 꾸러미', count: 4, items: ['사과 2개 x4', '바나나 1송이 x4'] },
-                      { name: '단백질 식단 세트', count: 3, items: ['닭가슴살 1kg x3', '두부 2모 x3'] }
-                    ].map((item, idx) => (
-                      <div key={idx} style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                          <span style={{ fontWeight: '700', fontSize: '14px' }}>{item.name}</span>
-                          <span style={{ fontWeight: '800', color: '#3b82f6' }}>{item.count}개</span>
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#64748b', lineHeight: '1.5' }}>
-                          {item.items.join(', ')}
-                        </div>
-                      </div>
-                    ))}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '300px', overflowY: 'auto', padding: '20px', backgroundColor: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>준비 필요 상품 현황이 없습니다.</div>
                   </div>
                 </div>
 
@@ -2307,7 +2441,6 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
             <form onSubmit={handleSaveProduct} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '12px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>상품 이미지</label>
-                <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>권장 비율 1:1 (정사각형), 파일 크기 5MB 이하</p>
                 <div 
                   onClick={() => document.getElementById('product-image-upload').click()}
                   style={{ 
@@ -2582,17 +2715,13 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
                         transition: 'all 0.2s'
                       }}
                     >
-                      {p.img && (p.img.startsWith('data:') || p.img.startsWith('http')) ? (
-                        <img src={p.img} alt={p.name} style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }} />
-                      ) : (
-                        <span style={{ width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9', borderRadius: '8px', fontSize: '18px', flexShrink: 0 }}>📦</span>
-                      )}
                       <input 
                         type="checkbox" 
                         checked={!!selected}
                         onChange={() => {}} // Controlled by div onClick
                         style={{ width: '18px', height: '18px', accentColor: '#8b5cf6', cursor: 'pointer' }}
                       />
+                      <span style={{ fontSize: '20px' }}>{p.img}</span>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>{p.name}</div>
                         <div style={{ fontSize: '12px', color: '#64748b' }}>{p.price}</div>
