@@ -1,6 +1,65 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getNotices, createNotice, updateNotice, deleteNotice } from '../../api/noticeApi';
 import { getFaqsForAdmin, createFaq, updateFaq, deleteFaq } from '../../api/faqApi';
+import { getAdminInquiries, getAdminInquiryDetail, answerInquiry } from '../../api/inquiryApi';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const BASIC_AUTH = import.meta.env.VITE_BASIC_AUTH || 'admin:admin1234';
+const ADMIN_USER_ID = Number(import.meta.env.VITE_ADMIN_USER_ID || 3);
+
+const toBasicAuth = (value) => {
+  if (typeof btoa === 'function') return btoa(value);
+  return value;
+};
+
+const authHeader = () => ({
+  Authorization: `Basic ${toBasicAuth(BASIC_AUTH)}`
+});
+
+const formatDate = (value) => {
+  if (!value) return '-';
+  return value.slice(0, 10);
+};
+
+const statusLabelMap = {
+  PENDING: 'PENDING',
+  HELD: 'HELD',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED'
+};
+
+const mapStoreApprovalItem = (item) => ({
+  id: item.approvalId,
+  type: 'STORE',
+  name: item.storeName,
+  date: formatDate(item.appliedAt),
+  status: statusLabelMap[item.status] || item.status,
+  rawStatus: item.status,
+  color: '#10b981',
+  category: 'STORE',
+  backend: {
+    approvalId: item.approvalId
+  }
+});
+
+const mapRiderApprovalItem = (item) => ({
+  id: item.approvalId,
+  type: 'RIDER',
+  name: item.userName,
+  date: formatDate(item.appliedAt),
+  status: statusLabelMap[item.status] || item.status,
+  rawStatus: item.status,
+  color: '#f59e0b',
+  category: 'RIDER',
+  backend: {
+    approvalId: item.approvalId
+  }
+});
+
+const extractDocument = (documents, type) => {
+  const match = documents.find((doc) => doc.documentType === type);
+  return match ? match.documentUrl : '';
+};
 
 const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowReports }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -211,6 +270,13 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
 const ApprovalDetailModal = ({ item, onClose, onAction }) => {
   const [actionType, setActionType] = useState(null); // 'REJECTED' or 'PENDING'
   const [reason, setReason] = useState('');
+  const documentsRef = useRef(null);
+
+  useEffect(() => {
+    if (item?.focusSection === 'documents' && documentsRef.current) {
+      documentsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [item]);
 
   if (!item) return null;
   const isStore = item.category === 'STORE';
@@ -221,7 +287,7 @@ const ApprovalDetailModal = ({ item, onClose, onAction }) => {
       setActionType(type);
       return;
     }
-    onAction(item.id, type, reason);
+    onAction(item, type, reason);
     setActionType(null);
     setReason('');
   };
@@ -234,12 +300,25 @@ const ApprovalDetailModal = ({ item, onClose, onAction }) => {
     </div>
   );
 
-  const ReviewFile = ({ label, fileName, icon = '📄' }) => (
-    <div style={{ backgroundColor: '#0f172a', padding: '20px', borderRadius: '16px', border: '1px solid #334155', marginBottom: '12px' }}>
+  const ReviewFile = ({ label, fileName, icon = '📄', innerRef }) => (
+    <div
+      ref={innerRef}
+      style={{ backgroundColor: '#0f172a', padding: '20px', borderRadius: '16px', border: '1px solid #334155', marginBottom: '12px' }}
+    >
       <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '12px', fontWeight: '600' }}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', backgroundColor: '#1e293b', borderRadius: '8px', border: '1px dashed #475569' }}>
         <span style={{ fontSize: '20px' }}>{icon}</span>
-        <span style={{ fontSize: '14px', color: '#38bdf8', fontWeight: '700', textDecoration: 'underline', cursor: 'pointer' }}>{fileName || '첨부파일 없음'}</span>
+        {fileName ? (
+          <button
+            type="button"
+            onClick={() => window.open(fileName, '_blank', 'noopener,noreferrer')}
+            style={{ background: 'none', border: 'none', padding: 0, fontSize: '14px', color: '#38bdf8', fontWeight: '700', textDecoration: 'underline', cursor: 'pointer' }}
+          >
+            {fileName}
+          </button>
+        ) : (
+          <span style={{ fontSize: '14px', color: '#64748b', fontWeight: '700' }}>첨부파일 없음</span>
+        )}
       </div>
     </div>
   );
@@ -292,7 +371,7 @@ const ApprovalDetailModal = ({ item, onClose, onAction }) => {
                   <span>🏢</span> 사업자 및 증빙 서류
                 </h3>
                 <ReviewSection label="사업자등록번호" value={data.businessNumber} />
-                <ReviewFile label="사업자등록증 첨부" fileName={data.businessRegistrationFile} />
+                <ReviewFile label="사업자등록증 첨부" fileName={data.businessRegistrationFile} innerRef={documentsRef} />
                 <ReviewSection label="통신판매업 신고번호" value={data.mailOrderNumber} />
                 <ReviewFile label="통신판매업 신고증 첨부" fileName={data.mailOrderFile} />
               </section>
@@ -317,7 +396,7 @@ const ApprovalDetailModal = ({ item, onClose, onAction }) => {
               </div>
               <ReviewSection label="신분증 등록 여부" value="등록 완료 (심사 대기)" />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <ReviewFile label="신분증 사본" fileName={data.identityFile} icon="🪪" />
+                <ReviewFile label="신분증 사본" fileName={data.identityFile} icon="🪪" innerRef={documentsRef} />
                 <ReviewFile label="신규 등록 사진" fileName={data.bankbookFile} icon="📸" />
               </div>
               <div style={{ marginTop: '20px', borderTop: '1px solid #334155', paddingTop: '20px' }}>
@@ -328,6 +407,38 @@ const ApprovalDetailModal = ({ item, onClose, onAction }) => {
                   <ReviewSection label="예금주" value={data.accountHolder} />
                 </div>
                 <ReviewFile label="통장 사본 첨부" fileName={data.bankbookFile} icon="🏦" />
+              </div>
+            </div>
+          )}
+
+          {data.reason && (
+            <div
+              style={{
+                backgroundColor: actionType === 'REJECTED' || item.rawStatus === 'REJECTED'
+                  ? 'rgba(239, 68, 68, 0.12)'
+                  : 'rgba(245, 158, 11, 0.12)',
+                padding: '16px',
+                borderRadius: '16px',
+                margin: '24px 0',
+                border: actionType === 'REJECTED' || item.rawStatus === 'REJECTED'
+                  ? '1px solid rgba(239, 68, 68, 0.25)'
+                  : '1px solid rgba(245, 158, 11, 0.25)'
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '13px',
+                  color: actionType === 'REJECTED' || item.rawStatus === 'REJECTED'
+                    ? '#ef4444'
+                    : '#f59e0b',
+                  fontWeight: '700',
+                  marginBottom: '6px'
+                }}
+              >
+                {actionType === 'REJECTED' || item.rawStatus === 'REJECTED' ? '거절 사유' : '보류 사유'}
+              </div>
+              <div style={{ fontSize: '13px', color: '#e2e8f0', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
+                {data.reason}
               </div>
             </div>
           )}
@@ -431,86 +542,7 @@ const AdminDashboard = () => {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [selectedApproval, setSelectedApproval] = useState(null);
   const [approvalFilter, setApprovalFilter] = useState('ALL'); // ALL, STORE, RIDER
-  const [approvalItems, setApprovalItems] = useState([
-    { 
-      id: 1, type: '마트', name: '싱싱 야채 센터 (강북점)', date: '2026-01-21', status: '심사 대기', color: '#10b981', category: 'STORE',
-      formData: {
-        category: '과일/채소',
-        companyName: '(주)싱싱유통',
-        storeName: '싱싱 야채 센터 (강북점)',
-        repName: '홍길동',
-        contact: '010-1234-5678',
-        martContact: '02-888-9999',
-        martIntro: '매일 아침 산지에서 직송된 신선한 채소와 과일을 저렴하게 판매합니다.',
-        businessNumber: '123-45-67890',
-        businessRegistrationFile: 'business_reg_2026.pdf',
-        mailOrderNumber: '제 2026-서울강북-0001 호',
-        mailOrderFile: 'mail_order_cert.pdf',
-        bankName: '국민은행',
-        accountNumber: '110-123-456789',
-        accountHolder: '홍길동',
-        bankbookFile: 'bankbook_copy.pdf'
-      }
-    },
-    { 
-      id: 2, type: '라이더', name: '김철수 (오토바이)', date: '2026-01-20', status: '서류 확인', color: '#38bdf8', category: 'RIDER',
-      formData: {
-        name: '김철수',
-        birth: '1990.05.15',
-        contact: '010-2222-3333',
-        vehicle: '오토바이 (혼다 PCX)',
-        license: '1종 보통',
-        insurance: '유상운송보험 가입완료',
-        identityFile: 'id_card.png',
-        licenseFile: 'license_pcx.jpg',
-        bankName: '신한은행',
-        accountNumber: '110-999-888777',
-        accountHolder: '김철수',
-        bankbookFile: 'rider_bankbook.png'
-      }
-    },
-    { id: 3, type: '라이더', name: '박지민 (자전거)', date: '2026-01-22', status: '심사 대기', color: '#38bdf8', category: 'RIDER' },
-    { 
-      id: 4, type: '마트', name: '유기농 세상', date: '2026-01-23', status: '서류 미비', color: '#10b981', category: 'STORE',
-      formData: {
-        category: '친환경/유기농',
-        companyName: '에코라이프',
-        storeName: '유기농 세상',
-        repName: '임수진',
-        contact: '010-3333-2222',
-        martContact: '02-111-2222',
-        martIntro: '화학 비료를 전혀 사용하지 않은 건강한 식재료만을 고집합니다.',
-        businessNumber: '555-44-33322',
-        businessRegistrationFile: 'eco_biz_reg.jpg',
-        mailOrderNumber: '제 2026-서울서초-0005 호',
-        mailOrderFile: 'eco_mail_order.pdf',
-        bankName: '신한은행',
-        accountNumber: '110-555-444333',
-        accountHolder: '임수진',
-        bankbookFile: 'eco_bankbook.png'
-      }
-    },
-    { 
-      id: 5, type: '마트', name: '동네 정육 나라', date: '2026-01-24', status: '검토 중', color: '#10b981', category: 'STORE',
-      formData: {
-        category: '축산물',
-        companyName: '미트마스터',
-        storeName: '동네 정육 나라',
-        repName: '최고집',
-        contact: '010-9999-0000',
-        martContact: '031-777-6666',
-        martIntro: '최상급 한우와 한돈을 정직하게 판매하는 동네 단골 정육점입니다.',
-        businessNumber: '999-88-77766',
-        businessRegistrationFile: 'meat_reg.pdf',
-        mailOrderNumber: '제 2026-경기성남-0012 호',
-        mailOrderFile: 'meat_mail_order.jpg',
-        bankName: '우리은행',
-        accountNumber: '1002-888-777666',
-        accountHolder: '최고집',
-        bankbookFile: 'meat_bankbook.pdf'
-      }
-    }
-  ]);
+  const [approvalItems, setApprovalItems] = useState([]);
 
   const [stores, setStores] = useState([
     { 
@@ -658,12 +690,80 @@ const AdminDashboard = () => {
   }, [activeTab, approvalFilter, approvalStatusFilter, reportsFilter, settlementFilter, userSearch, inquiryFilter]);
 
   const [selectedReport, setSelectedReport] = useState(null);
-  const [inquiryList, setInquiryList] = useState([
-    { id: 1, type: '배송 문의', title: '배송이 아직 안 왔어요.', content: '1시간 전에 주문했는데 아직 배송 중으로 뜨네요.', user: '김영희', email: 'yh_kim99@example.com', contact: '010-1111-2222', date: '2024.01.21', status: '답변 완료', answer: '대설로 인해 지연되었습니다. 현재 배송 중입니다.', attachments: [] },
-    { id: 2, type: '결제 문의', title: '카드 결제 취소 확인 요청', content: '취소했는데 문자가 안 옵니다.', user: '이철수', email: 'cs_lee88@naver.com', contact: '010-3333-4444', date: '2024.01.18', status: '답변 대기', attachments: ['payment_screen.png'] }
-  ]);
+  const [inquiryList, setInquiryList] = useState([]);
+  const [inquiryPage, setInquiryPage] = useState(0);
   const [selectedInquiry, setSelectedInquiry] = useState(null);
   const [inquiryAnswer, setInquiryAnswer] = useState('');
+  const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false);
+
+  const getCategoryLabel = (category) => {
+    const labels = {
+      'ORDER_PAYMENT': '주문/결제 문의',
+      'CANCELLATION_REFUND': '취소/환불 문의',
+      'DELIVERY': '배송 문의',
+      'SERVICE': '서비스 이용 문의',
+      'OTHER': '기타'
+    };
+    return labels[category] || category;
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ko-KR').replace(/\./g, '.').replace(/\s/g, '');
+  };
+
+  const fetchInquiries = useCallback(async () => {
+    try {
+      const status = inquiryFilter === 'ALL' ? null : (inquiryFilter === 'PENDING' ? 'PENDING' : 'ANSWERED');
+      const page = await getAdminInquiries(status, inquiryPage, itemsPerPage);
+      const list = (page.content || []).map(inq => ({
+        inquiryId: inq.inquiryId,
+        id: inq.inquiryId,
+        type: getCategoryLabel(inq.category),
+        category: inq.category,
+        title: inq.title,
+        user: inq.customerName,
+        date: formatDate(inq.createdAt),
+        status: inq.status === 'ANSWERED' ? '답변 완료' : '답변 대기',
+        statusEnum: inq.status
+      }));
+      setInquiryList(list);
+    } catch (err) {
+      console.error('문의 목록 조회 실패:', err);
+    }
+  }, [inquiryFilter, inquiryPage, itemsPerPage]);
+
+  const fetchInquiryDetail = async (inquiryId) => {
+    try {
+      const detail = await getAdminInquiryDetail(inquiryId);
+      setSelectedInquiry({
+        id: inquiryId,
+        type: getCategoryLabel(detail.category),
+        category: detail.category,
+        title: detail.title,
+        content: detail.content,
+        user: detail.customerName,
+        email: detail.email,
+        contact: detail.phone,
+        date: formatDate(detail.createdAt),
+        status: detail.status === 'ANSWERED' ? '답변 완료' : '답변 대기',
+        statusEnum: detail.status,
+        answer: detail.answer || null,
+        fileUrl: detail.fileUrl || null,
+        attachments: detail.fileUrl ? [detail.fileUrl] : []
+      });
+    } catch (err) {
+      console.error('문의 상세 조회 실패:', err);
+      alert('문의 상세 정보를 불러오는데 실패했습니다.');
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'inquiry') {
+      fetchInquiries();
+    }
+  }, [activeTab, inquiryFilter, inquiryPage, fetchInquiries]);
 
   const [noticeList, setNoticeList] = useState([]);
 
@@ -753,38 +853,133 @@ const AdminDashboard = () => {
     { id: 3, title: '시스템 점검 안내', target: '전체 사용자', date: '2024.01.10 02:00', status: '발송 완료' }
   ]);
 
-  const handleApprovalAction = (id, action, reason = '') => {
-    let statusText = '';
-    let successMsg = '';
-    
-    if (action === 'APPROVED') {
-      const approvedItem = approvalItems.find(item => item.id === id);
-      if (approvedItem && approvedItem.category === 'RIDER') {
-        successMsg = `[승인 완료] ${approvedItem.name} 라이더님에게 가입 승인 메일이 발송되었습니다.\n\n- 아이디: ${approvedItem.name}@neighbor.com\n- 임시 비밀번호: NM${Math.floor(1000 + Math.random() * 9000)}\n\n확인 버튼을 누르면 라이더 앱으로 연결됩니다.`;
-      } else {
-        successMsg = '선택한 항목이 승인되었습니다.';
+  
+  const fetchApprovals = async () => {
+    try {
+      const [storeResponse, riderResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/admin/stores/approvals?status=PENDING&status=HELD&status=REJECTED`, {
+          headers: { ...authHeader() }
+        }),
+        fetch(`${API_BASE_URL}/api/admin/riders/approvals?status=PENDING&status=HELD&status=REJECTED`, {
+          headers: { ...authHeader() }
+        })
+      ]);
+      if (!storeResponse.ok || !riderResponse.ok) {
+        throw new Error('Failed to load approvals');
       }
-      statusText = '승인 완료';
-    } else if (action === 'REJECTED') {
-      statusText = '거절됨';
-      successMsg = `신청이 거절 처리되었습니다.${reason ? `\n(사유: ${reason})` : ''}`;
-    } else if (action === 'PENDING') {
-      statusText = '보완 요청 중';
-      successMsg = `보완 요청이 담당자에게 전달되었습니다.${reason ? `\n(사유: ${reason})` : ''}`;
+      const storePayload = await storeResponse.json();
+      const riderPayload = await riderResponse.json();
+      const storeItems = (storePayload.data || []).map(mapStoreApprovalItem);
+      const riderItems = (riderPayload.data || []).map(mapRiderApprovalItem);
+      setApprovalItems([...storeItems, ...riderItems]);
+    } catch (error) {
+      alert('?? ??? ???? ?????.');
     }
+  };
 
-    setApprovalItems(prev => prev.map(item => 
-      item.id === id ? { ...item, status: statusText } : item
-    ));
-    
-    if (action === 'APPROVED' || action === 'REJECTED' || action === 'PENDING') {
-      setTimeout(() => {
-        setApprovalItems(prev => prev.filter(item => item.id !== id));
-      }, 1500);
+  const fetchApprovalDetail = async (category, approvalId) => {
+    const basePath = category === 'RIDER' ? 'riders' : 'stores';
+    const response = await fetch(
+      `${API_BASE_URL}/api/admin/${basePath}/approvals/${approvalId}`,
+      { headers: { ...authHeader() } }
+    );
+    if (!response.ok) throw new Error('Failed to load approval detail');
+    const payload = await response.json();
+    return payload.data;
+  };
+
+  const handleOpenApproval = async (item, focusSection = null) => {
+    try {
+      const detail = await fetchApprovalDetail(item.category, item.id);
+      const documents = detail.documents || [];
+      const formData = item.category === 'STORE'
+          ? {
+            storeName: detail.store?.storeName,
+            businessNumber: detail.store?.businessNumber,
+            repName: detail.store?.representativeName,
+            contact: detail.store?.representativePhone,
+            martContact: detail.store?.representativePhone,
+            martIntro: detail.store?.addressLine1,
+            addressLine2: detail.store?.addressLine2,
+            postalCode: detail.store?.postalCode,
+            reason: detail.reason,
+            businessRegistrationFile: extractDocument(documents, 'BUSINESS_LICENSE'),
+            mailOrderFile: extractDocument(documents, 'BUSINESS_REPORT'),
+            bankbookFile: extractDocument(documents, 'BANK_PASSBOOK'),
+            identityFile: extractDocument(documents, 'ID_CARD')
+          }
+        : {
+            name: detail.rider?.userName,
+            contact: detail.rider?.userPhone,
+            bankName: detail.rider?.bankName,
+            accountNumber: detail.rider?.bankAccount,
+            accountHolder: detail.rider?.accountHolder,
+            reason: detail.reason,
+            identityFile: extractDocument(documents, 'ID_CARD'),
+            bankbookFile: extractDocument(documents, 'BANK_PASSBOOK')
+          };
+      setSelectedApproval({ ...item, formData, focusSection });
+    } catch (error) {
+      alert('?? ??? ???? ?????.');
     }
-    
-    alert(successMsg);
-    setSelectedApproval(null);
+  };
+
+  useEffect(() => {
+    fetchApprovals();
+  }, []);
+
+  const handleApprovalAction = async (approval, action, reason = '') => {
+    console.log('[approval] action', { id: approval.id, action, reason, adminUserId: ADMIN_USER_ID });
+    try {
+      let response;
+      const basePath = approval.category === 'RIDER' ? 'riders' : 'stores';
+      if (action === 'APPROVED') {
+        response = await fetch(`${API_BASE_URL}/api/admin/${basePath}/approvals/${approval.id}/approve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader() },
+          body: JSON.stringify({ adminUserId: ADMIN_USER_ID })
+        });
+      } else if (action === 'REJECTED') {
+        response = await fetch(`${API_BASE_URL}/api/admin/${basePath}/approvals/${approval.id}/reject`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader() },
+          body: JSON.stringify({ adminUserId: ADMIN_USER_ID, reason })
+        });
+      } else if (action === 'PENDING') {
+        if (!reason) {
+          alert('보류 사유를 입력해주세요.');
+          return;
+        }
+        response = await fetch(`${API_BASE_URL}/api/admin/${basePath}/approvals/${approval.id}/hold`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader() },
+          body: JSON.stringify({ adminUserId: ADMIN_USER_ID, reason })
+        });
+      }
+
+      if (!response || !response.ok) {
+        let message = '요청 처리에 실패했습니다.';
+        try {
+          const errorBody = await response.json();
+          if (errorBody?.message) message = errorBody.message;
+        } catch (_) {}
+        alert(message);
+        return;
+      }
+
+      if (action === 'APPROVED') {
+        alert(`${approval.name} 승인 처리되었습니다.`);
+      } else if (action === 'REJECTED') {
+        alert(`${approval.name} 거절 처리되었습니다.${reason ? `\n(사유: ${reason})` : ''}`);
+      } else if (action === 'PENDING') {
+        alert(`${approval.name}이(가) 보류 상태로 넘어갑니다.${reason ? `\n(사유: ${reason})` : ''}`);
+      }
+
+      await fetchApprovals();
+      setSelectedApproval(null);
+    } catch (error) {
+      alert('요청 처리 중 오류가 발생했습니다.');
+    }
   };
 
   const handleToggleStatus = (record, reason = '') => {
@@ -1160,14 +1355,7 @@ const AdminDashboard = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {inquiryList
-                    .filter(inq => {
-                      if (inquiryFilter === 'ALL') return true;
-                      if (inquiryFilter === 'PENDING') return inq.status === '답변 대기';
-                      if (inquiryFilter === 'COMPLETED') return inq.status === '답변 완료';
-                      return true;
-                    })
-                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((inq, i) => (
+                  {inquiryList.map((inq, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid #334155' }}>
                       <td style={{ padding: '16px' }}><span style={{ color: '#38bdf8' }}>[{inq.type}]</span></td>
                       <td style={{ padding: '16px' }}>{inq.title}</td>
@@ -1182,7 +1370,7 @@ const AdminDashboard = () => {
                       </td>
                       <td style={{ padding: '16px' }}>
                         <button 
-                          onClick={() => setSelectedInquiry(inq)}
+                          onClick={() => fetchInquiryDetail(inq.inquiryId)}
                           style={{ padding: '6px 12px', borderRadius: '6px', backgroundColor: '#38bdf8', color: '#0f172a', border: 'none', cursor: 'pointer', fontWeight: '800' }}
                         >상세보기</button>
                       </td>
@@ -1191,10 +1379,10 @@ const AdminDashboard = () => {
                 </tbody>
               </table>
               <Pagination 
-                currentPage={currentPage}
+                currentPage={inquiryPage + 1}
                 totalItems={inquiryList.length}
                 itemsPerPage={itemsPerPage}
-                onPageChange={setCurrentPage}
+                onPageChange={(page) => setInquiryPage(page - 1)}
               />
             </div>
 
@@ -1233,53 +1421,83 @@ const AdminDashboard = () => {
                     <div style={{ fontSize: '14px', color: '#cbd5e1', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>{selectedInquiry.content}</div>
                     
                     {/* Attachment Section */}
-                    <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #334155' }}>
-                      <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>첨부파일 확인</div>
-                      {selectedInquiry.attachments && selectedInquiry.attachments.length > 0 ? (
+                    {selectedInquiry.fileUrl && (
+                      <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #334155' }}>
+                        <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>첨부파일 확인</div>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                          {selectedInquiry.attachments.map((file, idx) => (
-                            <div key={idx} style={{ padding: '8px 12px', background: '#1e293b', borderRadius: '8px', fontSize: '12px', border: '1px solid #334155', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span>📎</span> {file}
-                            </div>
-                          ))}
+                          <a 
+                            href={selectedInquiry.fileUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            style={{ padding: '8px 12px', background: '#1e293b', borderRadius: '8px', fontSize: '12px', border: '1px solid #334155', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', color: '#38bdf8', textDecoration: 'none' }}
+                          >
+                            <span>📎</span> 첨부파일 보기
+                          </a>
                         </div>
-                      ) : (
-                        <div style={{ fontSize: '12px', color: '#475569' }}>첨부파일 없음</div>
-                      )}
-                    </div>
+                      </div>
+                    )}
+                    
+                    {/* Answer Section */}
+                    {selectedInquiry.answer && (
+                      <div style={{ marginTop: '20px', padding: '16px', background: '#0f172a', borderRadius: '12px', border: '1px solid #334155' }}>
+                        <h4 style={{ fontSize: '14px', fontWeight: '700', color: '#38bdf8', marginBottom: '12px' }}>답변 내용</h4>
+                        <div style={{ fontSize: '14px', color: '#cbd5e1', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>{selectedInquiry.answer}</div>
+                      </div>
+                    )}
                   </div>
 
-                  <div style={{ marginBottom: '8px', fontSize: '14px', fontWeight: '700', color: '#94a3b8' }}>답변 작성</div>
-                  <textarea 
-                    value={inquiryAnswer}
-                    onChange={(e) => setInquiryAnswer(e.target.value)}
-                    placeholder="답변 내용을 입력하세요"
-                    style={{ width: '100%', height: '120px', background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '16px', color: 'white', resize: 'none', marginBottom: '24px' }}
-                  ></textarea>
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    <button onClick={() => setSelectedInquiry(null)} style={{ flex: 1, padding: '16px', borderRadius: '12px', background: '#334155', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}>취소</button>
-                    <button 
-                      onClick={() => {
-                        if (!inquiryAnswer.trim()) {
-                          alert('답변 내용을 입력해주세요.');
-                          return;
-                        }
-                        alert('답변이 등록되었습니다.');
-                        setInquiryList(prev => prev.map(q => q.id === selectedInquiry.id ? { ...q, status: '답변 완료', answer: inquiryAnswer } : q));
-                        setSelectedInquiry(null);
-                        setInquiryAnswer('');
-                      }} 
-                      disabled={selectedInquiry.status === '답변 완료'}
-                      style={{ 
-                        flex: 2, padding: '16px', borderRadius: '12px', 
-                        background: selectedInquiry.status === '답변 완료' ? '#475569' : '#38bdf8', 
-                        color: selectedInquiry.status === '답변 완료' ? '#94a3b8' : '#0f172a', 
-                        border: 'none', fontWeight: '800', 
-                        cursor: selectedInquiry.status === '답변 완료' ? 'default' : 'pointer' 
-                      }}>
-                        {selectedInquiry.status === '답변 완료' ? '답변 완료' : '답변 등록'}
-                      </button>
-                  </div>
+                  {!selectedInquiry.answer && (
+                    <>
+                      <div style={{ marginBottom: '8px', fontSize: '14px', fontWeight: '700', color: '#94a3b8' }}>답변 작성</div>
+                      <textarea 
+                        value={inquiryAnswer}
+                        onChange={(e) => setInquiryAnswer(e.target.value)}
+                        placeholder="답변 내용을 입력하세요"
+                        style={{ width: '100%', height: '120px', background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '16px', color: 'white', resize: 'none', marginBottom: '24px' }}
+                      />
+                      <div style={{ display: 'flex', gap: '12px' }}>
+                        <button 
+                          onClick={() => {
+                            setSelectedInquiry(null);
+                            setInquiryAnswer('');
+                          }} 
+                          style={{ flex: 1, padding: '16px', borderRadius: '12px', background: '#334155', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
+                        >취소</button>
+                        <button 
+                          onClick={async () => {
+                            if (!inquiryAnswer.trim()) {
+                              alert('답변 내용을 입력해주세요.');
+                              return;
+                            }
+                            setIsSubmittingAnswer(true);
+                            try {
+                              await answerInquiry(selectedInquiry.id, inquiryAnswer.trim());
+                              alert('답변이 등록되었습니다.');
+                              setInquiryList(prev => prev.map(q => q.id === selectedInquiry.id ? { ...q, status: '답변 완료', statusEnum: 'ANSWERED' } : q));
+                              setSelectedInquiry(null);
+                              setInquiryAnswer('');
+                              fetchInquiries(); // 목록 새로고침
+                            } catch (error) {
+                              console.error('답변 등록 실패:', error);
+                              alert(error.response?.data?.error?.message || error.message || '답변 등록에 실패했습니다.');
+                            } finally {
+                              setIsSubmittingAnswer(false);
+                            }
+                          }} 
+                          disabled={isSubmittingAnswer}
+                          style={{ 
+                            flex: 2, padding: '16px', borderRadius: '12px', 
+                            background: isSubmittingAnswer ? '#475569' : '#38bdf8', 
+                            color: isSubmittingAnswer ? '#94a3b8' : '#0f172a', 
+                            border: 'none', fontWeight: '800', 
+                            cursor: isSubmittingAnswer ? 'not-allowed' : 'pointer' 
+                          }}
+                        >
+                          {isSubmittingAnswer ? '처리 중...' : '답변 등록'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -1785,8 +2003,9 @@ const AdminDashboard = () => {
         const filteredApprovals = approvalItems.filter(item => {
           const matchesCategory = approvalFilter === 'ALL' || item.category === approvalFilter;
           const matchesStatus = approvalStatusFilter === 'ALL' || 
-                               (approvalStatusFilter === 'PENDING' && item.status === '심사 대기') ||
-                               (approvalStatusFilter === 'HOLD' && item.status === '서류 미비');
+                               (approvalStatusFilter === 'PENDING' && item.rawStatus === 'PENDING') ||
+                               (approvalStatusFilter === 'HOLD' && item.rawStatus === 'HELD') ||
+                               (approvalStatusFilter === 'REJECTED' && item.rawStatus === 'REJECTED')
           return matchesCategory && matchesStatus;
         });
 
@@ -1805,7 +2024,7 @@ const AdminDashboard = () => {
                   style={{ padding: '10px 24px', borderRadius: '12px', border: 'none', backgroundColor: approvalFilter === 'RIDER' ? '#38bdf8' : 'transparent', color: approvalFilter === 'RIDER' ? '#0f172a' : '#94a3b8', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }}>라이더 신청</button>
               </div>
               <div style={{ display: 'flex', gap: '8px', backgroundColor: '#0f172a', padding: '4px', borderRadius: '12px' }}>
-                {['ALL', 'PENDING', 'HOLD'].map(s => (
+                {['ALL', 'PENDING', 'HOLD', 'REJECTED'].map(s => (
                   <button 
                     key={s}
                     onClick={() => setApprovalStatusFilter(s)}
@@ -1814,7 +2033,13 @@ const AdminDashboard = () => {
                       backgroundColor: approvalStatusFilter === s ? '#334155' : 'transparent',
                       color: approvalStatusFilter === s ? 'white' : '#64748b'
                     }}>
-                    {s === 'ALL' ? '전체 상태' : s === 'PENDING' ? '심사대기' : '보완필요'}
+                    {s === 'ALL'
+                      ? '전체'
+                      : s === 'PENDING'
+                        ? '심사대기'
+                        : s === 'HOLD'
+                          ? '보완필요'
+                          : '거절'}
                   </button>
                 ))}
               </div>
@@ -1835,11 +2060,18 @@ const AdminDashboard = () => {
                       <td style={{ padding: '16px' }}>
                         <span style={{ backgroundColor: item.color, padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>{item.type}</span>
                       </td>
-                      <td style={{ padding: '16px' }}>{item.name}</td>
+                      <td style={{ padding: '16px' }}>
+                        <button
+                          onClick={() => handleOpenApproval(item, 'documents')}
+                          style={{ background: 'none', border: 'none', padding: 0, color: '#38bdf8', fontWeight: '700', cursor: 'pointer', textDecoration: 'underline' }}
+                        >
+                          {item.name}
+                        </button>
+                      </td>
                       <td style={{ padding: '16px' }}>{item.date}</td>
                       <td style={{ padding: '16px' }}>
                          <button 
-                           onClick={() => setSelectedApproval(item)}
+                           onClick={() => handleOpenApproval(item)}
                            style={{ padding: '6px 12px', borderRadius: '6px', backgroundColor: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', border: 'none', fontWeight: '700', cursor: 'pointer' }}>상세보기</button>
                       </td>
                     </tr>

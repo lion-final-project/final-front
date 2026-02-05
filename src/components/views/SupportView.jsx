@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { inquiries } from '../../data/mockData';
 import { getNoticesForCustomer } from '../../api/noticeApi';
 import { getFaqsForCustomer } from '../../api/faqApi';
+import { getMyInquiries, deleteInquiry, createInquiry } from '../../api/inquiryApi';
 
 const SupportView = ({ isLoggedIn, onOpenAuth, isEmbedded = false }) => {
   const [activeTab, setActiveTab] = useState('notice'); // notice, faq, inquiry
@@ -11,6 +11,15 @@ const SupportView = ({ isLoggedIn, onOpenAuth, isEmbedded = false }) => {
   const [faqs, setFaqs] = useState([]);
 
   const [selectedCategory, setSelectedCategory] = useState('전체');
+  const [inquiries, setInquiries] = useState([]);
+  const [inquiryPage, setInquiryPage] = useState(0);
+  const [inquiryForm, setInquiryForm] = useState({
+    category: 'DELIVERY', // ORDER_PAYMENT, CANCELLATION_REFUND, DELIVERY, SERVICE, OTHER
+    title: '',
+    content: '',
+    file: null
+  });
+  const [isSubmittingInquiry, setIsSubmittingInquiry] = useState(false);
 
   const fetchNotices = useCallback(async () => {
     try {
@@ -42,10 +51,101 @@ const SupportView = ({ isLoggedIn, onOpenAuth, isEmbedded = false }) => {
     }
   }, []);
 
+  const fetchInquiries = useCallback(async () => {
+    if (!isLoggedIn) return;
+    try {
+      const page = await getMyInquiries(inquiryPage, 10);
+      const list = (page.content || []).map(inq => ({
+        id: inq.id,
+        type: getCategoryLabel(inq.category),
+        title: inq.title,
+        content: inq.content,
+        date: inq.createdAt ? formatDate(inq.createdAt) : '',
+        status: inq.status === 'ANSWERED' ? '답변 완료' : '답변 대기',
+        answer: inq.answer || null,
+        answerAt: inq.answerAt || null
+      }));
+      setInquiries(list);
+    } catch (err) {
+      console.error('문의 목록 조회 실패:', err);
+    }
+  }, [isLoggedIn, inquiryPage]);
+
+  const getCategoryLabel = (category) => {
+    const labels = {
+      'ORDER_PAYMENT': '주문/결제 문의',
+      'CANCELLATION_REFUND': '취소/환불 문의',
+      'DELIVERY': '배송 문의',
+      'SERVICE': '서비스 이용 문의',
+      'OTHER': '기타'
+    };
+    return labels[category] || category;
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ko-KR').replace(/\./g, '.').replace(/\s/g, '');
+  };
+
+  const handleDeleteInquiry = async (inquiryId) => {
+    if (!window.confirm('문의를 삭제하시겠습니까?')) return;
+    try {
+      await deleteInquiry(inquiryId);
+      alert('문의가 삭제되었습니다.');
+      fetchInquiries();
+    } catch (error) {
+      console.error('문의 삭제 실패:', error);
+      console.error('에러 상세:', error.response?.data);
+      const errorMessage = error.response?.data?.error?.message 
+        || error.response?.data?.message 
+        || error.message 
+        || '문의 삭제에 실패했습니다.';
+      alert(errorMessage);
+    }
+  };
+
+  const handleSubmitInquiry = async (e) => {
+    e.preventDefault();
+    if (!inquiryForm.title.trim() || !inquiryForm.content.trim()) {
+      alert('제목과 내용을 입력해주세요.');
+      return;
+    }
+
+    setIsSubmittingInquiry(true);
+    try {
+      await createInquiry(
+        {
+          category: inquiryForm.category,
+          title: inquiryForm.title.trim(),
+          content: inquiryForm.content.trim(),
+        },
+        inquiryForm.file
+      );
+      alert('문의가 접수되었습니다. 답변은 알림으로 안내해 드립니다.');
+      setInquiryForm({
+        category: 'DELIVERY', // ORDER_PAYMENT, CANCELLATION_REFUND, DELIVERY, SERVICE, OTHER
+        title: '',
+        content: '',
+        file: null
+      });
+      fetchInquiries();
+    } catch (error) {
+      console.error('문의 작성 실패:', error);
+      alert(error.response?.data?.error?.message || error.message || '문의 작성에 실패했습니다.');
+    } finally {
+      setIsSubmittingInquiry(false);
+    }
+  };
+
   useEffect(() => {
     fetchNotices();
     fetchFaqs();
   }, [fetchNotices, fetchFaqs]);
+
+  useEffect(() => {
+    fetchInquiries();
+  }, [fetchInquiries]);
 
   const filteredFaqs = faqs.filter(f => 
     (selectedCategory === '전체' || f.category === selectedCategory) &&
@@ -146,31 +246,58 @@ const SupportView = ({ isLoggedIn, onOpenAuth, isEmbedded = false }) => {
         return (
           <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid var(--border)' }}>
             <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '24px' }}>1:1 문의 작성</h3>
-            <form onSubmit={(e) => { e.preventDefault(); alert('문의가 성공적으로 등록되었습니다.'); }}>
+            <form onSubmit={handleSubmitInquiry}>
               <div style={{ marginBottom: '20px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>문의 유형</label>
-                <select style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'white' }}>
-                  <option>주문/결제 문의</option>
-                  <option>취소/환불 문의</option>
-                  <option>배송 문의</option>
-                  <option>서비스 이용 문의</option>
-                  <option>기타</option>
+                <select 
+                  value={inquiryForm.category}
+                  onChange={(e) => setInquiryForm({ ...inquiryForm, category: e.target.value })}
+                  style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'white' }}
+                >
+                  <option value="ORDER_PAYMENT">주문/결제 문의</option>
+                  <option value="CANCELLATION_REFUND">취소/환불 문의</option>
+                  <option value="DELIVERY">배송 문의</option>
+                  <option value="SERVICE">서비스 이용 문의</option>
+                  <option value="OTHER">기타</option>
                 </select>
               </div>
               <div style={{ marginBottom: '20px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>제목</label>
-                <input type="text" placeholder="제목을 입력하세요" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)' }} />
+                <input 
+                  type="text" 
+                  value={inquiryForm.title}
+                  onChange={(e) => setInquiryForm({ ...inquiryForm, title: e.target.value })}
+                  placeholder="제목을 입력하세요" 
+                  style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)' }} 
+                />
               </div>
               <div style={{ marginBottom: '24px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>내용</label>
-                <textarea rows="6" placeholder="자세한 문의 내용을 입력해 주세요. (비속어, 타인 비방 등 부적절한 언어 사용 시 서비스 이용에 제재를 받을 수 있습니다.)" style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid var(--border)', resize: 'none' }}></textarea>
+                <textarea 
+                  rows="6" 
+                  value={inquiryForm.content}
+                  onChange={(e) => setInquiryForm({ ...inquiryForm, content: e.target.value })}
+                  placeholder="자세한 문의 내용을 입력해 주세요. (비속어, 타인 비방 등 부적절한 언어 사용 시 서비스 이용에 제재를 받을 수 있습니다.)" 
+                  style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid var(--border)', resize: 'none' }}
+                />
               </div>
               <div style={{ marginBottom: '24px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>첨부 파일</label>
-                <input type="file" multiple style={{ width: '100%', fontSize: '14px', color: '#64748b' }} />
+                <input 
+                  type="file" 
+                  onChange={(e) => setInquiryForm({ ...inquiryForm, file: e.target.files[0] || null })}
+                  style={{ width: '100%', fontSize: '14px', color: '#64748b' }} 
+                />
                 <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px' }}>이미지, PDF 등 최대 10MB까지 업로드 가능합니다.</p>
               </div>
-              <button type="submit" className="btn-primary" style={{ width: '100%' }}>문의 등록하기</button>
+              <button 
+                type="submit" 
+                disabled={isSubmittingInquiry}
+                className="btn-primary" 
+                style={{ width: '100%', opacity: isSubmittingInquiry ? 0.6 : 1, cursor: isSubmittingInquiry ? 'not-allowed' : 'pointer' }}
+              >
+                {isSubmittingInquiry ? '처리 중...' : '문의 등록하기'}
+              </button>
             </form>
 
             <div style={{ marginTop: '40px' }}>
@@ -196,7 +323,7 @@ const SupportView = ({ isLoggedIn, onOpenAuth, isEmbedded = false }) => {
                       </span>
                       {!inquiry.answer && (
                         <button 
-                          onClick={() => { if(window.confirm('문의를 삭제하시겠습니까?')) alert('문의가 삭제되었습니다.'); }}
+                          onClick={() => handleDeleteInquiry(inquiry.id)}
                           style={{ border: 'none', background: 'transparent', color: '#94a3b8', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}
                         >삭제</button>
                       )}

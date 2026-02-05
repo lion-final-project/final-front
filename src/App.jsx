@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './styles/global.css';
 import { authApi } from './api/authApi';
 import Header from './components/common/Header';
@@ -11,6 +11,7 @@ import AuthModal from './components/modals/AuthModal';
 import { Agentation } from "agentation";
 
 import { checkAuth, logout } from './api/authApi';
+import { subscribeNotifications, getUnreadNotifications, markAllAsRead, markAsRead } from './api/notificationApi';
 import { API_BASE_URL } from './config/api';
 
 class ErrorBoundary extends React.Component {
@@ -53,11 +54,123 @@ function App() {
   const [storeRegistrationStoreName, setStoreRegistrationStoreName] = useState(null); // 입점 신청한 상호명
   const [riderInfo, setRiderInfo] = useState(null);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-  const [notifications, setNotifications] = useState([
-    { id: 1, title: '주문 수락됨', body: '행복 마트에서 사장님이 주문을 수락했습니다.', time: '5분 전', type: 'order', read: false },
-    { id: 2, title: '특가 알림', body: '오늘만! 대추토마토 50% 타임 세일 시작', time: '1시간 전', type: 'promotion', read: false },
-    { id: 3, title: '배달 완료', body: '박민수 라이더님이 배달을 완료했습니다.', time: '2시간 전', type: 'delivery', read: true }
-  ]);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const eventSourceRef = useRef(null);
+
+  // 시간 포맷팅 함수
+  const formatTime = useCallback((dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return '방금 전';
+    if (diffMins < 60) return `${diffMins}분 전`;
+    if (diffHours < 24) return `${diffHours}시간 전`;
+    if (diffDays < 7) return `${diffDays}일 전`;
+    return date.toLocaleDateString('ko-KR');
+  }, []);
+
+  // 알림 목록 조회
+  const fetchNotifications = useCallback(async () => {
+    if (!isLoggedIn) return;
+    try {
+      const data = await getUnreadNotifications();
+      // 백엔드 응답을 프론트엔드 형식으로 변환
+      const formattedNotifications = data.map(notif => ({
+        id: notif.id,
+        title: notif.title,
+        body: notif.content,
+        time: formatTime(notif.createdAt),
+        type: notif.referenceType?.toLowerCase() || 'order',
+        read: false // 읽지 않은 알림만 조회하므로 항상 false
+      }));
+      setNotifications(formattedNotifications);
+      setUnreadCount(formattedNotifications.length);
+    } catch (error) {
+      console.error('알림 조회 실패:', error);
+    }
+  }, [isLoggedIn, formatTime]);
+
+  // SSE 연결 및 실시간 알림 수신
+  useEffect(() => {
+    if (!isLoggedIn) {
+      // 로그아웃 시 SSE 연결 종료
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      setNotifications([]);
+      setUnreadCount(0);
+      return;
+    }
+
+    // 알림 목록 조회
+    fetchNotifications();
+
+    // SSE 연결 시작
+    const eventSource = subscribeNotifications(
+      (eventName, data) => {
+        console.log('[SSE] 이벤트 수신:', eventName, data);
+        if (eventName === 'UNREAD_COUNT') {
+          const count = typeof data === 'number' ? data : parseInt(data, 10);
+          console.log('[SSE] 읽지 않은 알림 개수 업데이트:', count);
+          // 알림 개수와 목록을 즉시 업데이트
+          setUnreadCount(count);
+          // 알림 목록도 즉시 다시 조회
+          getUnreadNotifications()
+            .then(data => {
+              const formattedNotifications = data.map(notif => ({
+                id: notif.id,
+                title: notif.title,
+                body: notif.content,
+                time: formatTime(notif.createdAt),
+                type: notif.referenceType?.toLowerCase() || 'order',
+                read: false
+              }));
+              setNotifications(formattedNotifications);
+            })
+            .catch(error => {
+              console.error('[SSE] 알림 목록 조회 실패:', error);
+            });
+        } else if (eventName === 'CONNECTED') {
+          console.log('[SSE] 연결됨:', data);
+        }
+      },
+      (error) => {
+        console.error('[SSE] 연결 오류:', error);
+        // 연결 오류 시 재연결 시도 (3초 후)
+        setTimeout(() => {
+          if (isLoggedIn && !eventSourceRef.current) {
+            console.log('[SSE] 재연결 시도...');
+            fetchNotifications();
+          }
+        }, 3000);
+      }
+    );
+
+    eventSourceRef.current = eventSource;
+
+    // 컴포넌트 언마운트 시 연결 종료
+    return () => {
+      if (eventSourceRef.current) {
+        console.log('[SSE] 연결 종료');
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, [isLoggedIn, fetchNotifications]);
+
+  // 알림 패널이 열릴 때마다 최신 알림 목록 조회
+  useEffect(() => {
+    if (isNotificationOpen && isLoggedIn) {
+      fetchNotifications();
+    }
+  }, [isNotificationOpen, isLoggedIn]);
 
   // 마트 입점 신청 현황 조회 (로그인 사용자)
   const fetchStoreRegistration = async () => {
@@ -97,15 +210,30 @@ function App() {
     initAuth();
   }, []);
 
-  const handleMarkAsRead = (id) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  const handleMarkAsRead = async (id) => {
+    try {
+      // 백엔드에 읽음 처리
+      await markAsRead(id);
+      // SSE 이벤트로 개수와 목록이 자동 업데이트되므로 로컬 상태는 즉시 업데이트하지 않음
+      // 대신 알림 목록에서만 읽음 표시 (UI 반응성 향상)
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+      // 개수는 SSE 이벤트로 업데이트될 때까지 기다림
+    } catch (error) {
+      console.error('알림 읽음 처리 실패:', error);
+      // 에러 발생 시에도 UI 반응성 위해 읽음 표시
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    }
   };
 
-  const handleClearAll = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const handleClearAll = async () => {
+    try {
+      await markAllAsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('모든 알림 읽음 처리 실패:', error);
+    }
   };
-
-  const unreadCount = notifications.filter(n => !n.read).length;
 
   const handleLogout = async () => {
     try {
@@ -173,6 +301,8 @@ function App() {
         setIsLoggedIn={setIsLoggedIn}
         onLogout={handleLogout}
         onOpenAuth={() => setIsAuthModalOpen(true)}
+        onOpenNotifications={() => setIsNotificationOpen(true)}
+        onCloseNotifications={() => setIsNotificationOpen(false)}
         isResidentRider={isResidentRider}
         setIsResidentRider={setIsResidentRider}
         storeRegistrationStatus={storeRegistrationStatus}
@@ -183,6 +313,10 @@ function App() {
         setRiderInfo={setRiderInfo}
         notificationCount={unreadCount}
         userInfo={userInfo}
+        isNotificationOpen={isNotificationOpen}
+        notifications={notifications}
+        onMarkAsRead={handleMarkAsRead}
+        onClearAll={handleClearAll}
       />
     );
     if (userRole === 'STORE') return <StoreDashboard userInfo={userInfo || { userId: 2 }} />;
@@ -259,14 +393,6 @@ function App() {
         </div>
 
         {renderContent()}
-
-        <NotificationPanel
-          isOpen={isNotificationOpen}
-          onClose={() => setIsNotificationOpen(false)}
-          notifications={notifications}
-          onMarkAsRead={handleMarkAsRead}
-          onClearAll={handleClearAll}
-        />
 
         <AuthModal
           isOpen={isAuthModalOpen}
