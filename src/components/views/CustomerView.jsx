@@ -1,36 +1,24 @@
-import React, { useState, useEffect } from "react";
-import Header from "../common/Header";
-import Hero from "../common/Hero";
-import StoreGrid from "../common/StoreGrid";
-import CategorySidebar from "../common/CategorySidebar";
-import SearchResultsView from "./SearchResultsView";
-import CheckoutView from "./CheckoutView";
-import OrderTrackingView from "./OrderTrackingView";
-import ResidentDeliveryView from "./ResidentDeliveryView";
-import SupportView from "./SupportView";
-import PartnerPage from "./PartnerPage";
-import Footer from "../common/Footer";
-import {
-  orders,
-  subscriptions,
-  reviews,
-  stores,
-  addresses,
-  paymentMethods,
-  faqs,
-  categories,
-  coupons,
-  inquiries,
-  loyaltyPoints,
-  subscriptionPayments,
-} from "../../data/mockData";
-import CartModal from "../modals/CartModal";
-import StoreDetailView from "./StoreDetailView";
-import StoreRegistrationView from "./StoreRegistrationView";
-import RiderRegistrationView from "./RiderRegistrationView";
-import OrderManagementView from "./OrderManagementView";
-import LocationModal from "../modals/LocationModal";
-import * as cartAPI from "../../api/cart.js";
+import React, { useState, useEffect } from 'react';
+import Header from '../common/Header';
+import Hero from '../common/Hero';
+import StoreGrid from '../common/StoreGrid';
+import CategorySidebar from '../common/CategorySidebar';
+import SearchResultsView from './SearchResultsView';
+import CheckoutView from './CheckoutView';
+import OrderTrackingView from './OrderTrackingView';
+import ResidentDeliveryView from './ResidentDeliveryView';
+import SupportView from './SupportView';
+import PartnerPage from './PartnerPage';
+import Footer from '../common/Footer';
+import { orders, subscriptions, reviews, stores, addresses, paymentMethods, faqs, categories, coupons, inquiries, loyaltyPoints, subscriptionPayments } from '../../data/mockData';
+import CartModal from '../modals/CartModal';
+import StoreDetailView from './StoreDetailView';
+import StoreRegistrationView from './StoreRegistrationView';
+import RiderRegistrationView from './RiderRegistrationView';
+import OrderManagementView from './OrderManagementView';
+import LocationModal from '../modals/LocationModal';
+import { API_BASE_URL } from '../../config/api';
+import * as cartAPI from '../../api/cart.js';
 
 // Import Swiper React components
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -112,18 +100,27 @@ const CustomerView = ({
   isLoggedIn,
   onLogout,
   onOpenAuth,
+  onOpenNotifications,
   isResidentRider,
   setIsResidentRider,
   notificationCount,
   storeRegistrationStatus,
   setStoreRegistrationStatus,
+  storeRegistrationStoreName,
+  setStoreRegistrationStoreName,
   riderInfo,
   setRiderInfo,
   userInfo,
+  isNotificationOpen,
+  notifications,
+  onMarkAsRead,
+  onClearAll,
+  onCloseNotifications,
 }) => {
-  const [activeTab, setActiveTab] = useState("home");
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState('home');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [myStoreId, setMyStoreId] = useState(null);
   const [selectedStore, setSelectedStore] = useState(null); // Local state for full page view
 
   const [cartItems, setCartItems] = useState([]);
@@ -132,6 +129,39 @@ const CustomerView = ({
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [orderList, setOrderList] = useState(orders);
   const [subscriptionList, setSubscriptionList] = useState(subscriptions);
+
+
+  const [hasStore, setHasStore] = useState(false);
+
+  const hasStoreRole = isLoggedIn && (
+    userInfo?.roles && Array.isArray(userInfo.roles) && (
+      userInfo.roles.includes('STORE_OWNER') || userInfo.roles.includes('ROLE_STORE_OWNER') || userInfo.roles.some(r => String(r).toUpperCase().endsWith('STORE_OWNER'))
+    )
+  );
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setMyStoreId(null);
+      setHasStore(false);
+      return;
+    }
+    fetch(`${API_BASE_URL}/api/stores/my`, { credentials: 'include' })
+      .then(res => res.ok ? res.json() : null)
+      .then(json => {
+        const data = json?.data;
+        if (data?.storeId != null) {
+          setMyStoreId(data.storeId);
+          setHasStore(true);
+        } else {
+          setMyStoreId(null);
+          setHasStore(false);
+        }
+      })
+      .catch(() => {
+        setMyStoreId(null);
+        setHasStore(false);
+      });
+  }, [isLoggedIn]);
 
   useEffect(() => {
     const fetchCart = async () => {
@@ -872,6 +902,8 @@ const CustomerView = ({
             onBack={() => setActiveTab("partner")}
             status={storeRegistrationStatus}
             setStatus={setStoreRegistrationStatus}
+            setStoreRegistrationStoreName={setStoreRegistrationStoreName}
+            userId={userInfo?.userId}
           />
         );
       case "rider_registration":
@@ -888,7 +920,7 @@ const CustomerView = ({
           />
         );
       case "support":
-        return <SupportView userRole={userRole} onOpenAuth={onOpenAuth} />;
+        return <SupportView isLoggedIn={isLoggedIn} onOpenAuth={onOpenAuth} />;
       case "partner":
         return (
           <PartnerPage
@@ -3329,22 +3361,9 @@ const CustomerView = ({
                             >
                               <span style={{ fontSize: "24px" }}>🏢</span>
                               <div>
-                                <div
-                                  style={{
-                                    fontWeight: "800",
-                                    fontSize: "16px",
-                                  }}
-                                >
-                                  마트 입점 신청
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: "12px",
-                                    color: "#94a3b8",
-                                    marginTop: "2px",
-                                  }}
-                                >
-                                  Neighborhood Mart Partner
+                                <div style={{ fontWeight: '800', fontSize: '16px' }}>마트 입점 신청</div>
+                                <div style={{ fontSize: storeRegistrationStoreName ? '15px' : '12px', fontWeight: storeRegistrationStoreName ? '600' : '400', color: storeRegistrationStoreName ? '#334155' : '#94a3b8', marginTop: '2px' }}>
+                                  {storeRegistrationStoreName ? `신청 상호명: ${storeRegistrationStoreName}` : 'Neighborhood Mart Partner'}
                                 </div>
                               </div>
                             </div>
@@ -3398,16 +3417,23 @@ const CustomerView = ({
                               </div>
                               {storeRegistrationStatus !== "APPROVED" && (
                                 <button
-                                  onClick={() => {
-                                    if (
-                                      window.confirm(
-                                        "마트 입점 신청을 취소하시겠습니까?",
-                                      )
-                                    ) {
-                                      setStoreRegistrationStatus("NONE");
-                                      showToast(
-                                        "마트 입점 신청이 취소되었습니다.",
-                                      );
+                                  onClick={async () => {
+                                    if (!window.confirm('마트 입점 신청을 취소하시겠습니까?')) return;
+                                    try {
+                                      const res = await fetch(`${API_BASE_URL}/api/stores/registration`, {
+                                        method: 'DELETE',
+                                        credentials: 'include',
+                                      });
+                                      const json = await res.json().catch(() => ({}));
+                                      if (!res.ok) {
+                                        const msg = json?.error?.message || json?.message || '입점 신청 취소에 실패했습니다.';
+                                        throw new Error(msg);
+                                      }
+                                      setStoreRegistrationStatus('NONE');
+                                      setStoreRegistrationStoreName?.(null);
+                                      showToast('마트 입점 신청이 취소되었습니다.');
+                                    } catch (err) {
+                                      alert(err.message || '입점 신청 취소에 실패했습니다.');
                                     }
                                   }}
                                   style={{
@@ -4027,9 +4053,18 @@ const CustomerView = ({
         isLoggedIn={isLoggedIn}
         onLogout={onLogout}
         onOpenAuth={onOpenAuth}
+        onOpenNotifications={onOpenNotifications}
         cartCount={cartItems.length}
         notificationCount={notificationCount}
         isResidentRider={isResidentRider}
+        isNotificationOpen={isNotificationOpen}
+        notifications={notifications}
+        onMarkAsRead={onMarkAsRead}
+        onClearAll={onClearAll}
+        onCloseNotifications={onCloseNotifications}
+        hasStoreRole={hasStoreRole}
+        onGoToStoreDashboard={() => setUserRole('STORE')}
+        storeId={myStoreId}
       />
       <div style={{ minHeight: "calc(100vh - 200px)" }}>
         {selectedStore ? (
