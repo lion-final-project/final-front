@@ -1,18 +1,46 @@
 import React, { useState } from 'react';
+import { createInquiry } from '../../api/inquiryApi';
 
-const InquiryModal = ({ isOpen, onClose, order }) => {
-  if (!isOpen || !order) return null;
+const InquiryModal = ({ isOpen, onClose, order, onSuccess }) => {
+  if (!isOpen) return null;
 
-  const [type, setType] = useState('delivery');
+  const [type, setType] = useState('DELIVERY'); // ORDER_PAYMENT, CANCELLATION_REFUND, DELIVERY, SERVICE, OTHER
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [file, setFile] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    alert('문의가 접수되었습니다. 답변은 알림으로 안내해 드립니다.');
-    onClose();
-    setTitle('');
-    setContent('');
+    if (!title.trim() || !content.trim()) {
+      alert('제목과 내용을 입력해주세요.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await createInquiry(
+        {
+          category: type,
+          title: title.trim(),
+          content: content.trim(),
+        },
+        file
+      );
+      alert('문의가 접수되었습니다. 답변은 알림으로 안내해 드립니다.');
+      onClose();
+      setTitle('');
+      setContent('');
+      setFile(null);
+      if (onSuccess) {
+        onSuccess();
+      }
+    } catch (error) {
+      console.error('문의 작성 실패:', error);
+      alert(error.response?.data?.error?.message || error.message || '문의 작성에 실패했습니다.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -43,11 +71,22 @@ const InquiryModal = ({ isOpen, onClose, order }) => {
                value={type} onChange={(e) => setType(e.target.value)}
                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '14px', outline: 'none' }}
              >
-               <option value="delivery">배송 문의</option>
-               <option value="product">상품 문의</option>
-               <option value="cancel">취소/환불 문의</option>
-               <option value="other">기타</option>
+               <option value="ORDER_PAYMENT">주문/결제 문의</option>
+               <option value="CANCELLATION_REFUND">취소/환불 문의</option>
+               <option value="DELIVERY">배송 문의</option>
+               <option value="SERVICE">서비스 이용 문의</option>
+               <option value="OTHER">기타</option>
              </select>
+           </div>
+           
+           <div>
+             <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#475569' }}>첨부 파일</label>
+             <input 
+               type="file" 
+               onChange={(e) => setFile(e.target.files[0] || null)}
+               style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '14px', outline: 'none' }}
+             />
+             <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px' }}>이미지, PDF 등 최대 10MB까지 업로드 가능합니다.</p>
            </div>
            
            <div>
@@ -79,8 +118,18 @@ const InquiryModal = ({ isOpen, onClose, order }) => {
               >취소</button>
               <button 
                 type="submit"
-                style={{ flex: 2, padding: '14px', borderRadius: '12px', background: 'var(--primary)', border: 'none', fontWeight: '700', cursor: 'pointer', color: 'white' }}
-              >문의 접수</button>
+                disabled={isSubmitting}
+                style={{ 
+                  flex: 2, 
+                  padding: '14px', 
+                  borderRadius: '12px', 
+                  background: isSubmitting ? '#cbd5e1' : 'var(--primary)', 
+                  border: 'none', 
+                  fontWeight: '700', 
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer', 
+                  color: 'white' 
+                }}
+              >{isSubmitting ? '처리 중...' : '문의 접수'}</button>
            </div>
         </form>
 

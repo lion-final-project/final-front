@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getNotices, createNotice, updateNotice, deleteNotice } from '../../api/noticeApi';
 import { getFaqsForAdmin, createFaq, updateFaq, deleteFaq } from '../../api/faqApi';
+import { getAdminInquiries, getAdminInquiryDetail, answerInquiry } from '../../api/inquiryApi';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const BASIC_AUTH = import.meta.env.VITE_BASIC_AUTH || 'admin:admin1234';
@@ -689,12 +690,80 @@ const AdminDashboard = () => {
   }, [activeTab, approvalFilter, approvalStatusFilter, reportsFilter, settlementFilter, userSearch, inquiryFilter]);
 
   const [selectedReport, setSelectedReport] = useState(null);
-  const [inquiryList, setInquiryList] = useState([
-    { id: 1, type: '배송 문의', title: '배송이 아직 안 왔어요.', content: '1시간 전에 주문했는데 아직 배송 중으로 뜨네요.', user: '김영희', email: 'yh_kim99@example.com', contact: '010-1111-2222', date: '2024.01.21', status: '답변 완료', answer: '대설로 인해 지연되었습니다. 현재 배송 중입니다.', attachments: [] },
-    { id: 2, type: '결제 문의', title: '카드 결제 취소 확인 요청', content: '취소했는데 문자가 안 옵니다.', user: '이철수', email: 'cs_lee88@naver.com', contact: '010-3333-4444', date: '2024.01.18', status: '답변 대기', attachments: ['payment_screen.png'] }
-  ]);
+  const [inquiryList, setInquiryList] = useState([]);
+  const [inquiryPage, setInquiryPage] = useState(0);
   const [selectedInquiry, setSelectedInquiry] = useState(null);
   const [inquiryAnswer, setInquiryAnswer] = useState('');
+  const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false);
+
+  const getCategoryLabel = (category) => {
+    const labels = {
+      'ORDER_PAYMENT': '주문/결제 문의',
+      'CANCELLATION_REFUND': '취소/환불 문의',
+      'DELIVERY': '배송 문의',
+      'SERVICE': '서비스 이용 문의',
+      'OTHER': '기타'
+    };
+    return labels[category] || category;
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ko-KR').replace(/\./g, '.').replace(/\s/g, '');
+  };
+
+  const fetchInquiries = useCallback(async () => {
+    try {
+      const status = inquiryFilter === 'ALL' ? null : (inquiryFilter === 'PENDING' ? 'PENDING' : 'ANSWERED');
+      const page = await getAdminInquiries(status, inquiryPage, itemsPerPage);
+      const list = (page.content || []).map(inq => ({
+        inquiryId: inq.inquiryId,
+        id: inq.inquiryId,
+        type: getCategoryLabel(inq.category),
+        category: inq.category,
+        title: inq.title,
+        user: inq.customerName,
+        date: formatDate(inq.createdAt),
+        status: inq.status === 'ANSWERED' ? '답변 완료' : '답변 대기',
+        statusEnum: inq.status
+      }));
+      setInquiryList(list);
+    } catch (err) {
+      console.error('문의 목록 조회 실패:', err);
+    }
+  }, [inquiryFilter, inquiryPage, itemsPerPage]);
+
+  const fetchInquiryDetail = async (inquiryId) => {
+    try {
+      const detail = await getAdminInquiryDetail(inquiryId);
+      setSelectedInquiry({
+        id: inquiryId,
+        type: getCategoryLabel(detail.category),
+        category: detail.category,
+        title: detail.title,
+        content: detail.content,
+        user: detail.customerName,
+        email: detail.email,
+        contact: detail.phone,
+        date: formatDate(detail.createdAt),
+        status: detail.status === 'ANSWERED' ? '답변 완료' : '답변 대기',
+        statusEnum: detail.status,
+        answer: detail.answer || null,
+        fileUrl: detail.fileUrl || null,
+        attachments: detail.fileUrl ? [detail.fileUrl] : []
+      });
+    } catch (err) {
+      console.error('문의 상세 조회 실패:', err);
+      alert('문의 상세 정보를 불러오는데 실패했습니다.');
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'inquiry') {
+      fetchInquiries();
+    }
+  }, [activeTab, inquiryFilter, inquiryPage, fetchInquiries]);
 
   const [noticeList, setNoticeList] = useState([]);
 
@@ -1286,14 +1355,7 @@ const AdminDashboard = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {inquiryList
-                    .filter(inq => {
-                      if (inquiryFilter === 'ALL') return true;
-                      if (inquiryFilter === 'PENDING') return inq.status === '답변 대기';
-                      if (inquiryFilter === 'COMPLETED') return inq.status === '답변 완료';
-                      return true;
-                    })
-                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((inq, i) => (
+                  {inquiryList.map((inq, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid #334155' }}>
                       <td style={{ padding: '16px' }}><span style={{ color: '#38bdf8' }}>[{inq.type}]</span></td>
                       <td style={{ padding: '16px' }}>{inq.title}</td>
@@ -1308,7 +1370,7 @@ const AdminDashboard = () => {
                       </td>
                       <td style={{ padding: '16px' }}>
                         <button 
-                          onClick={() => setSelectedInquiry(inq)}
+                          onClick={() => fetchInquiryDetail(inq.inquiryId)}
                           style={{ padding: '6px 12px', borderRadius: '6px', backgroundColor: '#38bdf8', color: '#0f172a', border: 'none', cursor: 'pointer', fontWeight: '800' }}
                         >상세보기</button>
                       </td>
@@ -1317,10 +1379,10 @@ const AdminDashboard = () => {
                 </tbody>
               </table>
               <Pagination 
-                currentPage={currentPage}
+                currentPage={inquiryPage + 1}
                 totalItems={inquiryList.length}
                 itemsPerPage={itemsPerPage}
-                onPageChange={setCurrentPage}
+                onPageChange={(page) => setInquiryPage(page - 1)}
               />
             </div>
 
@@ -1359,53 +1421,83 @@ const AdminDashboard = () => {
                     <div style={{ fontSize: '14px', color: '#cbd5e1', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>{selectedInquiry.content}</div>
                     
                     {/* Attachment Section */}
-                    <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #334155' }}>
-                      <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>첨부파일 확인</div>
-                      {selectedInquiry.attachments && selectedInquiry.attachments.length > 0 ? (
+                    {selectedInquiry.fileUrl && (
+                      <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #334155' }}>
+                        <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>첨부파일 확인</div>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                          {selectedInquiry.attachments.map((file, idx) => (
-                            <div key={idx} style={{ padding: '8px 12px', background: '#1e293b', borderRadius: '8px', fontSize: '12px', border: '1px solid #334155', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span>📎</span> {file}
-                            </div>
-                          ))}
+                          <a 
+                            href={selectedInquiry.fileUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            style={{ padding: '8px 12px', background: '#1e293b', borderRadius: '8px', fontSize: '12px', border: '1px solid #334155', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', color: '#38bdf8', textDecoration: 'none' }}
+                          >
+                            <span>📎</span> 첨부파일 보기
+                          </a>
                         </div>
-                      ) : (
-                        <div style={{ fontSize: '12px', color: '#475569' }}>첨부파일 없음</div>
-                      )}
-                    </div>
+                      </div>
+                    )}
+                    
+                    {/* Answer Section */}
+                    {selectedInquiry.answer && (
+                      <div style={{ marginTop: '20px', padding: '16px', background: '#0f172a', borderRadius: '12px', border: '1px solid #334155' }}>
+                        <h4 style={{ fontSize: '14px', fontWeight: '700', color: '#38bdf8', marginBottom: '12px' }}>답변 내용</h4>
+                        <div style={{ fontSize: '14px', color: '#cbd5e1', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>{selectedInquiry.answer}</div>
+                      </div>
+                    )}
                   </div>
 
-                  <div style={{ marginBottom: '8px', fontSize: '14px', fontWeight: '700', color: '#94a3b8' }}>답변 작성</div>
-                  <textarea 
-                    value={inquiryAnswer}
-                    onChange={(e) => setInquiryAnswer(e.target.value)}
-                    placeholder="답변 내용을 입력하세요"
-                    style={{ width: '100%', height: '120px', background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '16px', color: 'white', resize: 'none', marginBottom: '24px' }}
-                  ></textarea>
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    <button onClick={() => setSelectedInquiry(null)} style={{ flex: 1, padding: '16px', borderRadius: '12px', background: '#334155', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}>취소</button>
-                    <button 
-                      onClick={() => {
-                        if (!inquiryAnswer.trim()) {
-                          alert('답변 내용을 입력해주세요.');
-                          return;
-                        }
-                        alert('답변이 등록되었습니다.');
-                        setInquiryList(prev => prev.map(q => q.id === selectedInquiry.id ? { ...q, status: '답변 완료', answer: inquiryAnswer } : q));
-                        setSelectedInquiry(null);
-                        setInquiryAnswer('');
-                      }} 
-                      disabled={selectedInquiry.status === '답변 완료'}
-                      style={{ 
-                        flex: 2, padding: '16px', borderRadius: '12px', 
-                        background: selectedInquiry.status === '답변 완료' ? '#475569' : '#38bdf8', 
-                        color: selectedInquiry.status === '답변 완료' ? '#94a3b8' : '#0f172a', 
-                        border: 'none', fontWeight: '800', 
-                        cursor: selectedInquiry.status === '답변 완료' ? 'default' : 'pointer' 
-                      }}>
-                        {selectedInquiry.status === '답변 완료' ? '답변 완료' : '답변 등록'}
-                      </button>
-                  </div>
+                  {!selectedInquiry.answer && (
+                    <>
+                      <div style={{ marginBottom: '8px', fontSize: '14px', fontWeight: '700', color: '#94a3b8' }}>답변 작성</div>
+                      <textarea 
+                        value={inquiryAnswer}
+                        onChange={(e) => setInquiryAnswer(e.target.value)}
+                        placeholder="답변 내용을 입력하세요"
+                        style={{ width: '100%', height: '120px', background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '16px', color: 'white', resize: 'none', marginBottom: '24px' }}
+                      />
+                      <div style={{ display: 'flex', gap: '12px' }}>
+                        <button 
+                          onClick={() => {
+                            setSelectedInquiry(null);
+                            setInquiryAnswer('');
+                          }} 
+                          style={{ flex: 1, padding: '16px', borderRadius: '12px', background: '#334155', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
+                        >취소</button>
+                        <button 
+                          onClick={async () => {
+                            if (!inquiryAnswer.trim()) {
+                              alert('답변 내용을 입력해주세요.');
+                              return;
+                            }
+                            setIsSubmittingAnswer(true);
+                            try {
+                              await answerInquiry(selectedInquiry.id, inquiryAnswer.trim());
+                              alert('답변이 등록되었습니다.');
+                              setInquiryList(prev => prev.map(q => q.id === selectedInquiry.id ? { ...q, status: '답변 완료', statusEnum: 'ANSWERED' } : q));
+                              setSelectedInquiry(null);
+                              setInquiryAnswer('');
+                              fetchInquiries(); // 목록 새로고침
+                            } catch (error) {
+                              console.error('답변 등록 실패:', error);
+                              alert(error.response?.data?.error?.message || error.message || '답변 등록에 실패했습니다.');
+                            } finally {
+                              setIsSubmittingAnswer(false);
+                            }
+                          }} 
+                          disabled={isSubmittingAnswer}
+                          style={{ 
+                            flex: 2, padding: '16px', borderRadius: '12px', 
+                            background: isSubmittingAnswer ? '#475569' : '#38bdf8', 
+                            color: isSubmittingAnswer ? '#94a3b8' : '#0f172a', 
+                            border: 'none', fontWeight: '800', 
+                            cursor: isSubmittingAnswer ? 'not-allowed' : 'pointer' 
+                          }}
+                        >
+                          {isSubmittingAnswer ? '처리 중...' : '답변 등록'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}
