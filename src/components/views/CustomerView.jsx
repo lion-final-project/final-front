@@ -17,6 +17,7 @@ import StoreRegistrationView from './StoreRegistrationView';
 import RiderRegistrationView from './RiderRegistrationView';
 import OrderManagementView from './OrderManagementView';
 import LocationModal from '../modals/LocationModal';
+import { API_BASE_URL } from '../../config/api';
 
 // Import Swiper React components
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -50,8 +51,9 @@ const TrackingModal = ({ isOpen, onClose, orderId }) => {
   );
 };
 
-const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth, isResidentRider, setIsResidentRider, notificationCount, storeRegistrationStatus, setStoreRegistrationStatus, riderInfo, setRiderInfo, userInfo }) => {
+const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth, isResidentRider, setIsResidentRider, notificationCount, storeRegistrationStatus, setStoreRegistrationStatus, storeRegistrationStoreName, setStoreRegistrationStoreName, riderInfo, setRiderInfo, userInfo }) => {
   const [activeTab, setActiveTab] = useState('home');
+  const [myStoreId, setMyStoreId] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStore, setSelectedStore] = useState(null); // Local state for full page view
@@ -63,6 +65,38 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
   const [orderList, setOrderList] = useState(orders);
   const [subscriptionList, setSubscriptionList] = useState(subscriptions);
 
+
+  const [hasStore, setHasStore] = useState(false);
+
+  const hasStoreRole = isLoggedIn && (
+    userInfo?.roles && Array.isArray(userInfo.roles) && (
+      userInfo.roles.includes('STORE_OWNER') || userInfo.roles.includes('ROLE_STORE_OWNER') || userInfo.roles.some(r => String(r).toUpperCase().endsWith('STORE_OWNER'))
+    )
+  );
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setMyStoreId(null);
+      setHasStore(false);
+      return;
+    }
+    fetch(`${API_BASE_URL}/api/stores/my`, { credentials: 'include' })
+      .then(res => res.ok ? res.json() : null)
+      .then(json => {
+        const data = json?.data;
+        if (data?.storeId != null) {
+          setMyStoreId(data.storeId);
+          setHasStore(true);
+        } else {
+          setMyStoreId(null);
+          setHasStore(false);
+        }
+      })
+      .catch(() => {
+        setMyStoreId(null);
+        setHasStore(false);
+      });
+  }, [isLoggedIn]);
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -450,6 +484,8 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
             onBack={() => setActiveTab('partner')}
             status={storeRegistrationStatus}
             setStatus={setStoreRegistrationStatus}
+            setStoreRegistrationStoreName={setStoreRegistrationStoreName}
+            userId={userInfo?.userId}
           />
         );
       case 'rider_registration':
@@ -1319,7 +1355,9 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                               <span style={{ fontSize: '24px' }}>🏢</span>
                               <div>
                                 <div style={{ fontWeight: '800', fontSize: '16px' }}>마트 입점 신청</div>
-                                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>Neighborhood Mart Partner</div>
+                                <div style={{ fontSize: storeRegistrationStoreName ? '15px' : '12px', fontWeight: storeRegistrationStoreName ? '600' : '400', color: storeRegistrationStoreName ? '#334155' : '#94a3b8', marginTop: '2px' }}>
+                                  {storeRegistrationStoreName ? `신청 상호명: ${storeRegistrationStoreName}` : 'Neighborhood Mart Partner'}
+                                </div>
                               </div>
                             </div>
                             <div style={{
@@ -1337,10 +1375,23 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
                               </div>
                               {storeRegistrationStatus !== 'APPROVED' && (
                                 <button
-                                  onClick={() => {
-                                    if (window.confirm('마트 입점 신청을 취소하시겠습니까?')) {
+                                  onClick={async () => {
+                                    if (!window.confirm('마트 입점 신청을 취소하시겠습니까?')) return;
+                                    try {
+                                      const res = await fetch(`${API_BASE_URL}/api/stores/registration`, {
+                                        method: 'DELETE',
+                                        credentials: 'include',
+                                      });
+                                      const json = await res.json().catch(() => ({}));
+                                      if (!res.ok) {
+                                        const msg = json?.error?.message || json?.message || '입점 신청 취소에 실패했습니다.';
+                                        throw new Error(msg);
+                                      }
                                       setStoreRegistrationStatus('NONE');
+                                      setStoreRegistrationStoreName?.(null);
                                       showToast('마트 입점 신청이 취소되었습니다.');
+                                    } catch (err) {
+                                      alert(err.message || '입점 신청 취소에 실패했습니다.');
                                     }
                                   }}
                                   style={{ padding: '6px 12px', borderRadius: '8px', background: 'white', border: '1px solid #fee2e2', color: '#ef4444', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
@@ -1608,6 +1659,9 @@ const CustomerView = ({ userRole, setUserRole, isLoggedIn, onLogout, onOpenAuth,
         cartCount={cartItems.length}
         notificationCount={notificationCount}
         isResidentRider={isResidentRider}
+        hasStoreRole={hasStoreRole}
+        onGoToStoreDashboard={() => setUserRole('STORE')}
+        storeId={myStoreId}
       />
 
       <div style={{ minHeight: 'calc(100vh - 200px)' }}>
