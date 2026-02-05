@@ -1718,25 +1718,26 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
                                          </div>
                                        </div>
                                        <div style={{ gridColumn: 'span 3', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
-                                          <div style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', marginBottom: '12px' }}>구성 품목 상세</div>
-                                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
-                                            {(sub.selectedProducts || []).map(item => {
-                                              const p = products.find((pr) => String(pr.id) === String(item.id));
-                                              const displayName = p?.name ?? item.productName ?? `상품 ${item.id}`;
-                                              const displayImg = p?.img ?? '📦';
-                                              return (
-                                                <div key={item.id} style={{ backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                  {p.img && (p.img.startsWith('data:') || p.img.startsWith('http')) ? (
-                                                    <img src={p.img} alt={p.name} style={{ width: '32px', height: '32px', objectFit: 'cover', borderRadius: '6px' }} />
-                                                  ) : (
-                                                    <span style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0', borderRadius: '6px', fontSize: '14px' }}>📦</span>
-                                                  )}
-                                                  <span style={{ fontSize: '13px', fontWeight: '600' }}>{p.name}</span>
-                                                  <span style={{ fontSize: '12px', color: '#8b5cf6', fontWeight: '700' }}>x{item.qty}</span>
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
+                                         <div style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', marginBottom: '12px' }}>구성 품목 상세</div>
+                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+                                           {(sub.selectedProducts || []).map(item => {
+                                             const p = products.find((pr) => String(pr.id) === String(item.id));
+                                             const displayName = p?.name ?? item.productName ?? `상품 ${item.id}`;
+                                             const displayImg = p?.img;
+                                             const hasValidImg = displayImg && (displayImg.startsWith('data:') || displayImg.startsWith('http'));
+                                             return (
+                                               <div key={item.id} style={{ backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                 {hasValidImg ? (
+                                                   <img src={displayImg} alt={displayName} style={{ width: '32px', height: '32px', objectFit: 'cover', borderRadius: '6px' }} />
+                                                 ) : (
+                                                   <span style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0', borderRadius: '6px', fontSize: '14px' }}>📦</span>
+                                                 )}
+                                                 <span style={{ fontSize: '13px', fontWeight: '600' }}>{displayName}</span>
+                                                 <span style={{ fontSize: '12px', color: '#8b5cf6', fontWeight: '700' }}>x{item.qty}</span>
+                                               </div>
+                                             );
+                                           })}
+                                         </div>
                                          <div style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', marginBottom: '8px' }}>상품 상세 설명</div>
                                          <div style={{ fontSize: '14px', color: '#475569', lineHeight: '1.6' }}>{sub.description || '구성된 상품 목록 및 서비스 안내 내용이 표시됩니다.'}</div>
                                        </div>
