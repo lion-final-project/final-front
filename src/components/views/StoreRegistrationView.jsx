@@ -7,10 +7,6 @@ const DOCUMENT_TYPES = {
   bankbook: 'BANK_PASSBOOK',
 };
 
-const DUMMY_ADDRESS = '서울특별시 강남구 테헤란로 123 (역삼동)';
-const DUMMY_LATITUDE = 37.5012743;
-const DUMMY_LONGITUDE = 127.0396857;
-
 const getApiBase = () => import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 function InputSection({ label, field, placeholder, type = 'text', required = true, formData, setFormData, errors, setErrors }) {
@@ -318,6 +314,7 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
 
   const PHONE_REGEX = /^\d{2,3}-\d{3,4}-\d{4}$/;
   const BUSINESS_NUMBER_REGEX = /^\d{3}-\d{2}-\d{5}$/;
+  const ACCOUNT_NUMBER_DIGITS_ONLY = /^\d{10,17}$/;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -336,6 +333,15 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
     requiredFields.forEach(field => {
       if (!formData[field]) newErrors[field] = '필수 입력 항목입니다.';
     });
+
+    if (!formData.address || formData.latitude == null || formData.longitude == null) {
+      newErrors.address = '주소 검색으로 매장 주소를 선택해주세요.';
+    }
+
+    const accountDigits = (formData.accountNumber || '').replace(/\D/g, '');
+    if (formData.accountNumber && !ACCOUNT_NUMBER_DIGITS_ONLY.test(accountDigits)) {
+      newErrors.accountNumber = '계좌번호는 숫자만 10~17자리로 입력해주세요.';
+    }
 
     if (!PHONE_REGEX.test(formData.contact)) {
       if (formData.contact) newErrors.contact = '연락처 형식이 올바르지 않습니다. (예: 010-1234-5678)';
@@ -383,13 +389,14 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
         };
       });
 
+      const accountDigitsOnly = (formData.accountNumber || '').replace(/\D/g, '');
       const payload = {
         storeCategory: formData.category,
         storeOwnerName: formData.companyName,
         storeName: formData.storeName,
-        addressLine: formData.address || DUMMY_ADDRESS,
-        latitude: formData.latitude ?? DUMMY_LATITUDE,
-        longitude: formData.longitude ?? DUMMY_LONGITUDE,
+        addressLine: formData.address,
+        latitude: formData.latitude,
+        longitude: formData.longitude,
         representativeName: formData.repName,
         representativePhone: formData.contact,
         storePhone: formData.martContact || formData.contact,
@@ -400,7 +407,7 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
         telecomSalesReportNumber: formData.mailOrderNumber,
         telecomSalesReportUrl,
         settlementBankName: formData.bankName,
-        settlementBankAccount: formData.accountNumber,
+        settlementBankAccount: accountDigitsOnly,
         settlementAccountHolder: formData.accountHolder,
         bankPassbookUrl,
         regularHolidays: formData.offDays,
