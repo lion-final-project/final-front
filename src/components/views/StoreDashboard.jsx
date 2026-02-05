@@ -19,12 +19,8 @@ const mapApiToSub = (d) => ({
   description: d.description ?? '',
 });
 
-const getSubscriptionHeaders = () => {
-  const h = { 'Content-Type': 'application/json' };
-  const sid = import.meta.env.VITE_STORE_ID;
-  if (sid) h['X-Store-Id'] = sid;
-  return h;
-};
+/** 구독 상품 API 요청 시 JSON body용 헤더. storeId는 백엔드에서 JWT/세션 인증 사용자(owner)로 자동 결정 */
+const getSubscriptionHeaders = () => ({ 'Content-Type': 'application/json' });
 
 const parsePriceValue = (price) => {
   if (price === undefined || price === null) return 0;
@@ -324,7 +320,13 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
       const list = Array.isArray(json.data) ? json.data : [];
       setSubscriptions(list.map(mapApiToSub));
     } catch (e) {
-      setSubscriptionsError(e.message || '구독 목록을 불러오지 못했습니다.');
+      const msg = e?.message || '';
+      const isConnectionError = /failed to fetch|network error|connection refused|err_connection_refused/i.test(msg) || e?.name === 'TypeError';
+      setSubscriptionsError(
+        isConnectionError
+          ? '서버에 연결할 수 없습니다. 백엔드 서버(localhost:8080)가 실행 중인지 확인해 주세요.'
+          : (msg || '구독 목록을 불러오지 못했습니다.')
+      );
       setSubscriptions([]);
     } finally {
       setSubscriptionsLoading(false);
@@ -1732,7 +1734,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
                                                   <span style={{ fontSize: '13px', fontWeight: '600' }}>{p.name}</span>
                                                   <span style={{ fontSize: '12px', color: '#8b5cf6', fontWeight: '700' }}>x{item.qty}</span>
                                                 </div>
-                                              ) : null;
+                                              );
                                             })}
                                           </div>
                                          <div style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', marginBottom: '8px' }}>상품 상세 설명</div>
