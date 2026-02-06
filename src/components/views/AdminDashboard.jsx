@@ -543,6 +543,7 @@ const AdminDashboard = () => {
   const [selectedApproval, setSelectedApproval] = useState(null);
   const [approvalFilter, setApprovalFilter] = useState('ALL'); // ALL, STORE, RIDER
   const [approvalItems, setApprovalItems] = useState([]);
+  const approvalFetchErrorShownRef = useRef(false);
 
   const [stores, setStores] = useState([
     { 
@@ -873,7 +874,10 @@ const AdminDashboard = () => {
       const riderItems = (riderPayload.data || []).map(mapRiderApprovalItem);
       setApprovalItems([...storeItems, ...riderItems]);
     } catch (error) {
-      alert('?? ??? ???? ?????.');
+      if (!approvalFetchErrorShownRef.current) {
+        approvalFetchErrorShownRef.current = true;
+        alert('승인 목록을 불러오는데 실패했습니다.');
+      }
     }
   };
 
@@ -920,7 +924,7 @@ const AdminDashboard = () => {
           };
       setSelectedApproval({ ...item, formData, focusSection });
     } catch (error) {
-      alert('?? ??? ???? ?????.');
+      alert('승인 상세 정보를 불러오는데 실패했습니다.');
     }
   };
 
