@@ -126,7 +126,8 @@ const CustomerView = ({
 
   const [cartItems, setCartItems] = useState([]);
   const [toast, setToast] = useState(null);
-  const [currentLocation, setCurrentLocation] = useState("역삼동 123-45");
+  const [currentLocation, setCurrentLocation] = useState("서울특별시 중구 세종대로 110");
+  const [coords, setCoords] = useState({ lat: 37.5665, lon: 126.9780 }); // Default: Seoul City Hall
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [orderList, setOrderList] = useState(orders);
   const [subscriptionList, setSubscriptionList] = useState([]);
@@ -204,6 +205,7 @@ const CustomerView = ({
         const defaultAddr = list.find((a) => a.isDefault);
         if (defaultAddr) {
           setCurrentLocation(`${defaultAddr.address} ${defaultAddr.detail}`);
+          setCoords({ lat: defaultAddr.latitude, lon: defaultAddr.longitude });
         }
       }
     } catch (err) {
@@ -2058,57 +2060,57 @@ const CustomerView = ({
                             결제 내역이 없습니다.
                           </div>
                         ) : (
-                        subscriptionPayments.map((p) => (
-                          <div
-                            key={p.id}
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              padding: "16px 20px",
-                              backgroundColor: "#f8fafc",
-                              borderRadius: "12px",
-                              border: "1px solid #f1f5f9",
-                            }}
-                          >
-                            <div>
-                              <div
-                                style={{
-                                  fontSize: "14px",
-                                  fontWeight: "700",
-                                  marginBottom: "2px",
-                                }}
-                              >
-                                {p.name}
+                          subscriptionPayments.map((p) => (
+                            <div
+                              key={p.id}
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                padding: "16px 20px",
+                                backgroundColor: "#f8fafc",
+                                borderRadius: "12px",
+                                border: "1px solid #f1f5f9",
+                              }}
+                            >
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: "14px",
+                                    fontWeight: "700",
+                                    marginBottom: "2px",
+                                  }}
+                                >
+                                  {p.name}
+                                </div>
+                                <div
+                                  style={{ fontSize: "12px", color: "#94a3b8" }}
+                                >
+                                  {p.date} • {p.id}
+                                </div>
                               </div>
-                              <div
-                                style={{ fontSize: "12px", color: "#94a3b8" }}
-                              >
-                                {p.date} • {p.id}
+                              <div style={{ textAlign: "right" }}>
+                                <div
+                                  style={{
+                                    fontSize: "14px",
+                                    fontWeight: "800",
+                                    color: "var(--primary)",
+                                  }}
+                                >
+                                  {p.amount}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "11px",
+                                    color: "#10b981",
+                                    fontWeight: "600",
+                                  }}
+                                >
+                                  {p.status}
+                                </div>
                               </div>
                             </div>
-                            <div style={{ textAlign: "right" }}>
-                              <div
-                                style={{
-                                  fontSize: "14px",
-                                  fontWeight: "800",
-                                  color: "var(--primary)",
-                                }}
-                              >
-                                {p.amount}
-                              </div>
-                              <div
-                                style={{
-                                  fontSize: "11px",
-                                  color: "#10b981",
-                                  fontWeight: "600",
-                                }}
-                              >
-                                {p.status}
-                              </div>
-                            </div>
-                          </div>
-                        ))
+                          ))
                         )}
                       </div>
                     </div>
@@ -2626,7 +2628,7 @@ const CustomerView = ({
                                         (result, status) => {
                                           if (
                                             status ===
-                                              window.kakao.maps.services.Status.OK &&
+                                            window.kakao.maps.services.Status.OK &&
                                             result?.[0]
                                           ) {
                                             setNewAddress((prev) => ({
@@ -2825,7 +2827,7 @@ const CustomerView = ({
                         navigation={true}
                         initialSlide={
                           paymentMethodList.findIndex((pm) => pm.isDefault) !==
-                          -1
+                            -1
                             ? paymentMethodList.findIndex((pm) => pm.isDefault)
                             : 0
                         }
@@ -3746,14 +3748,14 @@ const CustomerView = ({
                                   storeRegistrationStatus === "APPROVED"
                                     ? "rgba(16, 185, 129, 0.1)"
                                     : storeRegistrationStatus &&
-                                        storeRegistrationStatus !== "NONE"
+                                      storeRegistrationStatus !== "NONE"
                                       ? "rgba(245, 158, 11, 0.1)"
                                       : "#f1f5f9",
                                 color:
                                   storeRegistrationStatus === "APPROVED"
                                     ? "#10b981"
                                     : storeRegistrationStatus &&
-                                        storeRegistrationStatus !== "NONE"
+                                      storeRegistrationStatus !== "NONE"
                                       ? "#f59e0b"
                                       : "#94a3b8",
                               }}
@@ -3761,13 +3763,13 @@ const CustomerView = ({
                               {storeRegistrationStatus === "APPROVED"
                                 ? "승인 완료"
                                 : storeRegistrationStatus &&
-                                    storeRegistrationStatus !== "NONE"
+                                  storeRegistrationStatus !== "NONE"
                                   ? "심사 중"
                                   : "미신청"}
                             </div>
                           </div>
                           {storeRegistrationStatus &&
-                          storeRegistrationStatus !== "NONE" ? (
+                            storeRegistrationStatus !== "NONE" ? (
                             <div>
                               <div
                                 style={{
@@ -4141,39 +4143,37 @@ const CustomerView = ({
                     </span>
                   </div>
 
-                  {isLoggedIn && (
-                    <button
-                      onClick={() => setIsLocationModalOpen(true)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "4px",
-                        padding: "6px 12px",
-                        borderRadius: "20px",
-                        border: "2px solid var(--primary)",
-                        background: "rgba(46, 204, 113, 0.05)",
-                        color: "var(--primary)",
-                        fontSize: "13px",
-                        fontWeight: "800",
-                        cursor: "pointer",
-                        transition: "all 0.2s",
-                        whiteSpace: "nowrap",
-                        animation:
-                          addressList.length === 0
-                            ? "pulse-highlight 2s infinite"
-                            : "none",
-                        boxShadow:
-                          addressList.length === 0
-                            ? "0 0 0 0 rgba(46, 204, 113, 0.7)"
-                            : "none",
-                      }}
-                    >
-                      📍{" "}
-                      {addressList.find((a) => a.isDefault)?.address ||
-                        currentLocation ||
-                        "배송지 등록하기"}
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setIsLocationModalOpen(true)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      padding: "6px 12px",
+                      borderRadius: "20px",
+                      border: "2px solid var(--primary)",
+                      background: "rgba(46, 204, 113, 0.05)",
+                      color: "var(--primary)",
+                      fontSize: "13px",
+                      fontWeight: "800",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      whiteSpace: "nowrap",
+                      animation:
+                        isLoggedIn && addressList.length === 0
+                          ? "pulse-highlight 2s infinite"
+                          : "none",
+                      boxShadow:
+                        isLoggedIn && addressList.length === 0
+                          ? "0 0 0 0 rgba(46, 204, 113, 0.7)"
+                          : "none",
+                    }}
+                  >
+                    📍{" "}
+                    {isLoggedIn && addressList.find((a) => a.isDefault)?.address
+                      ? addressList.find((a) => a.isDefault).address
+                      : currentLocation || "배송지 설정하기"}
+                  </button>
                   {["주문 많은 순", "거리순", "평점순", "배달비순"].map(
                     (sort) => (
                       <button
@@ -4210,6 +4210,7 @@ const CustomerView = ({
                 <StoreGrid
                   selectedCategory={selectedCategory}
                   searchQuery={searchQuery}
+                  coords={coords}
                   onAddToCart={onAddToCart}
                   onStoreClick={(store) => {
                     setSelectedStore(store);
@@ -4874,8 +4875,10 @@ const CustomerView = ({
         isOpen={isLocationModalOpen}
         onClose={() => setIsLocationModalOpen(false)}
         currentLocation={currentLocation}
-        onSetLocation={(loc) => {
+        coords={coords}
+        onSetLocation={(loc, newCoords) => {
           setCurrentLocation(loc);
+          if (newCoords) setCoords(newCoords);
           showToast(`주소가 '${loc}'으로 설정되었습니다.`);
         }}
       />
