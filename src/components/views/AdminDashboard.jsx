@@ -4,16 +4,7 @@ import { getFaqsForAdmin, createFaq, updateFaq, deleteFaq } from '../../api/faqA
 import { getAdminInquiries, getAdminInquiryDetail, answerInquiry } from '../../api/inquiryApi';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-const BASIC_AUTH = import.meta.env.VITE_BASIC_AUTH || 'admin:admin1234';
-
-const toBasicAuth = (value) => {
-  if (typeof btoa === 'function') return btoa(value);
-  return value;
-};
-
-const authHeader = () => ({
-  Authorization: `Basic ${toBasicAuth(BASIC_AUTH)}`
-});
+const authHeader = () => ({});
 
 const formatDate = (value) => {
   if (!value) return '-';
@@ -858,10 +849,12 @@ const AdminDashboard = () => {
     try {
       const [storeResponse, riderResponse] = await Promise.all([
         fetch(`${API_BASE_URL}/api/admin/stores/approvals?status=PENDING&status=HELD&status=REJECTED`, {
-          headers: { ...authHeader() }
+          headers: { ...authHeader() },
+          credentials: 'include'
         }),
         fetch(`${API_BASE_URL}/api/admin/riders/approvals?status=PENDING&status=HELD&status=REJECTED`, {
-          headers: { ...authHeader() }
+          headers: { ...authHeader() },
+          credentials: 'include'
         })
       ]);
       if (!storeResponse.ok || !riderResponse.ok) {
@@ -884,7 +877,7 @@ const AdminDashboard = () => {
     const basePath = category === 'RIDER' ? 'riders' : 'stores';
     const response = await fetch(
       `${API_BASE_URL}/api/admin/${basePath}/approvals/${approvalId}`,
-      { headers: { ...authHeader() } }
+      { headers: { ...authHeader() }, credentials: 'include' }
     );
     if (!response.ok) throw new Error('Failed to load approval detail');
     const payload = await response.json();
@@ -939,12 +932,14 @@ const AdminDashboard = () => {
       if (action === 'APPROVED') {
         response = await fetch(`${API_BASE_URL}/api/admin/${basePath}/approvals/${approval.id}/approve`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...authHeader() }
+          headers: { 'Content-Type': 'application/json', ...authHeader() },
+          credentials: 'include'
         });
       } else if (action === 'REJECTED') {
         response = await fetch(`${API_BASE_URL}/api/admin/${basePath}/approvals/${approval.id}/reject`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeader() },
+          credentials: 'include',
           body: JSON.stringify({ reason })
         });
       } else if (action === 'PENDING') {
@@ -955,6 +950,7 @@ const AdminDashboard = () => {
         response = await fetch(`${API_BASE_URL}/api/admin/${basePath}/approvals/${approval.id}/hold`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeader() },
+          credentials: 'include',
           body: JSON.stringify({ reason })
         });
       }
