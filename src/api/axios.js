@@ -1,7 +1,8 @@
 import axios from 'axios';
 
+// 프록시 사용: 요청을 5173으로 보내서 쿠키(SameSite=Lax)가 붙고, Vite가 8080으로 전달
 const api = axios.create({
-    baseURL: '', // Vite 프록시를 통해 API 호출
+    baseURL: '',
     timeout: 10000,
     headers: {
         'Content-Type': 'application/json',

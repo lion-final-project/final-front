@@ -98,6 +98,7 @@ const CustomerView = ({
   userRole,
   setUserRole,
   isLoggedIn,
+  cartRefreshTrigger = 0,
   onLogout,
   onOpenAuth,
   onOpenNotifications,
@@ -165,22 +166,16 @@ const CustomerView = ({
 
   useEffect(() => {
     const fetchCart = async () => {
-      if (isLoggedIn) {
-        try {
-          const result = await cartAPI.getCart();
-          setCartItems(result.items);
-        } catch (error) {
-          console.error("장바구니 조회 실패:", error);
-          // 에러 발생 시 빈 배열로 설정
-          setCartItems([]);
-        }
-      } else {
+      if (!isLoggedIn) {
         setCartItems([]);
+        return;
       }
+      const result = await cartAPI.getCart();
+      setCartItems(Array.isArray(result?.items) ? result.items : []);
     };
 
     fetchCart();
-  }, [isLoggedIn]);
+  }, [isLoggedIn, cartRefreshTrigger]);
 
   const fetchAddresses = useCallback(async () => {
     if (!isLoggedIn) return;
@@ -950,6 +945,8 @@ const CustomerView = ({
         return (
           <CheckoutView
             cartItems={cartItems}
+            addresses={addressList}
+            paymentMethods={paymentMethodList}
             onComplete={(success) => {
               if (success) {
                 setIsSuccessModalOpen(true);
