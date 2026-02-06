@@ -5,7 +5,6 @@ import { getAdminInquiries, getAdminInquiryDetail, answerInquiry } from '../../a
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const BASIC_AUTH = import.meta.env.VITE_BASIC_AUTH || 'admin:admin1234';
-const ADMIN_USER_ID = Number(import.meta.env.VITE_ADMIN_USER_ID || 3);
 
 const toBasicAuth = (value) => {
   if (typeof btoa === 'function') return btoa(value);
@@ -933,21 +932,20 @@ const AdminDashboard = () => {
   }, []);
 
   const handleApprovalAction = async (approval, action, reason = '') => {
-    console.log('[approval] action', { id: approval.id, action, reason, adminUserId: ADMIN_USER_ID });
+    console.log('[approval] action', { id: approval.id, action, reason });
     try {
       let response;
       const basePath = approval.category === 'RIDER' ? 'riders' : 'stores';
       if (action === 'APPROVED') {
         response = await fetch(`${API_BASE_URL}/api/admin/${basePath}/approvals/${approval.id}/approve`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...authHeader() },
-          body: JSON.stringify({ adminUserId: ADMIN_USER_ID })
+          headers: { 'Content-Type': 'application/json', ...authHeader() }
         });
       } else if (action === 'REJECTED') {
         response = await fetch(`${API_BASE_URL}/api/admin/${basePath}/approvals/${approval.id}/reject`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeader() },
-          body: JSON.stringify({ adminUserId: ADMIN_USER_ID, reason })
+          body: JSON.stringify({ reason })
         });
       } else if (action === 'PENDING') {
         if (!reason) {
@@ -957,7 +955,7 @@ const AdminDashboard = () => {
         response = await fetch(`${API_BASE_URL}/api/admin/${basePath}/approvals/${approval.id}/hold`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeader() },
-          body: JSON.stringify({ adminUserId: ADMIN_USER_ID, reason })
+          body: JSON.stringify({ reason })
         });
       }
 
