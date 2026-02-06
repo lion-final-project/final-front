@@ -1,13 +1,83 @@
 import React, { useState, useEffect } from 'react';
+import { subscriptionProductApi } from '../../config/api';
 
-const StoreDashboard = () => {
+/** 백엔드 status -> 한글 */
+const STATUS_TO_KO = { ACTIVE: '운영중', INACTIVE: '숨김', PENDING_DELETE: '삭제 예정' };
+const KO_TO_STATUS = { '운영중': 'ACTIVE', '숨김': 'INACTIVE', '삭제 예정': 'PENDING_DELETE' };
+
+/** API 응답 → 프론트 sub 형식 */
+const mapApiToSub = (d) => ({
+  id: String(d.subscriptionProductId ?? d.id),
+  name: d.name ?? '',
+  price: (d.price ?? 0).toLocaleString() + '원/월',
+  subscribers: d.subscriberCount ?? 0,
+  status: STATUS_TO_KO[d.status] ?? d.status ?? '운영중',
+  monthlyTotal: d.totalDeliveryCount ?? 0,
+  weeklyFreq: d.weeklyFreq ?? null,
+  deliveryDays: d.deliveryDays ?? [],
+  selectedProducts: (d.items ?? []).map((i) => ({ id: String(i.productId), qty: i.quantity ?? 1, productName: i.productName })),
+  description: d.description ?? '',
+});
+
+/** 구독 상품 API 요청 시 JSON body용 헤더. storeId는 백엔드에서 JWT/세션 인증 사용자(owner)로 자동 결정 */
+const getSubscriptionHeaders = () => ({ 'Content-Type': 'application/json' });
+
+const parsePriceValue = (price) => {
+  if (price === undefined || price === null) return 0;
+  const numeric = Number(String(price).replace(/[^\d]/g, ''));
+  return Number.isNaN(numeric) ? 0 : numeric;
+};
+
+const formatCurrency = (value) => `${Math.max(0, value).toLocaleString('ko-KR')}원`;
+
+const getPriceDisplay = (price, discountRate = 0) => {
+  const basePrice = parsePriceValue(price);
+  if (!basePrice) {
+    const fallback = typeof price === 'string' && price.trim().length > 0 ? price : '0원';
+    return { hasDiscount: false, originalText: fallback, saleText: fallback };
+  }
+  const numericDiscount = Number(discountRate) || 0;
+  const hasDiscount = numericDiscount > 0;
+  const saleValue = hasDiscount ? Math.round(basePrice * (100 - numericDiscount) / 100) : basePrice;
+  return {
+    hasDiscount,
+    originalText: formatCurrency(basePrice),
+    saleText: formatCurrency(saleValue),
+    discountRate: numericDiscount,
+  };
+};
+
+const getApiBase = () => import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+
+const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
+  const createEmptyProductForm = () => ({
+    name: '',
+    price: '',
+    capacity: 0,
+    categoryId: 1,
+    category: '채소',
+    origin: '',
+    description: '',
+    imageFile: null,
+    imagePreview: null,
+    discountRate: 0,
+  });
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [inventoryStats, setInventoryStats] = useState(null);
+  const [inventoryHistory, setInventoryHistory] = useState([]);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [productError, setProductError] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [canEditProduct, setCanEditProduct] = useState(true);
+  const [canEditReason, setCanEditReason] = useState('');
   const [isStoreOpen, setIsStoreOpen] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [expandedOrders, setExpandedOrders] = useState(new Set());
   const [orderSubTab, setOrderSubTab] = useState('management');
   const [mgmtFilter, setMgmtFilter] = useState('unhandled');
   const [lowStockThreshold, setLowStockThreshold] = useState(10); // Changed to quantity
+  const [inventorySearchKeyword, setInventorySearchKeyword] = useState('');
   const [selectedSettlement, setSelectedSettlement] = useState(null);
   const [popularProductTab, setPopularProductTab] = useState('ordered'); // 'ordered' or 'subscription'
   const [currentTime, setCurrentTime] = useState(Date.now());
@@ -20,19 +90,14 @@ const StoreDashboard = () => {
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
 
-  const [products, setProducts] = useState([
-    { id: '1', name: '유기농 우유 1L', price: '3,200원', stock: 15, capacity: 50, category: '유제품', img: '🥛', isSoldOut: false },
-    { id: '2', name: '신선란 10구', price: '4,500원', stock: 8, capacity: 30, category: '신선식품', img: '🥚', isSoldOut: false },
-    { id: '3', name: '대추토마토 500g', price: '5,900원', stock: 20, capacity: 40, category: '채소', img: '🍅', isSoldOut: false },
-    { id: '4', name: '한우 등심 300g', price: '45,000원', stock: 5, capacity: 10, category: '정육', img: '🥩', isSoldOut: false },
-  ]);
+  const [products, setProducts] = useState([]);
 
   const [editingProduct, setEditingProduct] = useState(null);
-  const [productForm, setProductForm] = useState({ name: '', price: '', stock: 0, capacity: 0, category: '채소', origin: '', description: '', imageFile: null, imagePreview: null, discountRate: 0 });
+  const [productForm, setProductForm] = useState(() => createEmptyProductForm());
 
-  const [subscriptions, setSubscriptions] = useState([
-    { id: 's1', name: '신선 채소 꾸러미', price: '19,900원/월', subscribers: 15, status: '운영중', weeklyFreq: 1, monthlyTotal: 4, deliveryDays: ['목'], selectedProducts: [{id: '3', qty: 1}], description: '매주 목요일 신선한 채소를 받아보세요.' }
-  ]);
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
+  const [subscriptionsError, setSubscriptionsError] = useState(null);
   const [editingSubscription, setEditingSubscription] = useState(null);
   const [subscriptionForm, setSubscriptionForm] = useState({ name: '', price: '', weeklyFreq: 1, monthlyTotal: 4, deliveryDays: [], description: '', selectedProducts: [] });
   const [expandedSubscriptions, setExpandedSubscriptions] = useState(new Set());
@@ -44,17 +109,161 @@ const StoreDashboard = () => {
     { id: 4, userName: '최지우', productName: '다이어트 샐러드 팩', startDate: '2026-01-25', status: 'REJECTED', deliveryStatus: '-', nextDelivery: '-' },
   ]);
 
-  const [inventoryHistory, setInventoryHistory] = useState([
-    { id: 'h1', type: '입고', productName: '유기농 우유 1L', amount: 20, date: '2026.01.23 09:00', remaining: 35 },
-    { id: 'h2', type: '출고', productName: '신선란 10구', amount: 10, date: '2026.01.23 10:30', remaining: 8 },
-  ]);
-
   const [reviews, setReviews] = useState([
     { id: 1, userName: '김철수', rating: 5, content: '배송이 정말 빨라요! 우유도 아주 신선합니다.', date: '2026-01-20', productName: '유기농 우유 1L', reply: null },
     { id: 2, userName: '이영희', rating: 4, content: '채소들이 싱싱해서 좋아요. 다음에도 이용할게요.', date: '2026-01-18', productName: '대추토마토 500g', reply: '구매해주셔서 감사합니다! 항상 신선한 상품으로 보답하겠습니다.' },
     { id: 3, userName: '박민수', rating: 3, content: '달걀 하나가 살짝 금이 가 있었어요. 주의 부탁드려요.', date: '2026-01-15', productName: '신선란 10구', reply: null },
   ]);
   const [replyInput, setReplyInput] = useState({});
+
+  const mapProductFromApi = (p) => {
+    if (!p || (p.productId == null && p.product_id == null)) return null;
+    const id = p.productId ?? p.product_id;
+    const stock = p.stock ?? 0;
+    const capacity = Math.max(stock, 100);
+    return {
+      id,
+      name: p.productName ?? p.product_name ?? '',
+      price: p.price ?? 0,
+      stock,
+      capacity,
+      category: p.categoryName ?? p.category_name ?? '',
+      categoryId: p.categoryId ?? p.category_id,
+      img: p.productImageUrl ?? p.product_image_url ?? null,
+      isSoldOut: (p.isActive ?? p.is_active ?? p.active) === false,
+      discountRate: p.discountRate ?? p.discount_rate ?? 0,
+      origin: p.origin ?? '',
+      description: p.description ?? '',
+    };
+  };
+
+  const fetchMyProducts = async () => {
+    setProductsLoading(true);
+    setProductError(null);
+    try {
+      const base = getApiBase();
+      const res = await fetch(`${base}/api/products/my?page=0&size=100`, { credentials: 'include' });
+      if (!res.ok) throw new Error('상품 목록 조회 실패');
+      const json = await res.json();
+      const raw = json.data;
+      const list = Array.isArray(raw) ? raw : (raw?.content ?? []);
+      const arr = Array.isArray(list) ? list : [];
+      setProducts(arr.map(mapProductFromApi).filter(Boolean));
+    } catch (e) {
+      setProductError(e.message || '상품 목록을 불러오지 못했습니다.');
+      setProducts([]);
+    } finally {
+      setProductsLoading(false);
+    }
+  };
+
+  const fetchInventoryStats = async () => {
+    setInventoryLoading(true);
+    try {
+      const base = getApiBase();
+      const res = await fetch(`${base}/api/products/my/stats`, { credentials: 'include' });
+      if (!res.ok) throw new Error('통계 조회 실패');
+      const json = await res.json();
+      setInventoryStats(json.data);
+    } catch {
+      setInventoryStats(null);
+    } finally {
+      setInventoryLoading(false);
+    }
+  };
+
+  const fetchStockHistories = async () => {
+    try {
+      const base = getApiBase();
+      const res = await fetch(`${base}/api/products/my/stock-histories?page=0&size=50`, { credentials: 'include' });
+      if (!res.ok) return;
+      const json = await res.json();
+      const content = json.data?.content ?? json.data ?? [];
+      const list = Array.isArray(content) ? content : [];
+      setInventoryHistory(list.map((h) => ({
+        id: h.historyId,
+        type: h.eventType === 'IN' ? '입고' : '출고',
+        productName: h.productName,
+        amount: h.quantity,
+        date: h.createdAt ? new Date(h.createdAt).toLocaleString('ko-KR') : '',
+        remaining: h.stockAfter,
+      })));
+    } catch {
+      setInventoryHistory([]);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const base = getApiBase();
+      const res = await fetch(`${base}/api/products/categories`);
+      if (!res.ok) return;
+      const json = await res.json();
+      const list = json.data;
+      setCategories(Array.isArray(list) ? list : []);
+    } catch {
+      setCategories([]);
+    }
+  };
+
+  const fetchProductDetail = async (productId) => {
+    try {
+      const base = getApiBase();
+      const res = await fetch(`${base}/api/products/${productId}`);
+      if (!res.ok) throw new Error('상품 상세 조회 실패');
+      const json = await res.json();
+      return json.data;
+    } catch (e) {
+      console.error(e);
+      return null;
+    }
+  };
+
+  const fetchCanEditProduct = async () => {
+    try {
+      const base = getApiBase();
+      const res = await fetch(`${base}/api/products/my/can-edit`, { credentials: 'include' });
+      if (!res.ok) return;
+      const json = await res.json();
+      const d = json.data;
+      if (d && typeof d.canEdit === 'boolean') {
+        setCanEditProduct(d.canEdit);
+        setCanEditReason(d.reason ?? '');
+      }
+    } catch {
+      setCanEditProduct(true);
+      setCanEditReason('');
+    }
+  };
+
+  useEffect(() => {
+    fetchMyProducts();
+    fetchCategories();
+    fetchCanEditProduct();
+  }, []);
+
+  useEffect(() => {
+    const base = getApiBase();
+    fetch(`${base}/api/stores/my`, { credentials: 'include' })
+      .then(res => res.ok ? res.json() : null)
+      .then(json => {
+        const d = json?.data;
+        if (d?.storeName != null) {
+          setStoreInfo(prev => ({ ...prev, name: d.storeName, category: d.categoryName || prev.category }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'inventory') {
+      fetchInventoryStats();
+      fetchStockHistories();
+    }
+    if (activeTab === 'products') {
+      fetchCanEditProduct();
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -96,6 +305,38 @@ const StoreDashboard = () => {
     return () => clearInterval(timer);
   }, []);
 
+  const fetchSubscriptions = async () => {
+    setSubscriptionsLoading(true);
+    setSubscriptionsError(null);
+    try {
+      const res = await fetch(subscriptionProductApi.list(), {
+        credentials: 'include',
+        headers: getSubscriptionHeaders(),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json?.error?.message || json?.message || '구독 목록 조회 실패');
+      }
+      const list = Array.isArray(json.data) ? json.data : [];
+      setSubscriptions(list.map(mapApiToSub));
+    } catch (e) {
+      const msg = e?.message || '';
+      const isConnectionError = /failed to fetch|network error|connection refused|err_connection_refused/i.test(msg) || e?.name === 'TypeError';
+      setSubscriptionsError(
+        isConnectionError
+          ? '서버에 연결할 수 없습니다. 백엔드 서버(localhost:8080)가 실행 중인지 확인해 주세요.'
+          : (msg || '구독 목록을 불러오지 못했습니다.')
+      );
+      setSubscriptions([]);
+    } finally {
+      setSubscriptionsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'subscriptions') fetchSubscriptions();
+  }, [activeTab]);
+
   const [businessHours, setBusinessHours] = useState([
     { day: '월요일', open: '09:00', close: '22:00', lastOrder: '21:30', isClosed: false },
     { day: '화요일', open: '09:00', close: '22:00', lastOrder: '21:30', isClosed: false },
@@ -113,9 +354,9 @@ const StoreDashboard = () => {
   };
 
 
-  const [storeInfo] = useState({
-    name: '행복 마트 강남점',
-    category: '일반 마트 / 편의점'
+  const [storeInfo, setStoreInfo] = useState({
+    name: '상점',
+    category: ''
   });
   
   const [orders, setOrders] = useState([
@@ -268,50 +509,198 @@ const StoreDashboard = () => {
 
   // --- Restored Missing Functions ---
 
-  const handleOpenProductModal = (product = null) => {
+  const handleOpenProductModal = async (product = null) => {
+    setProductError(null);
+    await fetchCategories();
     if (product) {
       setEditingProduct(product);
-      setProductForm({ ...product, imageFile: null, imagePreview: product.img });
+      const detail = await fetchProductDetail(product.id);
+      if (detail) {
+        setProductForm({
+          name: detail.productName || '',
+          price: detail.price ?? '',
+          capacity: product.capacity || 0,
+          categoryId: detail.categoryId ?? product.categoryId ?? 1,
+          category: detail.categoryName || product.category || '채소',
+          origin: detail.origin || '',
+          description: detail.description || '',
+          imageFile: null,
+          imagePreview: detail.productImageUrl || product.img || null,
+          discountRate: detail.discountRate ?? 0,
+        });
+      } else {
+        setProductForm({
+          name: product.name || '',
+          price: product.price ?? '',
+          capacity: product.capacity || 0,
+          categoryId: product.categoryId ?? 1,
+          category: product.category || '채소',
+          origin: product.origin || '',
+          description: product.description || '',
+          imageFile: null,
+          imagePreview: product.img || null,
+          discountRate: product.discountRate ?? 0,
+        });
+      }
     } else {
       setEditingProduct(null);
-      setProductForm({ name: '', price: '', stock: 0, capacity: 0, category: '채소', origin: '', description: '', imageFile: null, imagePreview: null, discountRate: 0 });
+      setProductForm(createEmptyProductForm());
     }
     setIsProductModalOpen(true);
   };
 
-  const handleSaveProduct = (e) => {
+  const uploadProductImage = async (file) => {
+    const base = getApiBase();
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${base}/api/storage/store/image?type=PRODUCT`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      const message = json?.error?.message || json?.message || json?.data?.message || '이미지 업로드 실패';
+      throw new Error(message);
+    }
+    return json.data;
+  };
+
+  const handleSaveProduct = async (e) => {
     e.preventDefault();
-    if (editingProduct) {
-      setProducts(prev => prev.map(p => p.id === editingProduct.id ? { ...p, ...productForm, img: productForm.imagePreview || p.img } : p));
-    } else {
-      const newProduct = { ...productForm, id: Date.now().toString(), img: productForm.imagePreview };
-      setProducts(prev => [...prev, newProduct]);
+    if (editingProduct && !canEditProduct) {
+      alert(canEditReason || '현재는 상품 수정, 삭제가 불가합니다. (운영시간 종료 후 가능)');
+      return;
     }
-    setIsProductModalOpen(false);
-  };
+    const base = getApiBase();
+    const priceNum = parsePriceValue(productForm.price);
 
-  const deleteProduct = (id) => {
-    if (confirm('정말 삭제하시겠습니까?')) {
-      setProducts(prev => prev.filter(p => p.id !== id));
-    }
-  };
-
-  const toggleSoldOut = (id) => {
-    setProducts(prev => prev.map(p => p.id === id ? { ...p, isSoldOut: !p.isSoldOut } : p));
-  };
-
-  const handleStockAdjust = (id, amount) => {
-    setProducts(prev => prev.map(p => {
-      if (p.id === id) {
-        const newStock = Math.max(0, p.stock + amount);
-        const type = amount > 0 ? '입고' : '출고';
-        setInventoryHistory(history => [{
-          id: Date.now(), type, productName: p.name, amount: Math.abs(amount), date: new Date().toLocaleString(), remaining: newStock
-        }, ...history]);
-        return { ...p, stock: newStock };
+    let imageUrl = '';
+    if (productForm.imageFile) {
+      try {
+        imageUrl = await uploadProductImage(productForm.imageFile);
+      } catch (err) {
+        alert(err.message || '이미지 업로드에 실패했습니다.');
+        return;
       }
-      return p;
-    }));
+    } else if (editingProduct && productForm.imagePreview && productForm.imagePreview.startsWith('http')) {
+      imageUrl = productForm.imagePreview;
+    }
+
+    const body = {
+      productName: productForm.name,
+      description: productForm.description || '',
+      price: priceNum,
+      discountRate: productForm.discountRate ?? 0,
+      origin: productForm.origin || '',
+      productImageUrl: imageUrl,
+    };
+    if (editingProduct) {
+      body.categoryId = productForm.categoryId;
+      try {
+        const res = await fetch(`${base}/api/products/${editingProduct.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          credentials: 'include',
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message || json.code || '상품 수정 실패');
+        await fetchMyProducts();
+        setIsProductModalOpen(false);
+      } catch (err) {
+        alert(err.message || '상품 수정에 실패했습니다.');
+      }
+    } else {
+      body.categoryId = productForm.categoryId;
+      try {
+        const res = await fetch(`${base}/api/products`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          credentials: 'include',
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error?.message || json.message || json.error?.code || '상품 등록 실패');
+        await fetchMyProducts();
+        setIsProductModalOpen(false);
+      } catch (err) {
+        alert(err.message || '상품 등록에 실패했습니다.');
+      }
+    }
+  };
+
+  const deleteProduct = async (id) => {
+    if (!canEditProduct) {
+      alert(canEditReason || '현재는 상품 수정, 삭제가 불가합니다. (운영시간 종료 후 가능)');
+      return;
+    }
+    if (!confirm('정말 삭제하시겠습니까?')) return;
+    const base = getApiBase();
+    try {
+      const res = await fetch(`${base}/api/products/${id}`, { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.message || '삭제 실패');
+      }
+      await fetchMyProducts();
+    } catch (err) {
+      alert(err.message || '삭제에 실패했습니다.');
+    }
+  };
+
+  const toggleSoldOut = async (id) => {
+    const product = products.find((p) => p.id === id);
+    if (!product) return;
+    const nextActive = product.isSoldOut;
+    const base = getApiBase();
+    try {
+      const res = await fetch(`${base}/api/products/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: nextActive }),
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.message || '판매 상태 변경 실패');
+      }
+      setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, isSoldOut: !nextActive } : p)));
+      await fetchMyProducts();
+      await fetchInventoryStats();
+    } catch (err) {
+      alert(err.message || '판매 상태 변경에 실패했습니다.');
+    }
+  };
+
+  const handleStockAdjust = async (id, amount) => {
+    const product = products.find((p) => p.id === id);
+    if (!product) return;
+    if (amount < 0 && Math.abs(amount) > product.stock) {
+      alert('현재고보다 많은 수량을 출고할 수 없습니다.');
+      return;
+    }
+    const base = getApiBase();
+    const isIn = amount > 0;
+    try {
+      const res = await fetch(`${base}/api/products/${id}/${isIn ? 'stock-in' : 'stock-out'}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quantity: Math.abs(amount) }),
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.message || (isIn ? '입고' : '출고') + ' 실패');
+      }
+      await fetchMyProducts();
+      if (activeTab === 'inventory') {
+        await fetchStockHistories();
+        await fetchInventoryStats();
+      }
+    } catch (err) {
+      alert(err.message || (isIn ? '입고' : '출고') + '에 실패했습니다.');
+    }
   };
 
   const handleOpenSubscriptionModal = (sub = null) => {
@@ -325,21 +714,88 @@ const StoreDashboard = () => {
     setIsSubscriptionModalOpen(true);
   };
 
-  const handleSaveSubscription = (e) => {
+  const handleSaveSubscription = async (e) => {
     e.preventDefault();
-    if (editingSubscription) {
-      setSubscriptions(prev => prev.map(s => s.id === editingSubscription.id ? { ...s, ...subscriptionForm } : s));
-    } else {
-      const newSub = { ...subscriptionForm, id: Date.now().toString(), subscribers: 0, status: '운영중' };
-      setSubscriptions(prev => [...prev, newSub]);
+    const priceNum = parseInt(String(subscriptionForm.price).replace(/[^0-9]/g, ''), 10) || 0;
+    const items = (subscriptionForm.selectedProducts || []).map((sp) => ({
+      productId: Number(sp.id),
+      quantity: sp.qty || 1,
+    }));
+    if (items.length === 0) {
+      alert('구성 품목을 1개 이상 선택해주세요.');
+      return;
     }
-    setIsSubscriptionModalOpen(false);
+    const body = {
+      name: subscriptionForm.name,
+      description: subscriptionForm.description || '',
+      price: priceNum,
+      totalDeliveryCount: subscriptionForm.monthlyTotal || 4,
+      items,
+    };
+    try {
+      const url = editingSubscription
+        ? subscriptionProductApi.update(editingSubscription.id)
+        : subscriptionProductApi.create();
+      const method = editingSubscription ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
+        credentials: 'include',
+        headers: getSubscriptionHeaders(),
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json?.error?.message || json?.message || (editingSubscription ? '수정' : '등록') + ' 실패');
+      }
+      const saved = mapApiToSub(json.data);
+      setSubscriptions((prev) => {
+        if (editingSubscription) {
+          return prev.map((s) => (s.id === editingSubscription.id ? saved : s));
+        }
+        return [saved, ...prev];
+      });
+      setIsSubscriptionModalOpen(false);
+    } catch (err) {
+      alert(err.message || '처리 중 오류가 발생했습니다.');
+    }
   };
 
-  const deleteSubscription = (id) => {
-     if(confirm('구독 상품을 삭제하시겠습니까?')) {
-        setSubscriptions(prev => prev.map(s => s.id === id ? { ...s, status: '삭제 예정' } : s));
-     }
+  const deleteSubscription = async (sub) => {
+    const id = sub?.id ?? sub;
+    if (sub?.status === '삭제 예정' && sub?.subscribers === 0) {
+      if (!confirm('구독자가 없습니다. 즉시 삭제하시겠습니까?')) return;
+      try {
+        const res = await fetch(subscriptionProductApi.deleteImmediately(id), {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: getSubscriptionHeaders(),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json?.error?.message || json?.message || '삭제 실패');
+        setSubscriptions((prev) => prev.filter((s) => s.id !== id));
+      } catch (err) {
+        alert(err.message || '삭제 중 오류가 발생했습니다.');
+      }
+      return;
+    }
+    if (sub?.status !== '숨김') return;
+    if (!confirm('구독 상품을 삭제하시겠습니까? (구독자가 있으면 삭제 예정으로 전환됩니다)')) return;
+    try {
+      const res = await fetch(subscriptionProductApi.requestDeletion(id), {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: getSubscriptionHeaders(),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json?.error?.message || json?.message || '삭제 요청 실패');
+      if (json.data == null) {
+        setSubscriptions((prev) => prev.filter((s) => s.id !== id));
+      } else {
+        setSubscriptions((prev) => prev.map((s) => (s.id === id ? mapApiToSub(json.data) : s)));
+      }
+    } catch (err) {
+      alert(err.message || '삭제 요청 중 오류가 발생했습니다.');
+    }
   };
 
   const handleToggleSubscriptionExpand = (id) => {
@@ -733,10 +1189,25 @@ const StoreDashboard = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                 <button 
                   onClick={() => handleOpenProductModal()}
-                  style={{ padding: '10px 20px', borderRadius: '8px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
+                  disabled={productsLoading}
+                  style={{ padding: '10px 20px', borderRadius: '8px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', cursor: productsLoading ? 'not-allowed' : 'pointer', opacity: productsLoading ? 0.7 : 1 }}
                 >+ 새 상품 등록</button>
               </div>
             </div>
+            {!canEditProduct && canEditReason && (
+              <div style={{ padding: '12px', marginBottom: '16px', background: '#fff7ed', color: '#9a3412', borderRadius: '8px', fontSize: '14px' }}>
+                {canEditReason}
+              </div>
+            )}
+            {productError && (
+              <div style={{ padding: '12px', marginBottom: '16px', background: '#fef2f2', color: '#b91c1c', borderRadius: '8px', fontSize: '14px' }}>
+                {productError}
+                <button type="button" onClick={fetchMyProducts} style={{ marginLeft: '12px', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer' }}>다시 시도</button>
+              </div>
+            )}
+            {productsLoading ? (
+              <div style={{ padding: '48px', textAlign: 'center', color: '#64748b' }}>상품 목록을 불러오는 중...</div>
+            ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '20px' }}>
               {products.map((product) => (
                 <div key={product.id} style={{ 
@@ -745,16 +1216,13 @@ const StoreDashboard = () => {
                   padding: '20px', 
                   textAlign: 'center',
                   position: 'relative',
-                  backgroundColor: product.isSoldOut ? '#fafafa' : ((product.stock / product.capacity) * 100 < lowStockThreshold ? '#fffaf5' : 'white'),
-                  opacity: product.isSoldOut ? 0.8 : 1
+                  minHeight: '320px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  backgroundColor: product.isSoldOut ? '#fafafa' : (((product.capacity ? (product.stock / product.capacity) * 100 : 0) < lowStockThreshold ? '#fffaf5' : 'white'))
                 }}>
-                  {product.isSoldOut && (
-                    <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(255,255,255,0.4)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5, pointerEvents: 'none' }}>
-                      <span style={{ backgroundColor: '#ef4444', color: 'white', padding: '6px 16px', borderRadius: '4px', fontWeight: '900', fontSize: '16px', transform: 'rotate(-10deg)', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)' }}>품절</span>
-                    </div>
-                  )}
-                  {(product.stock / product.capacity) * 100 < lowStockThreshold && !product.isSoldOut && (
-                    <span style={{ position: 'absolute', top: '12px', right: '12px', backgroundColor: '#ef4444', color: 'white', fontSize: '10px', fontWeight: '800', padding: '2px 6px', borderRadius: '4px' }}>발주 필요</span>
+                  {((product.capacity ? (product.stock / product.capacity) * 100 : 0) < lowStockThreshold) && !product.isSoldOut && (
+                    <span style={{ position: 'absolute', top: '12px', right: '12px', backgroundColor: '#ef4444', color: 'white', fontSize: '10px', fontWeight: '800', padding: '2px 6px', borderRadius: '4px', zIndex: 2 }}>발주 필요</span>
                   )}
                   <div style={{ 
                     width: '100%', 
@@ -763,11 +1231,15 @@ const StoreDashboard = () => {
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'center',
+                    position: 'relative',
                     filter: product.isSoldOut ? 'grayscale(1)' : 'none',
                     borderRadius: '12px',
                     overflow: 'hidden',
                     backgroundColor: '#f8fafc'
                   }}>
+                    {product.isSoldOut && (
+                      <span style={{ position: 'absolute', top: '6px', left: '6px', backgroundColor: '#ef4444', color: 'white', fontSize: '10px', fontWeight: '800', padding: '3px 8px', borderRadius: '4px', zIndex: 1 }}>판매 중지</span>
+                    )}
                     {product.img && (product.img.startsWith('data:image') || product.img.startsWith('http')) ? (
                       <img src={product.img} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (
@@ -776,7 +1248,27 @@ const StoreDashboard = () => {
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>{product.category}</div>
                   <div style={{ fontWeight: '700', fontSize: '16px', marginBottom: '4px' }}>{product.name}</div>
-                  <div style={{ color: 'var(--primary)', fontWeight: '800', fontSize: '18px', marginBottom: '12px' }}>{product.price}</div>
+                  {(() => {
+                    const priceInfo = getPriceDisplay(product.price, product.discountRate);
+                    if (priceInfo.hasDiscount) {
+                      return (
+                        <div style={{ marginBottom: '12px' }}>
+                          <div style={{ color: 'var(--primary)', fontWeight: '800', fontSize: '18px' }}>{priceInfo.saleText}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: '800', color: '#ef4444', backgroundColor: '#fee2e2', padding: '2px 8px', borderRadius: '999px' }}>
+                              -{priceInfo.discountRate}%
+                            </span>
+                            <span style={{ fontSize: '12px', color: '#94a3b8', textDecoration: 'line-through' }}>{priceInfo.originalText}</span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div style={{ color: 'var(--primary)', fontWeight: '800', fontSize: '18px', marginBottom: '12px' }}>
+                        {priceInfo.originalText}
+                      </div>
+                    );
+                  })()}
                   <div style={{ 
                     fontSize: '13px', 
                     color: product.stock < lowStockThreshold ? '#ef4444' : '#64748b', 
@@ -787,23 +1279,27 @@ const StoreDashboard = () => {
                     gap: '4px'
                   }}>
                     <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: (product.stock < lowStockThreshold || product.isSoldOut) ? '#ef4444' : '#2ecc71' }}></span>
-                    재고: {product.stock}개 <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '400' }}>/ {product.capacity}</span>
+                  재고: {product.stock}개
                   </div>
-                  
-
+                  <div style={{ flex: 1, minHeight: '8px' }} />
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button 
-                      onClick={() => handleOpenProductModal(product)}
-                      style={{ flex: 1, padding: '10px', borderRadius: '12px', border: '1px solid #cbd5e1', background: 'white', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+                      onClick={() => canEditProduct && handleOpenProductModal(product)}
+                      disabled={!canEditProduct}
+                      title={!canEditProduct ? canEditReason : ''}
+                      style={{ flex: 1, padding: '10px', borderRadius: '12px', border: '1px solid #cbd5e1', background: 'white', fontSize: '12px', fontWeight: '600', cursor: canEditProduct ? 'pointer' : 'not-allowed', opacity: canEditProduct ? 1 : 0.6 }}
                     >수정</button>
                     <button 
-                      onClick={() => deleteProduct(product.id)}
-                      style={{ flex: 1, padding: '10px', borderRadius: '12px', border: '1px solid #fee2e2', background: 'white', fontSize: '12px', fontWeight: '600', color: '#ef4444', cursor: 'pointer' }}
+                      onClick={() => canEditProduct && deleteProduct(product.id)}
+                      disabled={!canEditProduct}
+                      title={!canEditProduct ? canEditReason : ''}
+                      style={{ flex: 1, padding: '10px', borderRadius: '12px', border: '1px solid #fee2e2', background: 'white', fontSize: '12px', fontWeight: '600', color: '#ef4444', cursor: canEditProduct ? 'pointer' : 'not-allowed', opacity: canEditProduct ? 1 : 0.6 }}
                     >삭제</button>
                   </div>
                 </div>
               ))}
             </div>
+            )}
           </div>
         );
       case 'inventory':
@@ -811,11 +1307,14 @@ const StoreDashboard = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
             {/* Inventory Overview */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
+              {inventoryLoading && inventoryStats == null ? (
+                <div style={{ gridColumn: '1 / -1', padding: '24px', textAlign: 'center', color: '#64748b' }}>통계를 불러오는 중...</div>
+              ) : null}
               {[
-                { label: '전체 상품 수', value: `${products.length}종`, icon: '📦', color: '#1e293b' },
-                { label: '품절 상품', value: `${products.filter(p => p.isSoldOut).length}종`, icon: '🚫', color: '#ef4444' },
+                { label: '전체 상품 수', value: inventoryStats != null ? `${inventoryStats.totalProductCount ?? products.length}종` : `${products.length}종`, icon: '📦', color: '#1e293b' },
+                { label: '비판매 상품', value: inventoryStats != null ? `${inventoryStats.inactiveProductCount ?? 0}종` : `${products.filter(p => p.isSoldOut).length}종`, icon: '🚫', color: '#ef4444' },
                 { label: '재고 부족', value: `${products.filter(p => !p.isSoldOut && p.stock < lowStockThreshold).length}종`, icon: '⚠️', color: '#f59e0b' },
-                { label: '당일 입고/출고', value: `${inventoryHistory.filter(h => h.date.includes('2026.01.23')).length}건`, icon: '🔄', color: '#3b82f6' },
+                { label: '당일 입고/출고', value: inventoryStats != null ? `입고 ${inventoryStats.todayInCount ?? 0} / 출고 ${inventoryStats.todayOutCount ?? 0}` : `${inventoryHistory.length}건`, icon: '🔄', color: '#3b82f6' },
               ].map((stat, i) => (
                 <div key={i} style={{ background: 'white', padding: '24px', borderRadius: '20px', border: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '20px' }}>
                   <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>{stat.icon}</div>
@@ -865,7 +1364,13 @@ const StoreDashboard = () => {
                         <option value={50}>50개 이하</option>
                       </select>
                     </div>
-                    <input type="text" placeholder="상품명 검색..." style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '14px' }} />
+                    <input
+                      type="text"
+                      placeholder="상품명 검색..."
+                      value={inventorySearchKeyword}
+                      onChange={(e) => setInventorySearchKeyword(e.target.value)}
+                      style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '14px' }}
+                    />
                   </div>
                 </div>
                 <div className="table-responsive">
@@ -874,34 +1379,32 @@ const StoreDashboard = () => {
                       <tr style={{ textAlign: 'left', borderBottom: '2px solid #f1f5f9', color: '#64748b', fontSize: '13px' }}>
                         <th style={{ padding: '12px' }}>상품</th>
                         <th style={{ padding: '12px' }}>현재고</th>
-                        <th style={{ padding: '12px' }}>재고율</th>
-                        <th style={{ padding: '12px' }}>품절 여부</th>
+                        <th style={{ padding: '12px' }}>판매 상태</th>
                         <th style={{ padding: '12px' }}>수량 조정</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {products.map(product => {
-                        const stockRatio = (product.stock / product.capacity) * 100;
+                      {products
+                        .filter((p) => !inventorySearchKeyword.trim() || (p.name && p.name.toLowerCase().includes(inventorySearchKeyword.trim().toLowerCase())))
+                        .map(product => {
                         const isLow = product.stock < lowStockThreshold;
                         return (
                           <tr key={product.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                             <td style={{ padding: '12px' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <span style={{ fontSize: '24px' }}>{product.img}</span>
+                                {product.img ? (
+                                  <img src={product.img} alt={product.name} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '8px' }} />
+                                ) : (
+                                  <span style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9', borderRadius: '8px', fontSize: '18px' }}>📦</span>
+                                )}
                                 <div style={{ fontWeight: '700' }}>{product.name}</div>
                               </div>
                             </td>
                             <td style={{ padding: '12px' }}>
                               <span style={{ fontWeight: '800', color: isLow ? '#ef4444' : '#1e293b' }}>{product.stock}개</span>
-                              <span style={{ color: '#94a3b8', fontSize: '12px' }}> / {product.capacity}</span>
                             </td>
                             <td style={{ padding: '12px' }}>
-                              <div style={{ width: '100px', height: '6px', backgroundColor: '#f1f5f9', borderRadius: '3px', overflow: 'hidden', marginTop: '4px' }}>
-                                <div style={{ width: `${Math.min(100, stockRatio)}%`, height: '100%', backgroundColor: isLow ? '#ef4444' : '#10b981' }}></div>
-                              </div>
-                            </td>
-                            <td style={{ padding: '12px' }}>
-                               <div 
+                              <div
                                 onClick={() => toggleSoldOut(product.id)}
                                 style={{ 
                                   display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer',
@@ -909,7 +1412,9 @@ const StoreDashboard = () => {
                                   backgroundColor: product.isSoldOut ? '#fee2e2' : 'white'
                                 }}
                               >
-                                <span style={{ fontSize: '10px', fontWeight: '800', color: product.isSoldOut ? '#ef4444' : '#64748b' }}>품절</span>
+                                <span style={{ fontSize: '10px', fontWeight: '800', color: product.isSoldOut ? '#ef4444' : '#64748b' }}>
+                                  {product.isSoldOut ? '비판매' : '판매중'}
+                                </span>
                                 <div style={{ 
                                   width: '24px', height: '12px', borderRadius: '10px', backgroundColor: product.isSoldOut ? '#ef4444' : '#cbd5e1', 
                                   position: 'relative'
@@ -1058,9 +1563,20 @@ const StoreDashboard = () => {
                    </div>
                    <button 
                      onClick={() => handleOpenSubscriptionModal()}
-                     style={{ padding: '12px 24px', borderRadius: '12px', background: '#8b5cf6', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)' }}>+ 새 구독 상품 추가</button>
+                     disabled={subscriptionsLoading}
+                     style={{ padding: '12px 24px', borderRadius: '12px', background: '#8b5cf6', color: 'white', border: 'none', fontWeight: '700', cursor: subscriptionsLoading ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)', opacity: subscriptionsLoading ? 0.7 : 1 }}>+ 새 구독 상품 추가</button>
                 </div>
 
+                {subscriptionsError && (
+                  <div style={{ padding: '12px 16px', marginBottom: '16px', backgroundColor: '#fee2e2', color: '#991b1b', borderRadius: '12px', fontSize: '14px' }}>
+                    {subscriptionsError}
+                    <button onClick={fetchSubscriptions} style={{ marginLeft: '12px', padding: '4px 8px', borderRadius: '6px', border: '1px solid #991b1b', background: 'transparent', cursor: 'pointer', fontSize: '12px' }}>재시도</button>
+                  </div>
+                )}
+
+                {subscriptionsLoading ? (
+                  <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>구독 목록을 불러오는 중...</div>
+                ) : (
                 <div className="table-responsive">
                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
@@ -1106,14 +1622,27 @@ const StoreDashboard = () => {
                                  <td style={{ padding: '16px' }}>
                                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                        <div 
-                                         onClick={() => {
-                                           if (sub.status === '운영중' || sub.status === '숨김') {
-                                             const newStatus = sub.status === '운영중' ? '숨김' : '운영중';
-                                             setSubscriptions(prev => prev.map(s => s.id === sub.id ? { ...s, status: newStatus } : s));
+                                         onClick={async () => {
+                                           if (sub.status !== '운영중' && sub.status !== '숨김') return;
+                                           const newStatusKo = sub.status === '운영중' ? '숨김' : '운영중';
+                                           const newStatus = KO_TO_STATUS[newStatusKo];
+                                           try {
+                                             const res = await fetch(subscriptionProductApi.updateStatus(sub.id), {
+                                               method: 'PATCH',
+                                               credentials: 'include',
+                                               headers: getSubscriptionHeaders(),
+                                               body: JSON.stringify({ status: newStatus }),
+                                             });
+                                             const json = await res.json();
+                                             if (!res.ok || !json.success) throw new Error(json?.error?.message || json?.message || '상태 변경 실패');
+                                             setSubscriptions((prev) => prev.map((s) => (s.id === sub.id ? mapApiToSub(json.data) : s)));
+                                           } catch (err) {
+                                             alert(err.message || '상태 변경 중 오류가 발생했습니다.');
                                            }
                                          }}
                                          style={{ 
-                                           display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer',
+                                           display: 'flex', alignItems: 'center', gap: '4px',
+                                           cursor: (sub.status === '운영중' || sub.status === '숨김') ? 'pointer' : 'default',
                                            padding: '6px 12px', borderRadius: '12px', border: '1px solid #e2e8f0',
                                            backgroundColor: sub.status === '운영중' ? '#ecfdf5' : '#f1f5f9',
                                            transition: 'all 0.2s'
@@ -1135,10 +1664,10 @@ const StoreDashboard = () => {
                                        
                                        <button 
                                          onClick={() => {
-                                           if (sub.status === '숨김') {
-                                             deleteSubscription(sub.id);
+                                           if (sub.status === '숨김' || (sub.status === '삭제 예정' && sub.subscribers === 0)) {
+                                             deleteSubscription(sub);
                                            } else if (sub.status === '삭제 예정') {
-                                             // already scheduled
+                                             // 구독자 있음, 삭제 예약된 상태
                                            } else {
                                              alert('숨김 상태의 구독만 삭제 요청이 가능합니다. 먼저 노출 상태를 숨김으로 변경해주세요.');
                                            }
@@ -1149,15 +1678,20 @@ const StoreDashboard = () => {
                                            border: '1px solid #fee2e2', 
                                            background: sub.status === '삭제 예정' ? '#ef4444' : 'white', 
                                            color: sub.status === '삭제 예정' ? 'white' : '#ef4444', 
-                                           cursor: sub.status === '삭제 예정' ? 'default' : 'pointer', 
+                                           cursor: (sub.status === '숨김' || (sub.status === '삭제 예정' && sub.subscribers === 0)) ? 'pointer' : 'default',
                                            opacity: (sub.status !== '숨김' && sub.status !== '삭제 예정') ? 0.5 : 1,
                                            fontSize: '12px', 
                                            fontWeight: '600' 
                                          }}>
-                                         {sub.status === '삭제 예정' ? '삭제 예약됨' : '삭제 요청'}
+                                         {sub.status === '삭제 예정' ? (sub.subscribers === 0 ? '즉시 삭제' : '삭제 예약됨') : '삭제 요청'}
                                        </button>
                                        
-                                       <button 
+                                       <button
+                                         onClick={() => handleOpenSubscriptionModal(sub)}
+                                         disabled={sub.status === '삭제 예정'}
+                                         style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', color: '#64748b', cursor: sub.status === '삭제 예정' ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: '600', opacity: sub.status === '삭제 예정' ? 0.5 : 1 }}
+                                       >수정</button>
+                                       <button
                                          onClick={() => sendSubscriptionNotification(sub)}
                                          style={{ padding: '6px 12px', borderRadius: '8px', border: sub.status === '삭제 예정' ? '1px solid #8b5cf6' : '1px solid #e2e8f0', background: 'white', color: sub.status === '삭제 예정' ? '#8b5cf6' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: '800' }}>🔔 알림</button>
                                     </div>
@@ -1169,34 +1703,41 @@ const StoreDashboard = () => {
                                      <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #ede9fe', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
                                        <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '12px' }}>
                                          <div style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', marginBottom: '8px' }}>주당 배송 횟수</div>
-                                         <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>{sub.weeklyFreq || 1}회 <span style={{ fontSize: '13px', fontWeight: '500' }}>배송 / 주</span></div>
+                                         <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>{sub.weeklyFreq != null ? `${sub.weeklyFreq}회` : '-'} <span style={{ fontSize: '13px', fontWeight: '500' }}>배송 / 주</span></div>
                                        </div>
                                        <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '12px' }}>
                                          <div style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', marginBottom: '8px' }}>월간 총 배송 횟수</div>
-                                         <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>{sub.monthlyTotal || 4}회 <span style={{ fontSize: '13px', fontWeight: '500' }}>배송 / 월</span></div>
+                                         <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>{sub.monthlyTotal != null ? `${sub.monthlyTotal}회` : '-'} <span style={{ fontSize: '13px', fontWeight: '500' }}>배송 / 월</span></div>
                                        </div>
                                        <div style={{ backgroundColor: '#fdfaff', padding: '16px', borderRadius: '12px', border: '1px solid #f3e8ff' }}>
                                          <div style={{ fontSize: '12px', fontWeight: '700', color: '#8b5cf6', marginBottom: '8px' }}>배송 요일 설정</div>
                                          <div style={{ display: 'flex', gap: '6px' }}>
-                                           {(sub.deliveryDays || ['목']).map(day => (
+                                           {(sub.deliveryDays || []).map(day => (
                                              <span key={day} style={{ backgroundColor: '#8b5cf6', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '800' }}>{day}요일</span>
                                            ))}
                                          </div>
                                        </div>
                                        <div style={{ gridColumn: 'span 3', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
-                                          <div style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', marginBottom: '12px' }}>구성 품목 상세</div>
-                                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
-                                            {(sub.selectedProducts || []).map(item => {
-                                              const p = products.find(p => p.id === item.id);
-                                              return p ? (
-                                                <div key={item.id} style={{ backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                  <span style={{ fontSize: '16px' }}>{p.img}</span>
-                                                  <span style={{ fontSize: '13px', fontWeight: '600' }}>{p.name}</span>
-                                                  <span style={{ fontSize: '12px', color: '#8b5cf6', fontWeight: '700' }}>x{item.qty}</span>
-                                                </div>
-                                              ) : null;
-                                            })}
-                                          </div>
+                                         <div style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', marginBottom: '12px' }}>구성 품목 상세</div>
+                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+                                           {(sub.selectedProducts || []).map(item => {
+                                             const p = products.find((pr) => String(pr.id) === String(item.id));
+                                             const displayName = p?.name ?? item.productName ?? `상품 ${item.id}`;
+                                             const displayImg = p?.img;
+                                             const hasValidImg = displayImg && (displayImg.startsWith('data:') || displayImg.startsWith('http'));
+                                             return (
+                                               <div key={item.id} style={{ backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                 {hasValidImg ? (
+                                                   <img src={displayImg} alt={displayName} style={{ width: '32px', height: '32px', objectFit: 'cover', borderRadius: '6px' }} />
+                                                 ) : (
+                                                   <span style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0', borderRadius: '6px', fontSize: '14px' }}>📦</span>
+                                                 )}
+                                                 <span style={{ fontSize: '13px', fontWeight: '600' }}>{displayName}</span>
+                                                 <span style={{ fontSize: '12px', color: '#8b5cf6', fontWeight: '700' }}>x{item.qty}</span>
+                                               </div>
+                                             );
+                                           })}
+                                         </div>
                                          <div style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', marginBottom: '8px' }}>상품 상세 설명</div>
                                          <div style={{ fontSize: '14px', color: '#475569', lineHeight: '1.6' }}>{sub.description || '구성된 상품 목록 및 서비스 안내 내용이 표시됩니다.'}</div>
                                        </div>
@@ -1212,6 +1753,7 @@ const StoreDashboard = () => {
                       </tbody>
                    </table>
                 </div>
+                )}
               </div>
 
               {/* Split Section: Next Delivery & Weekly Schedule */}
@@ -1219,30 +1761,10 @@ const StoreDashboard = () => {
                 {/* 1. Next Delivery Schedule & Required Status */}
                 <div style={{ background: 'white', padding: '32px', borderRadius: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                   <h2 style={{ fontSize: '20px', fontWeight: '800', margin: '0 0 24px 0' }}>다음 배송 일정 및 필요 물량</h2>
-                  
-                  <div style={{ marginBottom: '24px', padding: '20px', backgroundColor: '#f0fdf4', borderRadius: '16px', border: '1px solid #bbf7d0' }}>
-                     <div style={{ fontSize: '14px', fontWeight: '700', color: '#15803d', marginBottom: '8px' }}>다음 배송일</div>
-                     <div style={{ fontSize: '24px', fontWeight: '900', color: '#166534' }}>2월 1일 (목) <span style={{ fontSize: '16px', fontWeight: '600', color: '#15803d' }}>- 3일 뒤</span></div>
-                     <div style={{ marginTop: '12px', fontSize: '14px', fontWeight: '600', color: '#15803d' }}>총 배송 예정: 12건</div>
-                  </div>
-
+                  <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>다음 배송 일정 데이터가 없습니다.</div>
                   <h3 style={{ fontSize: '16px', fontWeight: '800', margin: '0 0 16px 0', color: '#475569' }}>준비 필요 상품 현황</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '300px', overflowY: 'auto' }}>
-                    {[
-                      { name: '신선 채소 꾸러미', count: 5, items: ['대추토마토 500g x5', '시금치 1단 x5'] },
-                      { name: '제철 과일 꾸러미', count: 4, items: ['사과 2개 x4', '바나나 1송이 x4'] },
-                      { name: '단백질 식단 세트', count: 3, items: ['닭가슴살 1kg x3', '두부 2모 x3'] }
-                    ].map((item, idx) => (
-                      <div key={idx} style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                          <span style={{ fontWeight: '700', fontSize: '14px' }}>{item.name}</span>
-                          <span style={{ fontWeight: '800', color: '#3b82f6' }}>{item.count}개</span>
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#64748b', lineHeight: '1.5' }}>
-                          {item.items.join(', ')}
-                        </div>
-                      </div>
-                    ))}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '300px', overflowY: 'auto', padding: '20px', backgroundColor: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>준비 필요 상품 현황이 없습니다.</div>
                   </div>
                 </div>
 
@@ -1615,7 +2137,11 @@ const StoreDashboard = () => {
                   {products.filter(p => p.stock < lowStockThreshold).map((product) => (
                     <div key={product.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: product.isSoldOut ? 0.6 : 1 }}>
                       <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                        <span style={{ fontSize: '24px' }}>{product.img}</span>
+                        {product.img && (product.img.startsWith('data:') || product.img.startsWith('http')) ? (
+                          <img src={product.img} alt={product.name} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }} />
+                        ) : (
+                          <span style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9', borderRadius: '8px', fontSize: '18px', flexShrink: 0 }}>📦</span>
+                        )}
                         <div>
                           <div style={{ fontSize: '14px', fontWeight: '600', textDecoration: product.isSoldOut ? 'line-through' : 'none' }}>{product.name}</div>
                           <div style={{ fontSize: '12px', color: '#ef4444', fontWeight: '700' }}>재고 {product.stock}개 남음</div>
@@ -1631,7 +2157,9 @@ const StoreDashboard = () => {
                             backgroundColor: product.isSoldOut ? '#fee2e2' : 'white'
                           }}
                         >
-                          <span style={{ fontSize: '10px', fontWeight: '800', color: product.isSoldOut ? '#ef4444' : '#64748b' }}>품절</span>
+                          <span style={{ fontSize: '10px', fontWeight: '800', color: product.isSoldOut ? '#ef4444' : '#64748b' }}>
+                            {product.isSoldOut ? '비판매' : '판매중'}
+                          </span>
                           <div style={{ 
                             width: '24px', height: '12px', borderRadius: '10px', backgroundColor: product.isSoldOut ? '#ef4444' : '#cbd5e1', 
                             position: 'relative'
@@ -1933,13 +2461,17 @@ const StoreDashboard = () => {
                     accept="image/*"
                     onChange={(e) => {
                       const file = e.target.files[0];
-                      if (file) {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                          setProductForm({ ...productForm, imageFile: file, imagePreview: reader.result });
-                        };
-                        reader.readAsDataURL(file);
+                      if (!file) return;
+                      const maxSize = 5 * 1024 * 1024; // 5MB
+                      if (file.size > maxSize) {
+                        alert('파일 크기는 5MB 이하여야 합니다.');
+                        return;
                       }
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setProductForm({ ...productForm, imageFile: file, imagePreview: reader.result });
+                      };
+                      reader.readAsDataURL(file);
                     }}
                     style={{ display: 'none' }}
                   />
@@ -1979,30 +2511,19 @@ const StoreDashboard = () => {
                   />
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>현재 재고</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input 
-                      required
-                      type="number" 
-                      value={productForm.stock}
-                      onChange={e => setProductForm({...productForm, stock: parseInt(e.target.value)})}
-                      style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1' }} 
-                    />
-                    <span style={{ fontSize: '14px', fontWeight: '700', color: '#64748b' }}>개</span>
-                  </div>
-                </div>
-              </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>카테고리</label>
                 <select 
-                  value={productForm.category}
-                  onChange={e => setProductForm({...productForm, category: e.target.value})}
+                  value={productForm.categoryId}
+                  onChange={e => {
+                    const id = Number(e.target.value);
+                    const opt = (categories.length ? categories : [{ id: 1, categoryName: '채소' }]).find(o => (o.id || o.categoryId) === id);
+                    setProductForm({ ...productForm, categoryId: id, category: opt?.categoryName ?? opt?.name ?? '채소' });
+                  }}
                   style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1' }}
                 >
-                  {['채소', '과일', '식재료', '정육', '유제품', '생활용품'].map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
+                  {(categories.length ? categories : [{ id: 1, categoryName: '채소' }]).map(cat => (
+                    <option key={cat.id ?? cat.categoryId} value={cat.id ?? cat.categoryId}>{cat.categoryName ?? cat.name}</option>
                   ))}
                 </select>
               </div>
@@ -2035,7 +2556,8 @@ const StoreDashboard = () => {
                 >취소</button>
                 <button 
                   type="submit"
-                  style={{ flex: 2, padding: '14px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}
+                  disabled={editingProduct && !canEditProduct}
+                  style={{ flex: 2, padding: '14px', borderRadius: '12px', background: (editingProduct && !canEditProduct) ? '#94a3b8' : 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', cursor: (editingProduct && !canEditProduct) ? 'not-allowed' : 'pointer' }}
                 >{editingProduct ? '수정 완료' : '등록 완료'}</button>
               </div>
             </form>
