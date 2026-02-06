@@ -4,14 +4,15 @@ import api from './axios';
  * 백엔드 응답을 프론트엔드 형식으로 변환
  */
 const transformCartResponse = (response) => {
-  if (!response || !response.stores || response.stores.length === 0) {
+  if (!response || !response.stores || !Array.isArray(response.stores) || response.stores.length === 0) {
     return [];
   }
 
-  // 백엔드 응답 구조를 프론트엔드 형식으로 변환
   const items = [];
   response.stores.forEach(store => {
-    store.items.forEach(item => {
+    const storeItems = store.items;
+    if (!storeItems || !Array.isArray(storeItems)) return;
+    storeItems.forEach(item => {
       // 이미지 URL 처리: null이거나 빈 문자열인 경우 기본 이미지 사용
       let imageUrl = item.imgUrl;
       
@@ -46,30 +47,36 @@ const transformCartResponse = (response) => {
   return items;
 };
 
+const emptyCartResult = () => ({
+  cartId: null,
+  items: [],
+  totalProductPrice: 0
+});
+
 /**
- * 장바구니 조회
+ * 장바구니 조회 (백엔드 ApiResponse 래핑 또는 raw body 모두 처리)
  */
 export const getCart = async () => {
   try {
     const response = await api.get('/api/cart');
-    const cartResponse = response.data.data || response.data;
+    const cartResponse = response.data?.data ?? response.data;
     
     if (!cartResponse || !cartResponse.stores || cartResponse.stores.length === 0) {
       return {
-        cartId: cartResponse?.cartId || null,
+        cartId: cartResponse?.cartId ?? null,
         items: [],
-        totalProductPrice: 0
+        totalProductPrice: cartResponse?.totalProductPrice ?? 0
       };
     }
     
     return {
       cartId: cartResponse.cartId,
       items: transformCartResponse(cartResponse),
-      totalProductPrice: cartResponse.totalProductPrice || 0
+      totalProductPrice: cartResponse.totalProductPrice ?? 0
     };
   } catch (error) {
-    console.error('장바구니 조회 오류:', error);
-    throw error;
+    console.error('장바구니 조회 오류:', error?.response?.status, error?.response?.data ?? error.message);
+    return emptyCartResult();
   }
 };
 
@@ -77,79 +84,55 @@ export const getCart = async () => {
  * 장바구니에 상품 추가
  */
 export const addToCart = async (productId, quantity) => {
-  try {
-    const response = await api.post('/api/cart/items', {
-      productId,
-      quantity
-    });
-    const cartResponse = response.data.data || response.data;
-    
-    return {
-      cartId: cartResponse.cartId,
-      items: transformCartResponse(cartResponse),
-      totalProductPrice: cartResponse.totalProductPrice || 0
-    };
-  } catch (error) {
-    console.error('장바구니 추가 오류:', error);
-    throw error;
-  }
+  const response = await api.post('/api/cart/items', {
+    productId,
+    quantity
+  });
+  const cartResponse = response.data?.data ?? response.data;
+  return {
+    cartId: cartResponse?.cartId ?? null,
+    items: transformCartResponse(cartResponse ?? {}),
+    totalProductPrice: cartResponse?.totalProductPrice ?? 0
+  };
 };
 
 /**
  * 장바구니 상품 수량 업데이트
  */
 export const updateCartQuantity = async (productId, quantity) => {
-  try {
-    const response = await api.patch(`/api/cart/items/${productId}`, {
-      quantity
-    });
-    const cartResponse = response.data.data || response.data;
-    
-    return {
-      cartId: cartResponse.cartId,
-      items: transformCartResponse(cartResponse),
-      totalProductPrice: cartResponse.totalProductPrice || 0
-    };
-  } catch (error) {
-    console.error('수량 업데이트 오류:', error);
-    throw error;
-  }
+  const response = await api.patch(`/api/cart/items/${productId}`, {
+    quantity
+  });
+  const cartResponse = response.data?.data ?? response.data;
+  return {
+    cartId: cartResponse?.cartId ?? null,
+    items: transformCartResponse(cartResponse ?? {}),
+    totalProductPrice: cartResponse?.totalProductPrice ?? 0
+  };
 };
 
 /**
  * 장바구니에서 상품 삭제
  */
 export const removeFromCart = async (productId) => {
-  try {
-    const response = await api.delete(`/api/cart/items/${productId}`);
-    const cartResponse = response.data.data || response.data;
-    
-    return {
-      cartId: cartResponse.cartId,
-      items: transformCartResponse(cartResponse),
-      totalProductPrice: cartResponse.totalProductPrice || 0
-    };
-  } catch (error) {
-    console.error('상품 삭제 오류:', error);
-    throw error;
-  }
+  const response = await api.delete(`/api/cart/items/${productId}`);
+  const cartResponse = response.data?.data ?? response.data;
+  return {
+    cartId: cartResponse?.cartId ?? null,
+    items: transformCartResponse(cartResponse ?? {}),
+    totalProductPrice: cartResponse?.totalProductPrice ?? 0
+  };
 };
 
 /**
  * 장바구니 비우기
  */
 export const clearCart = async () => {
-  try {
-    const response = await api.delete('/api/cart');
-    const cartResponse = response.data.data || response.data;
-    
-    return {
-      cartId: cartResponse.cartId,
-      items: transformCartResponse(cartResponse),
-      totalProductPrice: cartResponse.totalProductPrice || 0
-    };
-  } catch (error) {
-    console.error('장바구니 비우기 오류:', error);
-    throw error;
-  }
+  const response = await api.delete('/api/cart');
+  const cartResponse = response.data?.data ?? response.data;
+  return {
+    cartId: cartResponse?.cartId ?? null,
+    items: transformCartResponse(cartResponse ?? {}),
+    totalProductPrice: cartResponse?.totalProductPrice ?? 0
+  };
 };
