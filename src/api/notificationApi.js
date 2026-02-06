@@ -18,14 +18,14 @@ export const subscribeNotifications = (onMessage, onError) => {
     console.log('[SSE] 알림 연결 성공');
   };
 
-  eventSource.addEventListener('CONNECTED', (event) => {
+  eventSource.addEventListener('connected', (event) => {
     console.log('[SSE] 연결 확인:', event.data);
     if (onMessage) {
       onMessage('CONNECTED', event.data);
     }
   });
 
-  eventSource.addEventListener('UNREAD_COUNT', (event) => {
+  eventSource.addEventListener('unread-count', (event) => {
     try {
       // 백엔드에서 전송하는 데이터가 정수이므로 직접 사용
       const data = event.data;

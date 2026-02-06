@@ -96,6 +96,70 @@ function App() {
     }
   }, [isLoggedIn, formatTime]);
 
+  // SSE 이벤트 핸들러를 useRef로 저장하여 항상 최신 상태 참조
+  const handleSseMessageRef = useRef(null);
+  const handleSseErrorRef = useRef(null);
+
+  // 핸들러를 최신 상태로 업데이트
+  useEffect(() => {
+    handleSseMessageRef.current = (eventName, data) => {
+      console.log('[SSE] 이벤트 수신:', eventName, data);
+      if (eventName === 'UNREAD_COUNT') {
+        const count = typeof data === 'number' ? data : parseInt(data, 10);
+        console.log('[SSE] 읽지 않은 알림 개수 업데이트:', count);
+        if (!isNaN(count)) {
+          // 알림 개수를 즉시 업데이트
+          setUnreadCount(count);
+          // 알림 목록도 즉시 다시 조회
+          getUnreadNotifications()
+            .then(data => {
+              // formatTime을 직접 호출하여 최신 버전 사용
+              const formatTimeNow = (dateString) => {
+                if (!dateString) return '';
+                const date = new Date(dateString);
+                const now = new Date();
+                const diffMs = now - date;
+                const diffMins = Math.floor(diffMs / 60000);
+                const diffHours = Math.floor(diffMs / 3600000);
+                const diffDays = Math.floor(diffMs / 86400000);
+
+                if (diffMins < 1) return '방금 전';
+                if (diffMins < 60) return `${diffMins}분 전`;
+                if (diffHours < 24) return `${diffHours}시간 전`;
+                if (diffDays < 7) return `${diffDays}일 전`;
+                return date.toLocaleDateString('ko-KR');
+              };
+              const formattedNotifications = data.map(notif => ({
+                id: notif.id,
+                title: notif.title,
+                body: notif.content,
+                time: formatTimeNow(notif.createdAt),
+                type: notif.referenceType?.toLowerCase() || 'order',
+                read: false
+              }));
+              setNotifications(formattedNotifications);
+            })
+            .catch(error => {
+              console.error('[SSE] 알림 목록 조회 실패:', error);
+            });
+        }
+      } else if (eventName === 'CONNECTED') {
+        console.log('[SSE] 연결됨:', data);
+      }
+    };
+
+    handleSseErrorRef.current = (error) => {
+      console.error('[SSE] 연결 오류:', error);
+      // 연결 오류 시 재연결 시도 (3초 후)
+      setTimeout(() => {
+        if (isLoggedIn && !eventSourceRef.current) {
+          console.log('[SSE] 재연결 시도...');
+          fetchNotifications();
+        }
+      }, 3000);
+    };
+  }, [isLoggedIn, fetchNotifications]);
+
   // SSE 연결 및 실시간 알림 수신
   useEffect(() => {
     if (!isLoggedIn) {
@@ -112,47 +176,11 @@ function App() {
     // 알림 목록 조회
     fetchNotifications();
 
-    // SSE 연결 시작
+    // SSE 연결 시작 - ref를 통해 항상 최신 핸들러 사용
     const eventSource = subscribeNotifications(
-      (eventName, data) => {
-        console.log('[SSE] 이벤트 수신:', eventName, data);
-        if (eventName === 'UNREAD_COUNT') {
-          const count = typeof data === 'number' ? data : parseInt(data, 10);
-          console.log('[SSE] 읽지 않은 알림 개수 업데이트:', count);
-          // 알림 개수와 목록을 즉시 업데이트
-          setUnreadCount(count);
-          // 알림 목록도 즉시 다시 조회
-          getUnreadNotifications()
-            .then(data => {
-              const formattedNotifications = data.map(notif => ({
-                id: notif.id,
-                title: notif.title,
-                body: notif.content,
-                time: formatTime(notif.createdAt),
-                type: notif.referenceType?.toLowerCase() || 'order',
-                read: false
-              }));
-              setNotifications(formattedNotifications);
-            })
-            .catch(error => {
-              console.error('[SSE] 알림 목록 조회 실패:', error);
-            });
-        } else if (eventName === 'CONNECTED') {
-          console.log('[SSE] 연결됨:', data);
-        }
-      },
-      (error) => {
-        console.error('[SSE] 연결 오류:', error);
-        // 연결 오류 시 재연결 시도 (3초 후)
-        setTimeout(() => {
-          if (isLoggedIn && !eventSourceRef.current) {
-            console.log('[SSE] 재연결 시도...');
-            fetchNotifications();
-          }
-        }, 3000);
-      }
+      (eventName, data) => handleSseMessageRef.current(eventName, data),
+      (error) => handleSseErrorRef.current(error)
     );
-
     eventSourceRef.current = eventSource;
 
     // 컴포넌트 언마운트 시 연결 종료
@@ -214,14 +242,15 @@ function App() {
     try {
       // 백엔드에 읽음 처리
       await markAsRead(id);
-      // SSE 이벤트로 개수와 목록이 자동 업데이트되므로 로컬 상태는 즉시 업데이트하지 않음
-      // 대신 알림 목록에서만 읽음 표시 (UI 반응성 향상)
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-      // 개수는 SSE 이벤트로 업데이트될 때까지 기다림
+      // 읽음 처리된 알림을 목록에서 제거하고 개수 감소 (즉시 UI 반영)
+      setNotifications(prev => {
+        const filtered = prev.filter(n => n.id !== id);
+        setUnreadCount(filtered.length);
+        return filtered;
+      });
+      // SSE 이벤트로 최종 동기화 (백엔드에서 정확한 개수 전송)
     } catch (error) {
       console.error('알림 읽음 처리 실패:', error);
-      // 에러 발생 시에도 UI 반응성 위해 읽음 표시
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     }
   };
 
