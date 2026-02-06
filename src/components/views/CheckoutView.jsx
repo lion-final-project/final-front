@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { EffectCube, Pagination } from 'swiper/modules';
-import { addresses, paymentMethods } from '../../data/mockData';
+import { addresses as defaultAddresses, paymentMethods as defaultPaymentMethods } from '../../data/mockData';
+import { getCheckout } from '../../api/checkoutApi';
 
 // Import Swiper styles
 import 'swiper/css';
@@ -88,7 +89,9 @@ const AddressModal = ({ isOpen, onClose, addresses, onSelect, currentAddressId }
   );
 };
 
-const CheckoutView = ({ cartItems, onComplete }) => {
+const CheckoutView = ({ cartItems, onComplete, addresses: addressesProp, paymentMethods: paymentMethodsProp }) => {
+  const addresses = addressesProp && addressesProp.length > 0 ? addressesProp : defaultAddresses;
+  const paymentMethods = paymentMethodsProp && paymentMethodsProp.length > 0 ? paymentMethodsProp : defaultPaymentMethods;
   const [selectedAddress, setSelectedAddress] = useState(addresses.find(a => a.isDefault) || addresses[0]);
   const [selectedPayment, setSelectedPayment] = useState(paymentMethods.find(p => p.isDefault) || paymentMethods[0]);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
@@ -97,6 +100,30 @@ const CheckoutView = ({ cartItems, onComplete }) => {
   const [customRequest, setCustomRequest] = useState(false);
   const [requestInput, setRequestInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [checkoutData, setCheckoutData] = useState(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+
+  const cartItemIds = (cartItems || []).map((i) => i.cartProductId ?? i.id).filter(Boolean);
+
+  useEffect(() => {
+    if (cartItemIds.length === 0) {
+      setCheckoutData(null);
+      return;
+    }
+    let cancelled = false;
+    setCheckoutLoading(true);
+    getCheckout(cartItemIds, selectedAddress?.id ?? undefined)
+      .then((data) => {
+        if (!cancelled) setCheckoutData(data);
+      })
+      .catch(() => {
+        if (!cancelled) setCheckoutData(null);
+      })
+      .finally(() => {
+        if (!cancelled) setCheckoutLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [cartItemIds.join(','), selectedAddress?.id]);
 
   const requestOptions = [
     '배송 전 연락바랍니다',
@@ -116,9 +143,12 @@ const CheckoutView = ({ cartItems, onComplete }) => {
     }
   };
 
-  const totalPrice = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const deliveryFee = 3000;
-  const finalPrice = totalPrice + deliveryFee;
+  const summary = checkoutData?.priceSummary;
+  const totalPrice = summary?.productTotal ?? cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const deliveryFee = summary?.deliveryTotal ?? 3000;
+  const discount = summary?.discount ?? 0;
+  const points = summary?.points ?? 0;
+  const finalPrice = summary?.finalTotal ?? totalPrice + deliveryFee - discount - points;
 
   const handlePayment = () => {
     setIsProcessing(true);
@@ -375,6 +405,9 @@ const CheckoutView = ({ cartItems, onComplete }) => {
         <div style={{ height: 'fit-content', position: 'sticky', top: '100px' }}>
           <div style={{ background: 'white', padding: '24px', borderRadius: '20px', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
             <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px' }}>최종 결제 금액</h3>
+            {checkoutLoading && (
+              <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '12px' }}>주문서 금액 조회 중...</div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px', borderBottom: '1px solid #f1f5f9', paddingBottom: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
                 <span>상품 금액</span>
@@ -384,6 +417,18 @@ const CheckoutView = ({ cartItems, onComplete }) => {
                 <span>배송비</span>
                 <span>{deliveryFee.toLocaleString()}원</span>
               </div>
+              {discount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
+                  <span>할인</span>
+                  <span>-{discount.toLocaleString()}원</span>
+                </div>
+              )}
+              {points > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
+                  <span>포인트 사용</span>
+                  <span>-{points.toLocaleString()}원</span>
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
               <span style={{ fontWeight: '700', fontSize: '18px' }}>총 결제금액</span>

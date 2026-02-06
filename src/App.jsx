@@ -280,9 +280,12 @@ function App() {
     }
   };
 
+  const [cartRefreshTrigger, setCartRefreshTrigger] = useState(0);
+
   const handleLoginSuccess = (userData = {}) => {
     setIsLoggedIn(true);
     setUserInfo(userData);
+    setCartRefreshTrigger((t) => t + 1); // 로그인 직후 장바구니 refetch 유도
     const roles = userData.roles;
     // STORE 역할 유저는 메인 페이지(CUSTOMER)를 먼저 보여주고, 헤더의 사장님 버튼으로 전환
     const role = Array.isArray(roles) && roles.length > 0 ? roles[0] : 'CUSTOMER';
@@ -328,6 +331,7 @@ function App() {
         setUserRole={setUserRole}
         isLoggedIn={isLoggedIn}
         setIsLoggedIn={setIsLoggedIn}
+        cartRefreshTrigger={cartRefreshTrigger}
         onLogout={handleLogout}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onOpenNotifications={() => setIsNotificationOpen(true)}
