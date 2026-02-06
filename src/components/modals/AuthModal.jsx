@@ -273,7 +273,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose} style={{
+    <div className="modal-overlay" style={{
       position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.7)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       zIndex: 2000, backdropFilter: 'blur(8px)', animation: 'fadeIn 0.3s ease-out'
