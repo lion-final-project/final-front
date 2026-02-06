@@ -10,7 +10,7 @@ import ResidentDeliveryView from './ResidentDeliveryView';
 import SupportView from './SupportView';
 import PartnerPage from './PartnerPage';
 import Footer from '../common/Footer';
-import { orders, subscriptions, reviews, stores, addresses, paymentMethods, faqs, categories, coupons, inquiries, loyaltyPoints, subscriptionPayments } from '../../data/mockData';
+import { orders, reviews, stores, addresses, paymentMethods, faqs, categories, coupons, inquiries, loyaltyPoints } from '../../data/mockData';
 import CartModal from '../modals/CartModal';
 import StoreDetailView from './StoreDetailView';
 import StoreRegistrationView from './StoreRegistrationView';
@@ -128,8 +128,10 @@ const CustomerView = ({
   const [currentLocation, setCurrentLocation] = useState("역삼동 123-45");
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [orderList, setOrderList] = useState(orders);
-  const [subscriptionList, setSubscriptionList] = useState(subscriptions);
-
+  const [subscriptionList, setSubscriptionList] = useState([]);
+  const [subscriptionListLoading, setSubscriptionListLoading] = useState(false);
+  const [subscriptionListError, setSubscriptionListError] = useState(null);
+  const [subscriptionPayments, setSubscriptionPayments] = useState([]); // 백엔드 결제 내역 API 연동 전 빈 배열
 
   const [hasStore, setHasStore] = useState(false);
 
@@ -217,6 +219,66 @@ const CustomerView = ({
   useEffect(() => {
     fetchAddresses();
   }, [fetchAddresses]);
+
+  /** API-SUB-002: 내 구독 목록 조회. 백엔드 응답을 UI 형식으로 매핑 */
+  const fetchSubscriptions = useCallback(async () => {
+    if (!isLoggedIn) {
+      setSubscriptionList([]);
+      return;
+    }
+    setSubscriptionListLoading(true);
+    setSubscriptionListError(null);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/subscriptions`, {
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody?.message || `구독 목록 조회 실패 (${response.status})`);
+      }
+      const json = await response.json();
+      const rawList = json?.data ?? [];
+      const mapped = rawList.map((d) => {
+        const statusMap = {
+          ACTIVE: '구독중',
+          PAUSED: '일시정지',
+          CANCELLATION_PENDING: '해지 예정',
+          CANCELLED: '해지됨',
+        };
+        const statusLabel = statusMap[d.status] ?? d.status;
+        const period = d.deliveryTimeSlot
+          ? d.deliveryTimeSlot
+          : d.storeName
+            ? `${d.storeName} 정기배달`
+            : '정기배달';
+        return {
+          id: d.subscriptionId,
+          name: d.subscriptionProductName ?? '',
+          period,
+          price: `${(d.totalAmount ?? 0).toLocaleString()}원/월`,
+          status: statusLabel,
+          img: '📦',
+          nextPayment: d.nextPaymentDate
+            ? d.nextPaymentDate.replace(/-/g, '.')
+            : '-',
+          monthlyCount: '—',
+          includedItems: d.items?.map((i) => `${i.productName} ${i.quantity}개`) ?? [],
+          _rawStatus: d.status,
+        };
+      });
+      setSubscriptionList(mapped);
+    } catch (err) {
+      console.error('구독 목록 조회 실패:', err);
+      setSubscriptionListError(err.message || '구독 목록을 불러오지 못했습니다.');
+      setSubscriptionList([]);
+    } finally {
+      setSubscriptionListLoading(false);
+    }
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    fetchSubscriptions();
+  }, [fetchSubscriptions]);
 
   // Kakao Maps SDK Manual Initialization
   useEffect(() => {
@@ -438,42 +500,84 @@ const CustomerView = ({
     showToast("주문이 성공적으로 취소되었습니다.");
   };
 
-  const handleCancelSubscription = (subId) => {
+  const handleCancelSubscription = async (subId) => {
     const sub = subscriptionList.find((s) => s.id === subId);
     if (!sub) return;
 
-    if (sub.nextPayment && sub.nextPayment !== "-") {
-      setSubscriptionList((prev) =>
-        prev.map((item) =>
-          item.id === subId ? { ...item, status: "해지 예정" } : item,
-        ),
-      );
-      alert(
-        `남은 배송 일정이 있어 ${sub.nextPayment}일에 정기 결제가 종료되며 '해지 예정' 상태로 변경되었습니다. 마지막 배송까지 정성을 다하겠습니다.`,
-      );
-    } else {
-      setSubscriptionList((prev) =>
-        prev.map((item) =>
-          item.id === subId
-            ? { ...item, status: "해지됨", nextPayment: "-" }
-            : item,
-        ),
-      );
-      alert(
-        "남은 배송 일정이 없어 즉시 '해지됨' 상태로 변경되었습니다. 그동안 이용해 주셔서 감사합니다.",
-      );
+    // 해지 요청 확인 단계에서 취소 선택 시 기존 상태 유지
+    const confirmed = window.confirm(
+      "정말 이 구독을 해지하시겠습니까?\n남은 배송 및 다음 결제 예정일까지는 혜택이 제공될 수 있습니다.",
+    );
+    if (!confirmed) {
+      showToast("구독 해지가 취소되었습니다.");
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/subscriptions/${subId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        showToast(json?.message || '구독 해지 요청에 실패했습니다.');
+        return;
+      }
+      await fetchSubscriptions();
+      if (sub.nextPayment && sub.nextPayment !== '-') {
+        showToast(
+          `남은 배송 일정 이후, 다음 결제 예정일인 ${sub.nextPayment}에 정기 결제가 종료되며 '해지 예정' 상태로 전환됩니다.`,
+        );
+      } else {
+        showToast('구독이 해지되었습니다. 그동안 이용해 주셔서 감사합니다.');
+      }
+    } catch (err) {
+      console.error('구독 해지 요청 실패:', err);
+      showToast('구독 해지 요청에 실패했습니다.');
     }
   };
 
-  const resumeSubscription = (subId) => {
-    setSubscriptionList((prev) =>
-      prev.map((item) =>
-        item.id === subId ? { ...item, status: "구독중" } : item,
-      ),
-    );
-    showToast(
-      "구독 해지가 취소되었습니다. 계속해서 혜택을 누리실 수 있습니다!",
-    );
+  const resumeSubscription = async (subId) => {
+    const sub = subscriptionList.find((s) => s.id === subId);
+    if (!sub) return;
+    if (sub._rawStatus === 'CANCELLATION_PENDING') {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/subscriptions/${subId}/cancellation/cancel`, {
+          method: 'PATCH',
+          credentials: 'include',
+        });
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          showToast(json?.message || '구독 해지 취소에 실패했습니다.');
+          return;
+        }
+        await fetchSubscriptions();
+        showToast('구독 해지가 취소되었습니다. 계속해서 혜택을 누리실 수 있습니다!');
+      } catch (err) {
+        console.error('구독 해지 취소 실패:', err);
+        showToast('구독 해지 취소에 실패했습니다.');
+      }
+      return;
+    }
+    if (sub._rawStatus === 'PAUSED') {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/subscriptions/${subId}/resume`, {
+          method: 'PATCH',
+          credentials: 'include',
+        });
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          showToast(json?.message || '구독 재개에 실패했습니다.');
+          return;
+        }
+        await fetchSubscriptions();
+        showToast('구독이 재개되었습니다.');
+      } catch (err) {
+        console.error('구독 재개 실패:', err);
+        showToast('구독 재개에 실패했습니다.');
+      }
+    }
   };
 
   const handleTabChange = (tab) => {
@@ -807,7 +911,7 @@ const CustomerView = ({
                 gap: "24px",
               }}
             >
-              {subscriptions.map((sub) => (
+              {subscriptionList.map((sub) => (
                 <div
                   key={sub.id}
                   style={{
@@ -1504,7 +1608,7 @@ const CustomerView = ({
                           borderRadius: "10px",
                         }}
                       >
-                        {["전체", "구독중", "해지 예정"].map((f) => (
+                        {["전체", "구독중", "일시정지", "해지 예정"].map((f) => (
                           <button
                             key={f}
                             onClick={() => setSubscriptionFilter(f)}
@@ -1537,7 +1641,43 @@ const CustomerView = ({
                         marginBottom: "40px",
                       }}
                     >
-                      {subscriptionList
+                      {subscriptionListLoading ? (
+                        <div
+                          style={{
+                            padding: "40px 24px",
+                            textAlign: "center",
+                            color: "#64748b",
+                            fontSize: "14px",
+                          }}
+                        >
+                          구독 목록을 불러오는 중…
+                        </div>
+                      ) : subscriptionListError ? (
+                        <div
+                          style={{
+                            padding: "40px 24px",
+                            textAlign: "center",
+                            color: "#ef4444",
+                            fontSize: "14px",
+                          }}
+                        >
+                          {subscriptionListError}
+                        </div>
+                      ) : subscriptionList.length === 0 ? (
+                        <div
+                          style={{
+                            padding: "40px 24px",
+                            textAlign: "center",
+                            color: "#94a3b8",
+                            fontSize: "14px",
+                            borderRadius: "12px",
+                            backgroundColor: "#f8fafc",
+                            border: "1px solid #e2e8f0",
+                          }}
+                        >
+                          현재 구독 중인 항목이 없습니다.
+                        </div>
+                      ) : subscriptionList
                         .filter(
                           (s) =>
                             subscriptionFilter === "전체" ||
@@ -1629,13 +1769,17 @@ const CustomerView = ({
                                         ? "rgba(16, 185, 129, 0.1)"
                                         : sub.status === "해지 예정"
                                           ? "rgba(245, 158, 11, 0.1)"
-                                          : "#f1f5f9",
+                                          : sub.status === "일시정지"
+                                            ? "rgba(59, 130, 246, 0.1)"
+                                            : "#f1f5f9",
                                     color:
                                       sub.status === "구독중"
                                         ? "var(--primary)"
                                         : sub.status === "해지 예정"
                                           ? "#f59e0b"
-                                          : "#94a3b8",
+                                          : sub.status === "일시정지"
+                                            ? "#3b82f6"
+                                            : "#94a3b8",
                                     padding: "4px 10px",
                                     borderRadius: "6px",
                                     fontSize: "11px",
@@ -1789,6 +1933,26 @@ const CustomerView = ({
                                         구독 해지하기
                                       </button>
                                     </>
+                                  ) : sub.status === "일시정지" ? (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        resumeSubscription(sub.id);
+                                      }}
+                                      style={{
+                                        width: "100%",
+                                        padding: "14px",
+                                        borderRadius: "12px",
+                                        background: "var(--primary)",
+                                        color: "white",
+                                        border: "none",
+                                        fontWeight: "800",
+                                        fontSize: "14px",
+                                        cursor: "pointer",
+                                      }}
+                                    >
+                                      구독 재개하기
+                                    </button>
                                   ) : sub.status === "해지 예정" ? (
                                     <div
                                       style={{
@@ -1882,7 +2046,22 @@ const CustomerView = ({
                           gap: "12px",
                         }}
                       >
-                        {subscriptionPayments.map((p) => (
+                        {subscriptionPayments.length === 0 ? (
+                          <div
+                            style={{
+                              padding: "24px",
+                              textAlign: "center",
+                              color: "#94a3b8",
+                              fontSize: "13px",
+                              backgroundColor: "#f8fafc",
+                              borderRadius: "12px",
+                              border: "1px solid #f1f5f9",
+                            }}
+                          >
+                            결제 내역이 없습니다.
+                          </div>
+                        ) : (
+                        subscriptionPayments.map((p) => (
                           <div
                             key={p.id}
                             style={{
@@ -1932,7 +2111,8 @@ const CustomerView = ({
                               </div>
                             </div>
                           </div>
-                        ))}
+                        ))
+                        )}
                       </div>
                     </div>
                   </div>
