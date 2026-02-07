@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import StoreDetailModal from '../modals/StoreDetailModal';
+import StoreDetailModal from '../features/store/StoreDetailModal';
 
 import { stores } from '../../data/mockData';
 
