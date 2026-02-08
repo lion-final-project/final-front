@@ -90,20 +90,12 @@ const AddressModal = ({ isOpen, onClose, addresses, onSelect, currentAddressId }
   );
 };
 
-const DELIVERY_TIME_SLOTS = [
-  { value: '08:00~11:00', label: '08:00~11:00' },
-  { value: '11:00~14:00', label: '11:00~14:00' },
-  { value: '14:00~17:00', label: '14:00~17:00' },
-  { value: '17:00~20:00', label: '17:00~20:00' },
-];
-
 const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp, paymentMethods: paymentMethodsProp }) => {
   const addresses = addressesProp && addressesProp.length > 0 ? addressesProp : defaultAddresses;
   const paymentMethods = paymentMethodsProp && paymentMethodsProp.length > 0 ? paymentMethodsProp : defaultPaymentMethods;
   const [selectedAddress, setSelectedAddress] = useState(addresses.find(a => a.isDefault) || addresses[0]);
   const [selectedPayment, setSelectedPayment] = useState(paymentMethods.find(p => p.isDefault) || paymentMethods[0]);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
-  const [deliveryTimeSlot, setDeliveryTimeSlot] = useState('11:00~14:00');
   const [deliveryRequest, setDeliveryRequest] = useState('');
   const [customRequest, setCustomRequest] = useState(false);
   const [requestInput, setRequestInput] = useState('');
@@ -183,7 +175,6 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
       const data = await createOrder({
         addressId: selectedAddress.id,
         paymentMethodId: selectedPayment.id,
-        deliveryTimeSlot,
         deliveryRequest: deliveryRequestText,
         cartItemIds,
         couponId: null,
@@ -240,21 +231,7 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
               <div style={{ fontSize: '14px', color: '#64748b' }}>{selectedAddress.detail}</div>
             </div>
 
-
-
-            {/* Delivery Time Slot */}
-            <div style={{ marginTop: '16px' }}>
-              <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#475569' }}>배달 시간대</label>
-              <select
-                value={deliveryTimeSlot}
-                onChange={(e) => setDeliveryTimeSlot(e.target.value)}
-                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '14px', backgroundColor: 'white', cursor: 'pointer' }}
-              >
-                {DELIVERY_TIME_SLOTS.map((slot) => (
-                  <option key={slot.value} value={slot.value}>{slot.label}</option>
-                ))}
-              </select>
-            </div>
+            {/* 일반결제: 배달 시간대 선택 없음(주문 즉시 배달). 구독결제 시 constants/deliveryTimeSlots 사용 */}
 
             {/* Delivery Request Box */}
             <div style={{ marginTop: '20px' }}>
