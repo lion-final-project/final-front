@@ -1,11 +1,17 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { subscriptionProductApi } from '../../../../config/api';
 import { KO_TO_STATUS, mapApiToSub, getSubscriptionHeaders } from '../utils/storeDashboardUtils';
+
+const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
+const TIME_SLOTS = ['08:00~11:00', '11:00~14:00', '14:00~17:00', '17:00~20:00'];
 
 const SubscriptionsTab = ({
   subscriptions,
   subscriptionsLoading,
   subscriptionsError,
+  deliverySchedule,
+  deliveryScheduleLoading,
+  fetchDeliverySchedule,
   products,
   expandedSubscriptions,
   handleToggleSubscriptionExpand,
@@ -14,7 +20,29 @@ const SubscriptionsTab = ({
   sendSubscriptionNotification,
   setSubscriptions,
   fetchSubscriptions,
-}) => (
+}) => {
+  const weekDates = deliverySchedule?.weekDates ?? [];
+  const dateDeliveries = deliverySchedule?.dateDeliveries ?? [];
+  const firstDate = weekDates[0];
+  const [selectedDateKey, setSelectedDateKey] = useState(null);
+
+  const selectedDate = useMemo(() => {
+    if (selectedDateKey && weekDates.some((d) => d === selectedDateKey)) return selectedDateKey;
+    return firstDate ?? null;
+  }, [selectedDateKey, firstDate, weekDates]);
+
+  const selectedDateDelivery = useMemo(() => {
+    if (!selectedDate) return null;
+    return dateDeliveries.find((d) => d.date === selectedDate) ?? null;
+  }, [selectedDate, dateDeliveries]);
+
+  const formatDayNum = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr + 'T12:00:00');
+    return d.getDate();
+  };
+
+  return (
   <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' }}>
       <div style={{ padding: '24px', background: 'white', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', borderLeft: '4px solid #8b5cf6' }}>
@@ -178,32 +206,62 @@ const SubscriptionsTab = ({
         <div style={{ background: 'white', padding: '32px', borderRadius: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
             <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0 }}>주간 배송 일정 (시간대별)</h2>
-            <button style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', fontSize: '12px', fontWeight: '700', color: '#64748b', cursor: 'pointer' }}>자세히 보기 &gt;</button>
+            <button onClick={fetchDeliverySchedule} disabled={deliveryScheduleLoading} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', fontSize: '12px', fontWeight: '700', color: '#64748b', cursor: deliveryScheduleLoading ? 'not-allowed' : 'pointer', opacity: deliveryScheduleLoading ? 0.7 : 1 }}>{deliveryScheduleLoading ? '불러오는 중...' : '새로고침'}</button>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px', marginBottom: '16px' }}>
-            {['월', '화', '수', '목', '금', '토', '일'].map((day, i) => (
-              <div key={day} style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>{day}</div>
-                <div style={{ height: '32px', width: '32px', margin: '0 auto', borderRadius: '50%', backgroundColor: i === 3 ? '#3b82f6' : 'transparent', color: i === 3 ? 'white' : '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '14px' }}>{29 + i > 31 ? 29 + i - 31 : 29 + i}</div>
+          {deliveryScheduleLoading ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>배송 일정을 불러오는 중...</div>
+          ) : (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px', marginBottom: '16px' }}>
+                {DAY_LABELS.map((day, i) => {
+                  const d = weekDates[i];
+                  const isSelected = d && selectedDate === d;
+                  const hasDelivery = d && (dateDeliveries.find((dd) => dd.date === d)?.timeSlots ?? []).some((ts) => ts.deliveryCount > 0);
+                  return (
+                    <div key={day} onClick={() => d && setSelectedDateKey(d)} style={{ textAlign: 'center', cursor: d ? 'pointer' : 'default' }}>
+                      <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>{day}</div>
+                      <div style={{ height: '32px', width: '32px', margin: '0 auto', borderRadius: '50%', backgroundColor: isSelected ? '#3b82f6' : 'transparent', color: isSelected ? 'white' : hasDelivery ? '#1e40af' : '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '14px', border: hasDelivery && !isSelected ? '2px solid #93c5fd' : 'none' }}>{formatDayNum(d)}</div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
-          <div style={{ padding: '16px', borderRadius: '16px', backgroundColor: '#eff6ff', border: '1px solid #dbeafe', marginBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}><span style={{ fontWeight: '800', color: '#1e40af' }}>2월 1일 (목) 배송 정보</span><span style={{ fontSize: '11px', backgroundColor: '#bfdbfe', color: '#1e40af', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>선택됨</span></div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {[{ time: '06:00 - 09:00 (아침)', count: 4, area: '강남구 역삼동 외' }, { time: '11:00 - 14:00 (점심)', count: 6, area: '서초구 서초동 외' }, { time: '17:00 - 20:00 (저녁)', count: 2, area: '송파구 잠실동 외' }].map((slot, idx) => (
-                <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'white', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                  <div><div style={{ fontSize: '13px', fontWeight: '800', color: '#1e293b' }}>{slot.time}</div><div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>지역: {slot.area}</div></div>
-                  <div style={{ fontWeight: '800', color: '#3b82f6', fontSize: '15px' }}>{slot.count}건</div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div style={{ padding: '16px', borderRadius: '16px', border: '1px solid #f1f5f9', backgroundColor: '#f8fafc', textAlign: 'center' }}><div style={{ fontSize: '12px', color: '#64748b' }}>이 날짜에 배송될 구독 상품이 없습니다.</div></div>
+              {selectedDateDelivery ? (
+                (selectedDateDelivery.timeSlots ?? []).some((ts) => ts.deliveryCount > 0) ? (
+                  <div style={{ padding: '16px', borderRadius: '16px', backgroundColor: '#eff6ff', border: '1px solid #dbeafe', marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}><span style={{ fontWeight: '800', color: '#1e40af' }}>{selectedDateDelivery.dateLabel} 배송 정보</span><span style={{ fontSize: '11px', backgroundColor: '#bfdbfe', color: '#1e40af', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>선택됨</span></div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {(selectedDateDelivery.timeSlots ?? [])
+                        .filter((ts) => TIME_SLOTS.includes(ts.timeSlot))
+                        .map((slot) => (
+                          <div key={slot.timeSlot} style={{ display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: 'white', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div style={{ fontSize: '13px', fontWeight: '800', color: '#1e293b' }}>{slot.timeSlot}</div>
+                              <div style={{ fontWeight: '800', color: '#3b82f6', fontSize: '15px' }}>{slot.deliveryCount}건</div>
+                            </div>
+                            {(slot.items ?? []).length > 0 && (
+                              <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                {slot.items.map((item, idx) => (
+                                  <span key={idx} style={{ backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>{item.productName} ×{item.quantity}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ padding: '16px', borderRadius: '16px', border: '1px solid #f1f5f9', backgroundColor: '#f8fafc', textAlign: 'center' }}><div style={{ fontSize: '12px', color: '#64748b' }}>이 날짜에 배송될 구독 상품이 없습니다.</div></div>
+                )
+              ) : (
+                <div style={{ padding: '16px', borderRadius: '16px', border: '1px solid #f1f5f9', backgroundColor: '#f8fafc', textAlign: 'center' }}><div style={{ fontSize: '12px', color: '#64748b' }}>배송 일정 데이터가 없습니다.</div></div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>
   </div>
-);
+  );
+};
 
 export default SubscriptionsTab;
