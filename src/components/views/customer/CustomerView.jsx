@@ -207,6 +207,7 @@ const CustomerView = ({
             ? d.nextPaymentDate.replace(/-/g, '.')
             : '-',
           monthlyCount: totalDelivery ? ` ${totalDelivery}회` : '—',
+          daysOfWeek: d.daysOfWeek ?? [],
           includedItems: d.items?.map((i) => `${i.productName} ${i.quantity}개`) ?? [],
           totalDeliveryCount: totalDelivery,
           completedDeliveryCount: completedDelivery,
