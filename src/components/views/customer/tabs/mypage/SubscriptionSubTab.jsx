@@ -276,9 +276,14 @@ const SubscriptionSubTab = ({
                           }}
                         >
                           이미 해지 신청이 완료된 상품입니다. 남은 구독 기간까지는 혜택이 유지되며, 이후 자동으로 종료됩니다.
+                          <br />
+                          해지 예정을 취소하시면 구독이 계속 유지됩니다.
                         </div>
                         <button
-                          onClick={() => resumeSubscription(sub.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            resumeSubscription(sub.id);
+                          }}
                           style={{
                             width: "100%",
                             padding: "14px",
@@ -291,7 +296,7 @@ const SubscriptionSubTab = ({
                             cursor: "pointer",
                           }}
                         >
-                          구독 유지하기 (다시 구독)
+                          해지 취소하기 (구독 유지)
                         </button>
                       </div>
                     ) : (
