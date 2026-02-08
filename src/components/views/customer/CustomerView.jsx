@@ -191,6 +191,9 @@ const CustomerView = ({
           : d.storeName
             ? `${d.storeName} 정기배달`
             : '정기배달';
+        const totalDelivery = d.totalDeliveryCount ?? 0;
+        const completedDelivery = d.completedDeliveryCount ?? 0;
+        const remainingDelivery = Math.max(0, totalDelivery - completedDelivery);
         return {
           id: d.subscriptionId,
           name: d.subscriptionProductName ?? '',
@@ -201,8 +204,11 @@ const CustomerView = ({
           nextPayment: d.nextPaymentDate
             ? d.nextPaymentDate.replace(/-/g, '.')
             : '-',
-          monthlyCount: '—',
+          monthlyCount: totalDelivery ? ` ${totalDelivery}회` : '—',
           includedItems: d.items?.map((i) => `${i.productName} ${i.quantity}개`) ?? [],
+          totalDeliveryCount: totalDelivery,
+          completedDeliveryCount: completedDelivery,
+          remainingDeliveryCount: remainingDelivery,
           _rawStatus: d.status,
         };
       });
@@ -463,12 +469,21 @@ const CustomerView = ({
     const sub = subscriptionList.find((s) => s.id === subId);
     if (!sub) return;
 
-    // 해지 요청 확인 단계에서 취소 선택 시 기존 상태 유지
-    const confirmed = window.confirm(
-      "정말 이 구독을 해지하시겠습니까?\n남은 배송 및 다음 결제 예정일까지는 혜택이 제공될 수 있습니다.",
-    );
+    // 5-b: 남은 배송건·결제 종료일 안내 후 해지 예정으로 변경 (5-a: 취소 선택 시 기존 상태 유지)
+    const hasRemaining = (sub.remainingDeliveryCount ?? 0) > 0;
+    const nextPay = sub.nextPayment && sub.nextPayment !== '-' ? sub.nextPayment : null;
+    let confirmMsg = '정말 이 구독을 해지하시겠습니까?';
+    if (hasRemaining || nextPay) {
+      confirmMsg += '\n\n';
+      if (hasRemaining) confirmMsg += `· 남은 배송: ${sub.remainingDeliveryCount}건\n`;
+      if (nextPay) confirmMsg += `· 결제 종료일: ${nextPay}\n`;
+      confirmMsg += '위 기간까지 혜택이 유지되며, 이후 해지 예정으로 전환됩니다.';
+    } else {
+      confirmMsg += '\n남은 배송 및 다음 결제 예정일까지는 혜택이 제공될 수 있습니다.';
+    }
+    const confirmed = window.confirm(confirmMsg);
     if (!confirmed) {
-      showToast("구독 해지가 취소되었습니다.");
+      showToast('구독 해지가 취소되었습니다.');
       return;
     }
 
@@ -484,12 +499,13 @@ const CustomerView = ({
         return;
       }
       await fetchSubscriptions();
-      if (sub.nextPayment && sub.nextPayment !== '-') {
-        showToast(
-          `남은 배송 일정 이후, 다음 결제 예정일인 ${sub.nextPayment}에 정기 결제가 종료되며 '해지 예정' 상태로 전환됩니다.`,
-        );
+      if (hasRemaining || nextPay) {
+        const parts = [];
+        if (hasRemaining) parts.push(`남은 배송 ${sub.remainingDeliveryCount}건`);
+        if (nextPay) parts.push(`결제 종료일 ${nextPay}`);
+        showToast(`${parts.join(', ')}까지 혜택이 유지되며, 해지 예정으로 전환되었습니다.`);
       } else {
-        showToast('구독이 해지되었습니다. 그동안 이용해 주셔서 감사합니다.');
+        showToast('구독 해지가 요청되었습니다.');
       }
     } catch (err) {
       console.error('구독 해지 요청 실패:', err);
