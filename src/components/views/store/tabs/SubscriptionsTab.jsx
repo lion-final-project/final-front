@@ -25,6 +25,8 @@ const SubscriptionsTab = ({
   const dateDeliveries = deliverySchedule?.dateDeliveries ?? [];
   const firstDate = weekDates[0];
   const [selectedDateKey, setSelectedDateKey] = useState(null);
+  const [expandedScheduleRows, setExpandedScheduleRows] = useState(new Set());
+  const [acceptingKey, setAcceptingKey] = useState(null);
 
   const selectedDate = useMemo(() => {
     if (selectedDateKey && weekDates.some((d) => d === selectedDateKey)) return selectedDateKey;
@@ -35,6 +37,79 @@ const SubscriptionsTab = ({
     if (!selectedDate) return null;
     return dateDeliveries.find((d) => d.date === selectedDate) ?? null;
   }, [selectedDate, dateDeliveries]);
+
+  /** 오늘 날짜 문자열 (yyyy-MM-dd). 비교용 */
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }, []);
+
+  /** 다음 배송 일정: 오늘 포함 이후만, 날짜·시간대별 행. deliveryCount > 0인 슬롯만 */
+  const scheduleRows = useMemo(() => {
+    const rows = [];
+    (dateDeliveries ?? []).forEach((dd) => {
+      const dateStr = dd.date != null ? String(dd.date).slice(0, 10) : '';
+      if (dateStr < todayStr) return;
+      (dd.timeSlots ?? [])
+        .filter((ts) => TIME_SLOTS.includes(ts.timeSlot) && ts.deliveryCount > 0)
+        .forEach((ts) => {
+          rows.push({
+            key: `${dd.date}_${ts.timeSlot}`,
+            date: dd.date,
+            dateLabel: dd.dateLabel,
+            timeSlot: ts.timeSlot,
+            deliveryCount: ts.deliveryCount,
+            items: ts.items ?? [],
+          });
+        });
+    });
+    return rows;
+  }, [dateDeliveries, todayStr]);
+
+  /** 이번 주 전체 품목 합산 (준비 필요 상품 현황). 시간대별 이미 합산된 수량을 다시 주간으로 합산 */
+  const aggregatedProducts = useMemo(() => {
+    const map = new Map();
+    (dateDeliveries ?? []).forEach((dd) => {
+      (dd.timeSlots ?? []).forEach((ts) => {
+        (ts.items ?? []).forEach((i) => {
+          const qty = i.quantity ?? 0;
+          if (qty > 0) map.set(i.productName, (map.get(i.productName) ?? 0) + qty);
+        });
+      });
+    });
+    return Array.from(map.entries()).map(([productName, quantity]) => ({ productName, quantity }));
+  }, [dateDeliveries]);
+
+  const handleToggleScheduleExpand = (key) => {
+    setExpandedScheduleRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const handleAcceptDelivery = async (row) => {
+    const key = row.key;
+    setAcceptingKey(key);
+    try {
+      const res = await fetch(subscriptionProductApi.acceptDelivery(), {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: getSubscriptionHeaders(),
+        body: JSON.stringify({ date: row.date, timeSlot: row.timeSlot }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json?.error?.message || json?.message || '배송 접수 실패');
+      const count = json?.data?.acceptedCount ?? 0;
+      alert(count > 0 ? `${row.dateLabel} ${row.timeSlot} 구독 ${count}건 접수되었습니다.` : '접수할 구독 주문이 없습니다.');
+      fetchDeliverySchedule();
+    } catch (err) {
+      alert(err.message || '배송 접수 중 오류가 발생했습니다.');
+    } finally {
+      setAcceptingKey(null);
+    }
+  };
 
   const formatDayNum = (dateStr) => {
     if (!dateStr) return '';
@@ -198,10 +273,64 @@ const SubscriptionsTab = ({
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginTop: '24px' }}>
         <div style={{ background: 'white', padding: '32px', borderRadius: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: '800', margin: '0 0 24px 0' }}>다음 배송 일정 및 필요 물량</h2>
-          <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>다음 배송 일정 데이터가 없습니다.</div>
-          <h3 style={{ fontSize: '16px', fontWeight: '800', margin: '0 0 16px 0', color: '#475569' }}>준비 필요 상품 현황</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '300px', overflowY: 'auto', padding: '20px', backgroundColor: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0' }}><div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>준비 필요 상품 현황이 없습니다.</div></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0 }}>다음 배송 일정 및 필요 물량</h2>
+            <button onClick={fetchDeliverySchedule} disabled={deliveryScheduleLoading} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', fontSize: '12px', fontWeight: '700', color: '#64748b', cursor: deliveryScheduleLoading ? 'not-allowed' : 'pointer', opacity: deliveryScheduleLoading ? 0.7 : 1 }}>{deliveryScheduleLoading ? '불러오는 중...' : '새로고침'}</button>
+          </div>
+          {deliveryScheduleLoading ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>배송 일정을 불러오는 중...</div>
+          ) : scheduleRows.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+              {scheduleRows.map((row) => (
+                <div key={row.key}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', backgroundColor: '#fdfaff', borderRadius: '12px', border: '1px solid #ede9fe' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <button onClick={() => handleToggleScheduleExpand(row.key)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '12px', transform: expandedScheduleRows.has(row.key) ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', color: '#8b5cf6' }}>▼</button>
+                      <div>
+                        <div style={{ fontSize: '15px', fontWeight: '700', color: '#1e293b' }}>{row.dateLabel} · {row.timeSlot}</div>
+                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                          {row.items.length > 0 ? row.items.map((i) => `${i.productName} ×${i.quantity}`).join(', ') : '구독 배송'}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{ fontWeight: '800', color: '#8b5cf6', fontSize: '15px' }}>{row.deliveryCount}건</span>
+                      <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: '#ede9fe', color: '#6d28d9', padding: '4px 8px', borderRadius: '6px' }}>구독</span>
+                      <button onClick={() => handleAcceptDelivery(row)} disabled={acceptingKey === row.key} style={{ padding: '10px 16px', borderRadius: '10px', background: acceptingKey === row.key ? '#e9d5ff' : 'var(--primary)', color: 'white', border: 'none', fontWeight: '700', fontSize: '13px', cursor: acceptingKey === row.key ? 'wait' : 'pointer', opacity: acceptingKey === row.key ? 0.8 : 1 }}>{acceptingKey === row.key ? '접수 중...' : '배송 접수'}</button>
+                    </div>
+                  </div>
+                  {expandedScheduleRows.has(row.key) && (
+                    <div style={{ padding: '12px 12px 0 40px' }}>
+                      <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', marginBottom: '8px' }}>필요 물량 (품목별)</div>
+                        {row.items.map((item, idx) => (
+                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
+                            <span>- {item.productName}</span>
+                            <span>총 {item.quantity}개</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px', marginBottom: '24px' }}>이번 주 예정된 구독 배송이 없습니다.</div>
+          )}
+          <h3 style={{ fontSize: '16px', fontWeight: '800', margin: '0 0 16px 0', color: '#475569' }}>준비 필요 상품 현황 (이번 주)</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '300px', overflowY: 'auto', padding: '20px', backgroundColor: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+            {aggregatedProducts.length > 0 ? (
+              aggregatedProducts.map((p, idx) => (
+                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px' }}>
+                  <span style={{ fontWeight: '600', color: '#1e293b' }}>{p.productName}</span>
+                  <span style={{ fontWeight: '800', color: '#8b5cf6' }}>{p.quantity}개</span>
+                </div>
+              ))
+            ) : (
+              <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>준비 필요 상품이 없습니다.</div>
+            )}
+          </div>
         </div>
         <div style={{ background: 'white', padding: '32px', borderRadius: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
