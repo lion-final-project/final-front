@@ -37,4 +37,17 @@ export const subscriptionProductApi = {
   updateStatus: (id) => `${API_BASE_URL}/api/store/subscription-products/${id}/status`,
   requestDeletion: (id) => `${API_BASE_URL}/api/store/subscription-products/${id}/deletion`,
   deleteImmediately: (id) => `${API_BASE_URL}/api/store/subscription-products/${id}`,
+  /** 주간 배송 일정 (시간대별) 조회 */
+  deliverySchedule: (startDate) =>
+    startDate
+      ? `${API_BASE_URL}/api/store/subscriptions/delivery-schedule?startDate=${startDate}`
+      : `${API_BASE_URL}/api/store/subscriptions/delivery-schedule`,
+  /** 지정 날짜·시간대 구독 배송 일괄 접수 (ACCEPTED 전환) */
+  acceptDelivery: () => `${API_BASE_URL}/api/store/subscriptions/delivery-schedule/accept`,
+};
+
+/** 고객 구독 API - API-SUB-001 등 */
+export const subscriptionApi = {
+  list: () => `${API_BASE_URL}/api/subscriptions`,
+  create: () => `${API_BASE_URL}/api/subscriptions`,
 };
