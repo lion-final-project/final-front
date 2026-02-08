@@ -233,18 +233,16 @@ const SubscriptionsTab = ({
                       {(selectedDateDelivery.timeSlots ?? [])
                         .filter((ts) => TIME_SLOTS.includes(ts.timeSlot))
                         .map((slot) => (
-                          <div key={slot.timeSlot} style={{ display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: 'white', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div key={slot.timeSlot} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'white', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                            <div>
                               <div style={{ fontSize: '13px', fontWeight: '800', color: '#1e293b' }}>{slot.timeSlot}</div>
-                              <div style={{ fontWeight: '800', color: '#3b82f6', fontSize: '15px' }}>{slot.deliveryCount}건</div>
-                            </div>
-                            {(slot.items ?? []).length > 0 && (
-                              <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                                {slot.items.map((item, idx) => (
-                                  <span key={idx} style={{ backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>{item.productName} ×{item.quantity}</span>
-                                ))}
+                              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                                {(slot.items ?? []).length > 0
+                                  ? `품목: ${slot.items.map((i) => `${i.productName} ×${i.quantity}`).join(', ')}`
+                                  : '준비할 품목 없음'}
                               </div>
-                            )}
+                            </div>
+                            <div style={{ fontWeight: '800', color: '#3b82f6', fontSize: '15px' }}>{slot.deliveryCount}건</div>
                           </div>
                         ))}
                     </div>

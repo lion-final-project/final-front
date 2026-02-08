@@ -1,15 +1,52 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../../../config/api';
 
 const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) => {
   const [activeSubTab, setActiveSubTab] = useState('menu');
   const [reviewSort, setReviewSort] = useState('latest');
   const [selectedDeliveryTime, setSelectedDeliveryTime] = useState('08:00~11:00');
+  const [subscriptionProducts, setSubscriptionProducts] = useState([]);
+  const [subscriptionProductsLoading, setSubscriptionProductsLoading] = useState(false);
 
   const deliveryTimeSlots = [
     '08:00~11:00',
     '11:00~14:00',
     '14:00~17:00',
     '17:00~20:00'
+  ];
+
+  useEffect(() => {
+    const storeId = store?.id;
+    if (storeId != null && typeof storeId === 'number') {
+      setSubscriptionProductsLoading(true);
+      fetch(`${API_BASE_URL}/api/stores/${storeId}/subscription-products`, { credentials: 'include' })
+        .then((res) => res.ok ? res.json() : null)
+        .then((json) => {
+          const list = json?.data ?? [];
+          if (Array.isArray(list) && list.length > 0) {
+            setSubscriptionProducts(list.map((p) => ({
+              id: p.subscriptionProductId ?? p.id,
+              name: p.name ?? '',
+              price: p.price ?? 0,
+              desc: p.description ?? '',
+              img: p.imageUrl ?? 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80',
+              daysOfWeek: p.daysOfWeek ?? [],
+            })));
+          } else {
+            setSubscriptionProducts(getMockSubscriptionProducts());
+          }
+        })
+        .catch(() => setSubscriptionProducts(getMockSubscriptionProducts()))
+        .finally(() => setSubscriptionProductsLoading(false));
+    } else {
+      setSubscriptionProducts(getMockSubscriptionProducts());
+    }
+  }, [store?.id]);
+
+  const getMockSubscriptionProducts = () => [
+    { id: 'sub1', name: '[정기배송] 유기농 우유 1L (주 1회)', price: 4500, img: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=400&q=80', desc: '매주 신선한 우유를 문앞으로', category: '구독', deliveryFrequency: '주 1회', daysOfWeek: [1] },
+    { id: 'sub2', name: '[정기배송] 신선 달걀 15구 (주 1회)', price: 8900, img: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?auto=format&fit=crop&w=400&q=80', desc: '아침마다 만나는 신선함', category: '구독', deliveryFrequency: '주 1회', daysOfWeek: [1] },
+    { id: 'sub3', name: '[정기배송] 제철 과일 랜덤박스 (주 1회)', price: 25000, img: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80', desc: '가장 맛있는 제철 과일 엄선', category: '구독', deliveryFrequency: '주 1회', daysOfWeek: [1] },
   ];
   
   // Review Management State
@@ -49,13 +86,6 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
     setEditingReviewId(null);
     setEditContent('');
   };
-
-  // Mock subscription products for demo
-  const subscriptionProducts = [
-    { id: 'sub1', name: '[정기배송] 유기농 우유 1L (주 1회)', price: 4500, img: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=400&q=80', desc: '매주 신선한 우유를 문앞으로', category: '구독', deliveryFrequency: '주 1회' },
-    { id: 'sub2', name: '[정기배송] 신선 달걀 15구 (주 1회)', price: 8900, img: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?auto=format&fit=crop&w=400&q=80', desc: '아침마다 만나는 신선함', category: '구독', deliveryFrequency: '주 1회' },
-    { id: 'sub3', name: '[정기배송] 제철 과일 랜덤박스 (주 1회)', price: 25000, img: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80', desc: '가장 맛있는 제철 과일 엄선', category: '구독', deliveryFrequency: '주 1회' }
-  ];
 
   const handleSubscribe = (product) => {
     setSelectedSubForDetail(product);

@@ -17,7 +17,7 @@ import StoreRegistrationView from '../store/StoreRegistrationView';
 import RiderRegistrationView from '../rider/RiderRegistrationView';
 import OrderManagementView from '../store/OrderManagementView';
 import LocationModal from '../../features/location/LocationModal';
-import { API_BASE_URL } from '../../../config/api';
+import { API_BASE_URL, subscriptionApi } from '../../../config/api';
 import * as cartAPI from '../../../api/cart.js';
 
 // Import Swiper React components
@@ -1174,19 +1174,62 @@ const CustomerView = ({
                 window.scrollTo(0, 0);
               }}
               onAddToCart={onAddToCart}
-              onSubscribeCheckout={(subProduct) => {
-                // Subscription directly goes to checkout
-                setSelectedStore(null);
-                setCartItems([
-                  {
-                    ...subProduct,
-                    quantity: 1,
-                    storeName: selectedStore.name,
-                    isSubscription: true,
-                  },
-                ]);
-                setActiveTab("checkout");
-                window.scrollTo(0, 0);
+              onSubscribeCheckout={async (subProduct) => {
+                const deliveryTimeSlot = subProduct.deliveryTime ?? subProduct.deliveryTimeSlot;
+                const subscriptionProductId = subProduct.id != null ? Number(subProduct.id) : null;
+                const isNumericId = subscriptionProductId != null && !Number.isNaN(subscriptionProductId);
+
+                if (deliveryTimeSlot && isNumericId && addressList.length > 0 && paymentMethodList.length > 0) {
+                  try {
+                    const addr = addressList.find((a) => a.isDefault) || addressList[0];
+                    const pay = paymentMethodList.find((p) => p.isDefault) || paymentMethodList[0];
+                    const deliveryDays = subProduct.daysOfWeek ?? [1];
+                    const res = await fetch(subscriptionApi.create(), {
+                      method: "POST",
+                      credentials: "include",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        subscriptionProductId,
+                        addressId: addr.id,
+                        paymentMethodId: pay.id,
+                        deliveryDays,
+                        deliveryTimeSlot,
+                      }),
+                    });
+                    const json = await res.json();
+                    if (!res.ok) throw new Error(json?.error?.message || json?.message || "구독 신청에 실패했습니다.");
+                    setSelectedStore(null);
+                    showToast("구독이 신청되었습니다.");
+                    fetchSubscriptions();
+                    window.scrollTo(0, 0);
+                  } catch (err) {
+                    showToast(err.message || "구독 신청에 실패했습니다.");
+                  }
+                } else {
+                  if (!deliveryTimeSlot || !isNumericId) {
+                    showToast("배송 시간대를 선택해 주세요. (실제 구독 상품이 있는 마트에서만 구독 신청이 가능합니다.)");
+                    return;
+                  }
+                  if (addressList.length === 0) {
+                    showToast("배송지를 먼저 등록해 주세요.");
+                    return;
+                  }
+                  if (paymentMethodList.length === 0) {
+                    showToast("결제 수단을 먼저 등록해 주세요.");
+                    return;
+                  }
+                  setSelectedStore(null);
+                  setCartItems([
+                    {
+                      ...subProduct,
+                      quantity: 1,
+                      storeName: selectedStore.name,
+                      isSubscription: true,
+                    },
+                  ]);
+                  setActiveTab("checkout");
+                  window.scrollTo(0, 0);
+                }
               }}
             />
           </div>
