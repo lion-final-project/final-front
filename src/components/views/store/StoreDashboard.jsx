@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { subscriptionProductApi } from '../../../config/api';
 import {
+  KO_TO_NUM,
   STATUS_TO_KO,
   KO_TO_STATUS,
   mapApiToSub,
@@ -704,12 +705,15 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
       alert('구성 품목을 1개 이상 선택해주세요.');
       return;
     }
+    const deliveryDays = subscriptionForm.deliveryDays || [];
+    const daysOfWeek = deliveryDays.map((d) => KO_TO_NUM[d]).filter((n) => n !== undefined);
     const body = {
       name: subscriptionForm.name,
       description: subscriptionForm.description || '',
       price: priceNum,
       totalDeliveryCount: subscriptionForm.monthlyTotal || 4,
       items,
+      daysOfWeek,
     };
     try {
       const url = editingSubscription
