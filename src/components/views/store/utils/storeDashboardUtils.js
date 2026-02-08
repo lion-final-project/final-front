@@ -2,6 +2,10 @@
 export const STATUS_TO_KO = { ACTIVE: '운영중', INACTIVE: '숨김', PENDING_DELETE: '삭제 예정' };
 export const KO_TO_STATUS = { '운영중': 'ACTIVE', '숨김': 'INACTIVE', '삭제 예정': 'PENDING_DELETE' };
 
+/** 배송 요일: 0=일, 1=월, 2=화, 3=수, 4=목, 5=금, 6=토 */
+const NUM_TO_KO = { 0: '일', 1: '월', 2: '화', 3: '수', 4: '목', 5: '금', 6: '토' };
+export const KO_TO_NUM = { '일': 0, '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6 };
+
 /** API 응답 → 프론트 sub 형식 */
 export const mapApiToSub = (d) => ({
   id: String(d.subscriptionProductId ?? d.id),
@@ -10,8 +14,8 @@ export const mapApiToSub = (d) => ({
   subscribers: d.subscriberCount ?? 0,
   status: STATUS_TO_KO[d.status] ?? d.status ?? '운영중',
   monthlyTotal: d.totalDeliveryCount ?? 0,
-  weeklyFreq: d.weeklyFreq ?? null,
-  deliveryDays: d.deliveryDays ?? [],
+  weeklyFreq: d.weeklyFreq != null ? d.weeklyFreq : (d.daysOfWeek && d.daysOfWeek.length) ? d.daysOfWeek.length : null,
+  deliveryDays: (d.daysOfWeek ?? []).map((n) => NUM_TO_KO[n]).filter(Boolean),
   selectedProducts: (d.items ?? []).map((i) => ({ id: String(i.productId), qty: i.quantity ?? 1, productName: i.productName })),
   description: d.description ?? '',
 });
