@@ -3,6 +3,7 @@ import { Swiper, SwiperSlide } from 'swiper/react';
 import { EffectCube, Pagination } from 'swiper/modules';
 import { addresses as defaultAddresses, paymentMethods as defaultPaymentMethods } from '../../../data/mockData';
 import { getCheckout } from '../../../api/checkoutApi';
+import { createOrder } from '../../../api/orderApi';
 
 // Import Swiper styles
 import 'swiper/css';
@@ -89,13 +90,20 @@ const AddressModal = ({ isOpen, onClose, addresses, onSelect, currentAddressId }
   );
 };
 
-const CheckoutView = ({ cartItems, onComplete, addresses: addressesProp, paymentMethods: paymentMethodsProp }) => {
+const DELIVERY_TIME_SLOTS = [
+  { value: '08:00~11:00', label: '08:00~11:00' },
+  { value: '11:00~14:00', label: '11:00~14:00' },
+  { value: '14:00~17:00', label: '14:00~17:00' },
+  { value: '17:00~20:00', label: '17:00~20:00' },
+];
+
+const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp, paymentMethods: paymentMethodsProp }) => {
   const addresses = addressesProp && addressesProp.length > 0 ? addressesProp : defaultAddresses;
   const paymentMethods = paymentMethodsProp && paymentMethodsProp.length > 0 ? paymentMethodsProp : defaultPaymentMethods;
   const [selectedAddress, setSelectedAddress] = useState(addresses.find(a => a.isDefault) || addresses[0]);
   const [selectedPayment, setSelectedPayment] = useState(paymentMethods.find(p => p.isDefault) || paymentMethods[0]);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
-  const [deliveryTime, setDeliveryTime] = useState('8~11시 사이');
+  const [deliveryTimeSlot, setDeliveryTimeSlot] = useState('11:00~14:00');
   const [deliveryRequest, setDeliveryRequest] = useState('');
   const [customRequest, setCustomRequest] = useState(false);
   const [requestInput, setRequestInput] = useState('');
@@ -104,6 +112,20 @@ const CheckoutView = ({ cartItems, onComplete, addresses: addressesProp, payment
   const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   const cartItemIds = (cartItems || []).map((i) => i.cartProductId ?? i.id).filter(Boolean);
+
+  useEffect(() => {
+    const defaultAddr = addresses.find((a) => a.isDefault) || addresses[0];
+    if (defaultAddr && defaultAddr.id !== selectedAddress?.id) {
+      setSelectedAddress(defaultAddr);
+    }
+  }, [addresses]);
+
+  useEffect(() => {
+    const defaultPay = paymentMethods.find((p) => p.isDefault) || paymentMethods[0];
+    if (defaultPay && defaultPay.id !== selectedPayment?.id) {
+      setSelectedPayment(defaultPay);
+    }
+  }, [paymentMethods]);
 
   useEffect(() => {
     if (cartItemIds.length === 0) {
@@ -150,26 +172,55 @@ const CheckoutView = ({ cartItems, onComplete, addresses: addressesProp, payment
   const points = summary?.points ?? 0;
   const finalPrice = summary?.finalTotal ?? totalPrice + deliveryFee - discount - points;
 
-  const handlePayment = () => {
+  const handlePayment = async () => {
+    if (!selectedAddress?.id || !selectedPayment?.id || !cartItemIds.length) {
+      alert('배송지와 결제 수단을 선택하고, 장바구니에 상품이 있어야 합니다.');
+      return;
+    }
     setIsProcessing(true);
-    // Simulate payment process (80% success rate)
-    setTimeout(() => {
+    try {
+      const deliveryRequestText = deliveryRequest === '직접 입력' ? requestInput : (deliveryRequest || '');
+      const data = await createOrder({
+        addressId: selectedAddress.id,
+        paymentMethodId: selectedPayment.id,
+        deliveryTimeSlot,
+        deliveryRequest: deliveryRequestText,
+        cartItemIds,
+        couponId: null,
+        usePoints: 0,
+      });
+      onComplete(true, data?.orderId ?? null);
+    } catch (err) {
+      const message = err.response?.data?.message ?? err.message ?? '주문 생성에 실패했습니다.';
+      alert(message);
+      onComplete(false);
+    } finally {
       setIsProcessing(false);
-      const isSuccess = Math.random() > 0.2;
-      if (isSuccess) {
-        alert('결제가 성공적으로 실시간 완료되었습니다! 장바구니가 비워집니다.');
-        onComplete(true);
-      } else {
-        if (window.confirm('결제에 실패하였습니다. 장바구니에 담긴 상품을 유지하시겠습니까?\n(취소 시 장바구니를 다시 구성하실 수 있습니다)')) {
-          onComplete(false); // Signal failure but keep items or handle as needed
-        }
-      }
-    }, 1500);
+    }
   };
 
   return (
     <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
-      <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '24px' }}>주문/결제</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+        <h2 style={{ fontSize: '24px', fontWeight: '800', margin: 0 }}>주문/결제</h2>
+        {typeof onBack === 'function' && (
+          <button
+            type="button"
+            onClick={onBack}
+            style={{
+              padding: '10px 18px',
+              borderRadius: '12px',
+              border: '1px solid #e2e8f0',
+              background: 'white',
+              fontWeight: '700',
+              cursor: 'pointer',
+              color: '#475569',
+            }}
+          >
+            ← 뒤로
+          </button>
+        )}
+      </div>
       
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '24px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -190,6 +241,20 @@ const CheckoutView = ({ cartItems, onComplete, addresses: addressesProp, payment
             </div>
 
 
+
+            {/* Delivery Time Slot */}
+            <div style={{ marginTop: '16px' }}>
+              <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', marginBottom: '8px', color: '#475569' }}>배달 시간대</label>
+              <select
+                value={deliveryTimeSlot}
+                onChange={(e) => setDeliveryTimeSlot(e.target.value)}
+                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '14px', backgroundColor: 'white', cursor: 'pointer' }}
+              >
+                {DELIVERY_TIME_SLOTS.map((slot) => (
+                  <option key={slot.value} value={slot.value}>{slot.label}</option>
+                ))}
+              </select>
+            </div>
 
             {/* Delivery Request Box */}
             <div style={{ marginTop: '20px' }}>
