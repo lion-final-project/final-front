@@ -13,6 +13,7 @@ import Footer from '../../common/Footer';
 import { orders, reviews, stores, addresses, paymentMethods, faqs, categories, coupons, inquiries, loyaltyPoints } from '../../../data/mockData';
 import CartModal from '../../features/cart/CartModal';
 import StoreDetailView from './StoreDetailView';
+import TempStoreListView from './TempStoreListView';
 import StoreRegistrationView from '../store/StoreRegistrationView';
 import RiderRegistrationView from '../rider/RiderRegistrationView';
 import OrderManagementView from '../store/OrderManagementView';
@@ -68,6 +69,7 @@ const CustomerView = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [myStoreId, setMyStoreId] = useState(null);
   const [selectedStore, setSelectedStore] = useState(null); // Local state for full page view
+  const [showTempStoreList, setShowTempStoreList] = useState(false); // 임시: 전체 상점 목록 (구독 테스트용)
 
   const [cartItems, setCartItems] = useState([]);
   const [toast, setToast] = useState(null);
@@ -1096,8 +1098,34 @@ const CustomerView = ({
                       </button>
                     ),
                   )}
+                  <button
+                    type="button"
+                    onClick={() => setShowTempStoreList(true)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: "20px",
+                      border: "1px solid #94a3b8",
+                      background: "#f8fafc",
+                      fontSize: "13px",
+                      fontWeight: "600",
+                      color: "#64748b",
+                      cursor: "pointer",
+                    }}
+                  >
+                    전체 상점 목록 (구독 테스트용)
+                  </button>
                 </div>
               </div>
+              {showTempStoreList ? (
+                <TempStoreListView
+                  onStoreClick={(store) => {
+                    setSelectedStore(store);
+                    setShowTempStoreList(false);
+                    window.scrollTo(0, 0);
+                  }}
+                  onClose={() => setShowTempStoreList(false)}
+                />
+              ) : (
               <div
                 className="main-layout"
                 style={{
@@ -1120,6 +1148,7 @@ const CustomerView = ({
                   }}
                 />
               </div>
+              )}
             </div>
           </>
         );
