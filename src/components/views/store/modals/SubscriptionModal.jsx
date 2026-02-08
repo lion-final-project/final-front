@@ -60,7 +60,11 @@ const SubscriptionModal = ({ editingSubscription, subscriptionForm, setSubscript
                 return (
                   <div key={p.id} onClick={() => { const isSelected = !!selected; const newList = isSelected ? (form.selectedProducts || []).filter(sp => sp.id !== p.id) : [...(form.selectedProducts || []), { id: p.id, qty: 1 }]; setSubscriptionForm({ ...form, selectedProducts: newList }); }} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid', borderColor: selected ? '#8b5cf6' : '#e2e8f0', cursor: 'pointer', transition: 'all 0.2s' }}>
                     <input type="checkbox" checked={!!selected} onChange={() => {}} style={{ width: '18px', height: '18px', accentColor: '#8b5cf6', cursor: 'pointer' }} />
-                    <span style={{ fontSize: '20px' }}>{p.img}</span>
+                    {p.img && (typeof p.img === 'string' && (p.img.startsWith('http://') || p.img.startsWith('https://'))) ? (
+                      <img src={p.img} alt={p.name || '상품'} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '8px' }} />
+                    ) : (
+                      <span style={{ fontSize: '20px', width: '40px', textAlign: 'center' }}>{p.img || '🛒'}</span>
+                    )}
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>{p.name}</div>
                       <div style={{ fontSize: '12px', color: '#64748b' }}>{p.price}</div>
