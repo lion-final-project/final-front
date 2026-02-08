@@ -807,10 +807,10 @@ const CustomerView = ({
             cartItems={cartItems}
             addresses={addressList}
             paymentMethods={paymentMethodList}
-            onComplete={(success) => {
+            onBack={() => setActiveTab("home")}
+            onComplete={(success, orderId) => {
               if (success) {
                 setIsSuccessModalOpen(true);
-                // clearCart() will be called when modal closes or immediately
                 clearCart();
               } else {
                 setActiveTab("home");
