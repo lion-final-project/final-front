@@ -77,6 +77,8 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   const [subscriptions, setSubscriptions] = useState([]);
   const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
   const [subscriptionsError, setSubscriptionsError] = useState(null);
+  const [deliverySchedule, setDeliverySchedule] = useState(null);
+  const [deliveryScheduleLoading, setDeliveryScheduleLoading] = useState(false);
   const [editingSubscription, setEditingSubscription] = useState(null);
   const [subscriptionForm, setSubscriptionForm] = useState({ name: '', price: '', weeklyFreq: 1, monthlyTotal: 4, deliveryDays: [], description: '', selectedProducts: [] });
   const [expandedSubscriptions, setExpandedSubscriptions] = useState(new Set());
@@ -312,8 +314,28 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     }
   };
 
+  const fetchDeliverySchedule = async () => {
+    setDeliveryScheduleLoading(true);
+    try {
+      const res = await fetch(subscriptionProductApi.deliverySchedule(), {
+        credentials: 'include',
+        headers: getSubscriptionHeaders(),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) setDeliverySchedule(json.data);
+      else setDeliverySchedule(null);
+    } catch {
+      setDeliverySchedule(null);
+    } finally {
+      setDeliveryScheduleLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (activeTab === 'subscriptions') fetchSubscriptions();
+    if (activeTab === 'subscriptions') {
+      fetchSubscriptions();
+      fetchDeliverySchedule();
+    }
   }, [activeTab]);
 
   const [businessHours, setBusinessHours] = useState([
@@ -900,6 +922,9 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
             subscriptions={subscriptions}
             subscriptionsLoading={subscriptionsLoading}
             subscriptionsError={subscriptionsError}
+            deliverySchedule={deliverySchedule}
+            deliveryScheduleLoading={deliveryScheduleLoading}
+            fetchDeliverySchedule={fetchDeliverySchedule}
             products={products}
             expandedSubscriptions={expandedSubscriptions}
             handleToggleSubscriptionExpand={handleToggleSubscriptionExpand}

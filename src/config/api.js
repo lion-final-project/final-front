@@ -37,4 +37,9 @@ export const subscriptionProductApi = {
   updateStatus: (id) => `${API_BASE_URL}/api/store/subscription-products/${id}/status`,
   requestDeletion: (id) => `${API_BASE_URL}/api/store/subscription-products/${id}/deletion`,
   deleteImmediately: (id) => `${API_BASE_URL}/api/store/subscription-products/${id}`,
+  /** 주간 배송 일정 (시간대별) 조회 */
+  deliverySchedule: (startDate) =>
+    startDate
+      ? `${API_BASE_URL}/api/store/subscriptions/delivery-schedule?startDate=${startDate}`
+      : `${API_BASE_URL}/api/store/subscriptions/delivery-schedule`,
 };
