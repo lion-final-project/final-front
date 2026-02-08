@@ -43,3 +43,9 @@ export const subscriptionProductApi = {
       ? `${API_BASE_URL}/api/store/subscriptions/delivery-schedule?startDate=${startDate}`
       : `${API_BASE_URL}/api/store/subscriptions/delivery-schedule`,
 };
+
+/** 고객 구독 API - API-SUB-001 등 */
+export const subscriptionApi = {
+  list: () => `${API_BASE_URL}/api/subscriptions`,
+  create: () => `${API_BASE_URL}/api/subscriptions`,
+};
