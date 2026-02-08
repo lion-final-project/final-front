@@ -7,6 +7,8 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
   const [selectedDeliveryTime, setSelectedDeliveryTime] = useState('08:00~11:00');
   const [subscriptionProducts, setSubscriptionProducts] = useState([]);
   const [subscriptionProductsLoading, setSubscriptionProductsLoading] = useState(false);
+  /** 현재 로그인한 고객이 이미 구독 중인 구독 상품 ID 목록 (재구독 방지용) */
+  const [mySubscriptionProductIds, setMySubscriptionProductIds] = useState([]);
 
   const deliveryTimeSlots = [
     '08:00~11:00',
@@ -42,6 +44,24 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
       setSubscriptionProducts(getMockSubscriptionProducts());
     }
   }, [store?.id]);
+
+  // 고객 구독 목록 조회 (이미 구독한 상품은 버튼 비활성화용)
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/subscriptions`, { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const list = json?.data ?? [];
+        if (Array.isArray(list)) {
+          const ids = list
+            .map((s) => s.subscriptionProductId)
+            .filter((id) => id != null);
+          setMySubscriptionProductIds(ids);
+        } else {
+          setMySubscriptionProductIds([]);
+        }
+      })
+      .catch(() => setMySubscriptionProductIds([]));
+  }, []);
 
   const getMockSubscriptionProducts = () => [
     { id: 'sub1', name: '[정기배송] 유기농 우유 1L (주 1회)', price: 4500, img: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=400&q=80', desc: '매주 신선한 우유를 문앞으로', category: '구독', deliveryFrequency: '주 1회', daysOfWeek: [1] },
@@ -145,12 +165,32 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
                             <span style={{ fontSize: '20px', fontWeight: '800', color: '#be185d' }}>{product.price.toLocaleString()}원</span>
                             <span style={{ fontSize: '13px', color: '#94a3b8' }}>/ 월 4회 기준</span>
                          </div>
-                         <button 
-                           onClick={() => handleSubscribe(product)}
-                           style={{ width: '100%', padding: '14px', borderRadius: '12px', background: '#be185d', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer', fontSize: '15px' }}
-                         >
-                           구독 시작하기
-                         </button>
+                         {(() => {
+                           const isAlreadySubscribed = mySubscriptionProductIds.some(
+                             (sid) => sid == product.id || sid === product.id
+                           );
+                           return (
+                             <button
+                               type="button"
+                               disabled={isAlreadySubscribed}
+                               onClick={() => !isAlreadySubscribed && handleSubscribe(product)}
+                               style={{
+                                 width: '100%',
+                                 padding: '14px',
+                                 borderRadius: '12px',
+                                 background: isAlreadySubscribed ? '#e2e8f0' : '#be185d',
+                                 color: isAlreadySubscribed ? '#64748b' : 'white',
+                                 border: 'none',
+                                 fontWeight: '700',
+                                 cursor: isAlreadySubscribed ? 'not-allowed' : 'pointer',
+                                 fontSize: '15px',
+                                 opacity: isAlreadySubscribed ? 0.9 : 1,
+                               }}
+                             >
+                               {isAlreadySubscribed ? '이미 구독중' : '구독 시작하기'}
+                             </button>
+                           );
+                         })()}
                        </div>
                     </div>
                   ))}
