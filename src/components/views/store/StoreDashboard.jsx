@@ -733,7 +733,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
       name: subscriptionForm.name,
       description: subscriptionForm.description || '',
       price: priceNum,
-      totalDeliveryCount: subscriptionForm.monthlyTotal || 4,
+      totalDeliveryCount: (subscriptionForm.weeklyFreq ?? (subscriptionForm.deliveryDays || []).length ?? 0) * 4 || 4,
       items,
       daysOfWeek,
     };
