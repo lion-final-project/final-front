@@ -12,15 +12,15 @@ export const getOrderDetail = async (orderId) => {
 };
 
 /**
- * 주문 생성 (결제 요청)
- * @param {{ addressId: number, paymentMethodId: number, deliveryTimeSlot: string, deliveryRequest?: string, cartItemIds: number[], couponId?: number | null, usePoints?: number }} payload
+ * 주문 생성 (결제 요청). 일반결제는 배달 시간대 미선택(주문 즉시 배달). 구독결제 시 deliveryTimeSlot 전달.
+ * @param {{ addressId: number, paymentMethodId: number, deliveryTimeSlot?: string, deliveryRequest?: string, cartItemIds: number[], couponId?: number | null, usePoints?: number }} payload
  * @returns {Promise<{ orderId, orderNumber, status, storeOrders, payment, orderedAt }>}
  */
 export const createOrder = async (payload) => {
   const response = await api.post('/api/orders', {
     addressId: payload.addressId,
     paymentMethodId: payload.paymentMethodId,
-    deliveryTimeSlot: payload.deliveryTimeSlot || '11:00~14:00',
+    deliveryTimeSlot: payload.deliveryTimeSlot ?? null,
     deliveryRequest: payload.deliveryRequest ?? '',
     cartItemIds: payload.cartItemIds,
     couponId: payload.couponId ?? null,
