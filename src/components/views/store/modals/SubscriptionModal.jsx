@@ -32,14 +32,14 @@ const SubscriptionModal = ({ editingSubscription, subscriptionForm, setSubscript
             </div>
             <div>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>총 배송 횟수</label>
-              <input required type="number" value={form.monthlyTotal ?? 4} onChange={e => setSubscriptionForm({ ...form, monthlyTotal: e.target.value })} placeholder="4" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1' }} />
+              <input required type="number" value={(form.weeklyFreq ?? (form.deliveryDays || []).length ?? 0) * 4} readOnly placeholder="0" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1', backgroundColor: '#f1f5f9', color: '#64748b' }} />
             </div>
           </div>
           <div>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>배송 요일 설정</label>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               {DAYS.map(day => (
-                <button key={day} type="button" onClick={() => { const days = (form.deliveryDays || []).includes(day) ? (form.deliveryDays || []).filter(d => d !== day) : [...(form.deliveryDays || []), day]; setSubscriptionForm({ ...form, deliveryDays: days, weeklyFreq: days.length }); }} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid', borderColor: (form.deliveryDays || []).includes(day) ? '#8b5cf6' : '#cbd5e1', backgroundColor: (form.deliveryDays || []).includes(day) ? '#f5f3ff' : 'white', color: (form.deliveryDays || []).includes(day) ? '#8b5cf6' : '#64748b', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>{day}</button>
+                <button key={day} type="button" onClick={() => { const days = (form.deliveryDays || []).includes(day) ? (form.deliveryDays || []).filter(d => d !== day) : [...(form.deliveryDays || []), day]; const freq = days.length; setSubscriptionForm({ ...form, deliveryDays: days, weeklyFreq: freq, monthlyTotal: freq * 4 }); }} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid', borderColor: (form.deliveryDays || []).includes(day) ? '#8b5cf6' : '#cbd5e1', backgroundColor: (form.deliveryDays || []).includes(day) ? '#f5f3ff' : 'white', color: (form.deliveryDays || []).includes(day) ? '#8b5cf6' : '#64748b', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>{day}</button>
               ))}
             </div>
           </div>

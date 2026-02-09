@@ -1,15 +1,77 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../../../config/api';
 
 const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) => {
   const [activeSubTab, setActiveSubTab] = useState('menu');
   const [reviewSort, setReviewSort] = useState('latest');
   const [selectedDeliveryTime, setSelectedDeliveryTime] = useState('08:00~11:00');
+  const [subscriptionProducts, setSubscriptionProducts] = useState([]);
+  const [subscriptionProductsLoading, setSubscriptionProductsLoading] = useState(false);
+  /** 현재 로그인한 고객이 이미 구독 중인 구독 상품 ID 목록 (재구독 방지용) */
+  const [mySubscriptionProductIds, setMySubscriptionProductIds] = useState([]);
 
   const deliveryTimeSlots = [
     '08:00~11:00',
     '11:00~14:00',
     '14:00~17:00',
     '17:00~20:00'
+  ];
+
+  useEffect(() => {
+    const storeId = store?.id;
+    if (storeId != null && typeof storeId === 'number') {
+      setSubscriptionProductsLoading(true);
+      fetch(`${API_BASE_URL}/api/stores/${storeId}/subscription-products`, { credentials: 'include' })
+        .then((res) => res.ok ? res.json() : null)
+        .then((json) => {
+          const list = json?.data ?? [];
+          if (Array.isArray(list) && list.length > 0) {
+            setSubscriptionProducts(list.map((p) => {
+              const daysLen = (p.daysOfWeek ?? []).length;
+              const monthlyTotal = p.totalDeliveryCount ?? (daysLen > 0 ? daysLen * 4 : 4);
+              return {
+                id: p.subscriptionProductId ?? p.id,
+                name: p.name ?? '',
+                price: p.price ?? 0,
+                desc: p.description ?? '',
+                img: p.imageUrl ?? 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80',
+                daysOfWeek: p.daysOfWeek ?? [],
+                totalDeliveryCount: monthlyTotal,
+              };
+            }));
+          } else {
+            setSubscriptionProducts(getMockSubscriptionProducts());
+          }
+        })
+        .catch(() => setSubscriptionProducts(getMockSubscriptionProducts()))
+        .finally(() => setSubscriptionProductsLoading(false));
+    } else {
+      setSubscriptionProducts(getMockSubscriptionProducts());
+    }
+  }, [store?.id]);
+
+  // 고객 구독 목록 조회 (이미 구독한 상품은 버튼 비활성화용)
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/subscriptions`, { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const list = json?.data ?? [];
+        if (Array.isArray(list)) {
+          const ids = list
+            .map((s) => s.subscriptionProductId)
+            .filter((id) => id != null);
+          setMySubscriptionProductIds(ids);
+        } else {
+          setMySubscriptionProductIds([]);
+        }
+      })
+      .catch(() => setMySubscriptionProductIds([]));
+  }, []);
+
+  const getMockSubscriptionProducts = () => [
+    { id: 'sub1', name: '[정기배송] 유기농 우유 1L (주 1회)', price: 4500, img: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=400&q=80', desc: '매주 신선한 우유를 문앞으로', category: '구독', deliveryFrequency: '주 1회', daysOfWeek: [1], totalDeliveryCount: 4 },
+    { id: 'sub2', name: '[정기배송] 신선 달걀 15구 (주 1회)', price: 8900, img: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?auto=format&fit=crop&w=400&q=80', desc: '아침마다 만나는 신선함', category: '구독', deliveryFrequency: '주 1회', daysOfWeek: [1], totalDeliveryCount: 4 },
+    { id: 'sub3', name: '[정기배송] 제철 과일 랜덤박스 (주 1회)', price: 25000, img: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80', desc: '가장 맛있는 제철 과일 엄선', category: '구독', deliveryFrequency: '주 1회', daysOfWeek: [1], totalDeliveryCount: 4 },
   ];
   
   // Review Management State
@@ -49,13 +111,6 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
     setEditingReviewId(null);
     setEditContent('');
   };
-
-  // Mock subscription products for demo
-  const subscriptionProducts = [
-    { id: 'sub1', name: '[정기배송] 유기농 우유 1L (주 1회)', price: 4500, img: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=400&q=80', desc: '매주 신선한 우유를 문앞으로', category: '구독', deliveryFrequency: '주 1회' },
-    { id: 'sub2', name: '[정기배송] 신선 달걀 15구 (주 1회)', price: 8900, img: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?auto=format&fit=crop&w=400&q=80', desc: '아침마다 만나는 신선함', category: '구독', deliveryFrequency: '주 1회' },
-    { id: 'sub3', name: '[정기배송] 제철 과일 랜덤박스 (주 1회)', price: 25000, img: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80', desc: '가장 맛있는 제철 과일 엄선', category: '구독', deliveryFrequency: '주 1회' }
-  ];
 
   const handleSubscribe = (product) => {
     setSelectedSubForDetail(product);
@@ -113,14 +168,34 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
                          <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '16px', flexGrow: 1, lineHeight: '1.5' }}>{product.desc}</div>
                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                             <span style={{ fontSize: '20px', fontWeight: '800', color: '#be185d' }}>{product.price.toLocaleString()}원</span>
-                            <span style={{ fontSize: '13px', color: '#94a3b8' }}>/ 월 4회 기준</span>
+                            <span style={{ fontSize: '13px', color: '#94a3b8' }}>/ 월 {(product.totalDeliveryCount ?? ((product.daysOfWeek || []).length * 4)) || 4}회 기준</span>
                          </div>
-                         <button 
-                           onClick={() => handleSubscribe(product)}
-                           style={{ width: '100%', padding: '14px', borderRadius: '12px', background: '#be185d', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer', fontSize: '15px' }}
-                         >
-                           구독 시작하기
-                         </button>
+                         {(() => {
+                           const isAlreadySubscribed = mySubscriptionProductIds.some(
+                             (sid) => sid == product.id || sid === product.id
+                           );
+                           return (
+                             <button
+                               type="button"
+                               disabled={isAlreadySubscribed}
+                               onClick={() => !isAlreadySubscribed && handleSubscribe(product)}
+                               style={{
+                                 width: '100%',
+                                 padding: '14px',
+                                 borderRadius: '12px',
+                                 background: isAlreadySubscribed ? '#e2e8f0' : '#be185d',
+                                 color: isAlreadySubscribed ? '#64748b' : 'white',
+                                 border: 'none',
+                                 fontWeight: '700',
+                                 cursor: isAlreadySubscribed ? 'not-allowed' : 'pointer',
+                                 fontSize: '15px',
+                                 opacity: isAlreadySubscribed ? 0.9 : 1,
+                               }}
+                             >
+                               {isAlreadySubscribed ? '이미 구독중' : '구독 시작하기'}
+                             </button>
+                           );
+                         })()}
                        </div>
                     </div>
                   ))}
@@ -641,8 +716,20 @@ const ProductDetailModal = ({ product, onClose, onAddToCart }) => {
   );
 };
 
+const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+
 const SubscriptionDetailModal = ({ subscription, onClose, onPayment, deliveryTimeSlots, selectedDeliveryTime, setSelectedDeliveryTime }) => {
   if (!subscription) return null;
+
+  const daysOfWeek = subscription.daysOfWeek ?? [];
+  const weeklyFreq = Array.isArray(daysOfWeek) ? daysOfWeek.length : 0;
+  const monthlyTotal = subscription.totalDeliveryCount ?? (weeklyFreq > 0 ? weeklyFreq * 4 : 4);
+  const daysDisplay = Array.isArray(daysOfWeek) && daysOfWeek.length > 0
+    ? [...new Set(daysOfWeek)]
+        .sort((a, b) => Number(a) - Number(b))
+        .map((d) => (DAY_LABELS[Number(d)] ?? d) + '요일')
+        .join(', ')
+    : '요일 미설정';
 
   // Calculate next delivery date (e.g., next Monday)
   const getNextDeliveryDate = () => {
@@ -680,7 +767,7 @@ const SubscriptionDetailModal = ({ subscription, onClose, onPayment, deliveryTim
         <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '20px', marginBottom: '32px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
             <span style={{ color: '#64748b', fontWeight: '600', fontSize: '14px' }}>배송 주기</span>
-            <span style={{ color: '#1e293b', fontWeight: '800', fontSize: '14px' }}>매주 월요일 (주 1회)</span>
+            <span style={{ color: '#1e293b', fontWeight: '800', fontSize: '14px' }}>매주 {daysDisplay} (주 {weeklyFreq || 1}회 / 월 {monthlyTotal}회)</span>
           </div>
           <div style={{ marginBottom: '24px', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', padding: '16px 0' }}>
             <label style={{ display: 'block', marginBottom: '12px', fontSize: '14px', fontWeight: '800', color: '#be185d' }}>희망 배송 시간대</label>

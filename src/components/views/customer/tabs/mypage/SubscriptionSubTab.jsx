@@ -1,5 +1,7 @@
 import React from 'react';
 
+const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+
 const SubscriptionSubTab = ({
   subscriptionList,
   subscriptionListLoading,
@@ -183,7 +185,14 @@ const SubscriptionSubTab = ({
                             borderRadius: "4px",
                           }}
                         >
-                          월 {sub.monthlyCount} 배송
+                          월{sub.monthlyCount} 배송(
+                          {Array.isArray(sub.daysOfWeek) && sub.daysOfWeek.length > 0
+                            ? [...new Set(sub.daysOfWeek)]
+                                .sort((a, b) => Number(a) - Number(b))
+                                .map((d) => DAY_LABELS[Number(d)] ?? d)
+                                .join("·")
+                            : "—"}
+                          )
                         </span>
                       </div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
