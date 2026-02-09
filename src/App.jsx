@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './styles/global.css';
 import { authApi } from './api/authApi';
 import Header from './components/common/Header';
-import CustomerView from './components/views/CustomerView';
-import StoreDashboard from './components/views/StoreDashboard';
-import RiderDashboard from './components/views/RiderDashboard';
-import AdminDashboard from './components/views/AdminDashboard';
+import CustomerView from './components/views/customer/CustomerView';
+import StoreDashboard from './components/views/store/StoreDashboard';
+import RiderDashboard from './components/views/rider/RiderDashboard';
+import AdminDashboard from './components/views/admin/AdminDashboard';
 import NotificationPanel from './components/common/NotificationPanel';
-import AuthModal from './components/modals/AuthModal';
+import AuthModal from './components/features/auth/AuthModal';
 import { Agentation } from "agentation";
 
 import { checkAuth, logout } from './api/authApi';

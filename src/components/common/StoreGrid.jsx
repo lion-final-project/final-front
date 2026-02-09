@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import StoreDetailModal from '../modals/StoreDetailModal';
+import StoreDetailModal from '../features/store/StoreDetailModal';
 import * as userApi from '../../api/userApi';
 
 const StoreGrid = ({ selectedCategory, searchQuery, coords, onStoreClick }) => {
