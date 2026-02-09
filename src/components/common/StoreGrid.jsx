@@ -20,11 +20,23 @@ const StoreGrid = ({ selectedCategory, searchQuery, coords, onStoreClick }) => {
       'banchan': 5, // 반찬가게
     };
 
+    const lat = Number(coords?.lat);
+    const lon = Number(coords?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      if (isFirstPage) {
+        setStores([]);
+        setHasMore(false);
+        setLastDistance(null);
+        setLastId(null);
+      }
+      return;
+    }
+
     setLoading(true);
     try {
       const result = await userApi.getNearbyStores({
-        latitude: coords.lat,
-        longitude: coords.lon,
+        latitude: lat,
+        longitude: lon,
         storeCategoryId: selectedCategory === 'all' ? null : categoryMap[selectedCategory],
         keyword: searchQuery || null,
         lastDistance: isFirstPage ? null : lastDistance,
