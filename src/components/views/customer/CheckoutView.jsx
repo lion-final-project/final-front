@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { EffectCube, Pagination } from 'swiper/modules';
 import { addresses as defaultAddresses, paymentMethods as defaultPaymentMethods } from '../../../data/mockData';
 import { getCheckout } from '../../../api/checkoutApi';
 import { createOrder } from '../../../api/orderApi';
 import { getAvailableCoupons } from '../../../api/couponApi';
+import { preparePayment, confirmPayment } from '../../../api/paymentApi';
 
 // Import Swiper styles
 import 'swiper/css';
@@ -106,6 +107,7 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
   const [usePointsInput, setUsePointsInput] = useState(0);
   const [selectedCouponId, setSelectedCouponId] = useState('');
   const [availableCoupons, setAvailableCoupons] = useState([]);
+  const paymentProcessedRef = useRef(false); // 결제 처리 중복 방지 플래그
 
   const cartItemIds = (cartItems || []).map((i) => i.cartProductId ?? i.id).filter(Boolean);
 
@@ -130,6 +132,78 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
       .catch(() => { if (!cancelled) setAvailableCoupons([]); });
     return () => { cancelled = true; };
   }, []);
+
+  // 토스 페이먼츠 결제 완료 후 리다이렉트 처리
+  useEffect(() => {
+    // 이미 처리된 경우 중복 실행 방지
+    if (paymentProcessedRef.current) {
+      return;
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentKey = urlParams.get('paymentKey');
+    const orderId = urlParams.get('orderId');
+    const errorCode = urlParams.get('code');
+    const errorMessage = urlParams.get('message');
+    const paymentStatus = urlParams.get('payment'); // 커스텀 파라미터 (fail 케이스용)
+
+    // 결제 관련 파라미터가 없으면 처리하지 않음
+    if (!paymentKey && !orderId && !paymentStatus && !errorCode) {
+      return;
+    }
+
+    // 즉시 URL 파라미터 제거하여 중복 실행 방지
+    const currentUrl = window.location.href.split('?')[0];
+    window.history.replaceState({}, '', currentUrl);
+    paymentProcessedRef.current = true;
+
+    // 토스 페이먼츠는 successUrl에 paymentKey와 orderId를 전달함
+    if (paymentKey && orderId) {
+      // 결제 성공 - confirm API 호출
+      const pendingPaymentId = sessionStorage.getItem('pendingPaymentId');
+      if (!pendingPaymentId) {
+        alert('결제 정보를 찾을 수 없습니다.');
+        sessionStorage.removeItem('pendingCheckout');
+        return;
+      }
+
+      setIsProcessing(true);
+      confirmPayment({
+        paymentId: Number(pendingPaymentId),
+        paymentKey: paymentKey,
+      })
+        .then(() => {
+          const pendingOrderId = sessionStorage.getItem('pendingOrderId');
+          sessionStorage.removeItem('pendingPaymentId');
+          sessionStorage.removeItem('pendingOrderId');
+          sessionStorage.removeItem('pendingCheckout');
+          onComplete(true, pendingOrderId ? Number(pendingOrderId) : null);
+        })
+        .catch((err) => {
+          console.error('결제 확인 오류:', err);
+          const message = err.response?.data?.message || err.message || '결제 확인에 실패했습니다.';
+          alert(message);
+          sessionStorage.removeItem('pendingPaymentId');
+          sessionStorage.removeItem('pendingOrderId');
+          // pendingCheckout은 유지하여 checkout 탭에 머물도록 함
+          // 결제 확인 실패 시에도 checkout 탭 유지
+          // onComplete(false); // 주석 처리하여 메인으로 이동하지 않도록 함
+        })
+        .finally(() => {
+          setIsProcessing(false);
+        });
+    } else if (paymentStatus === 'fail' || errorCode) {
+      // 결제 실패
+      setIsProcessing(false);
+      const errorMsg = errorMessage || errorCode || '결제에 실패했습니다.';
+      alert(errorMsg);
+      sessionStorage.removeItem('pendingPaymentId');
+      sessionStorage.removeItem('pendingOrderId');
+      // pendingCheckout은 유지하여 checkout 탭에 머물도록 함
+      // onComplete를 호출하지 않아서 checkout 탭에 머물도록 함
+      // onComplete(false); // 주석 처리하여 메인으로 이동하지 않도록 함
+    }
+  }, [onComplete]);
 
   useEffect(() => {
     if (cartItemIds.length === 0) {
@@ -192,30 +266,124 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
       alert('배송지와 결제 수단을 선택하고, 장바구니에 상품이 있어야 합니다.');
       return;
     }
+    
+    // 토스 페이먼츠를 선택하지 않은 경우 기존 로직 사용
+    const isTossPayment = selectedPayment?.type === 'toss' || selectedPayment?.name === 'Toss 스타일 간편결제';
+    
+    if (!isTossPayment) {
+      setIsProcessing(true);
+      try {
+        const deliveryRequestText = deliveryRequest === '직접 입력' ? requestInput : (deliveryRequest || '');
+        const availablePoints = checkoutData?.availablePoints ?? 0;
+        const usePoints = Math.min(
+          typeof usePointsInput === 'number' && usePointsInput >= 0 ? usePointsInput : 0,
+          availablePoints
+        );
+        const couponId = selectedCouponId === '' || selectedCouponId == null ? null : Number(selectedCouponId);
+        const data = await createOrder({
+          addressId: selectedAddress.id,
+          paymentMethodId: effectivePaymentMethodId,
+          deliveryRequest: deliveryRequestText,
+          cartItemIds,
+          couponId,
+          usePoints,
+        });
+        onComplete(true, data?.orderId ?? null);
+      } catch (err) {
+        const message = err.response?.data?.message ?? err.message ?? '주문 생성에 실패했습니다.';
+        alert(message);
+        // 에러 발생 시에도 checkout 탭에 머물도록 함 (onComplete 호출 안 함)
+        // onComplete(false); // 주석 처리하여 메인으로 이동하지 않도록 함
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
+
+    // 토스 페이먼츠 결제 플로우
     setIsProcessing(true);
     try {
       const deliveryRequestText = deliveryRequest === '직접 입력' ? requestInput : (deliveryRequest || '');
-      const availablePoints = checkoutData?.availablePoints ?? 0;
-      const usePoints = Math.min(
-        typeof usePointsInput === 'number' && usePointsInput >= 0 ? usePointsInput : 0,
-        availablePoints
-      );
-      const couponId = selectedCouponId === '' || selectedCouponId == null ? null : Number(selectedCouponId);
-      const data = await createOrder({
-        addressId: selectedAddress.id,
-        paymentMethodId: effectivePaymentMethodId,
-        deliveryRequest: deliveryRequestText,
-        cartItemIds,
-        couponId,
-        usePoints,
+      
+      // cartItems를 productQuantities Map으로 변환
+      const productQuantities = {};
+      cartItems.forEach(item => {
+        const productId = item.productId || item.id;
+        if (productId) {
+          productQuantities[productId] = item.quantity || 1;
+        }
       });
-      onComplete(true, data?.orderId ?? null);
+
+      // 1. 결제 준비 API 호출
+      const prepareResponse = await preparePayment({
+        productQuantities,
+        paymentMethod: 'TOSS_PAY',
+        deliveryAddress: selectedAddress.address + (selectedAddress.detail ? ' ' + selectedAddress.detail : ''),
+        deliveryRequest: deliveryRequestText,
+      });
+
+      if (!prepareResponse?.paymentId || !prepareResponse?.pgOrderId || !prepareResponse?.amount) {
+        throw new Error('결제 준비에 실패했습니다.');
+      }
+
+      // paymentId를 세션 스토리지에 저장 (confirm 단계에서 사용)
+      sessionStorage.setItem('pendingPaymentId', prepareResponse.paymentId.toString());
+      sessionStorage.setItem('pendingOrderId', prepareResponse.orderId?.toString() || '');
+      // checkout 탭 유지를 위해 플래그 저장
+      sessionStorage.setItem('pendingCheckout', 'true');
+
+      // 2. 토스 페이먼츠 결제 창 띄우기
+      // 동적으로 토스 페이먼츠 스크립트 로드
+      const loadTossPayments = () => {
+        return new Promise((resolve, reject) => {
+          if (window.TossPayments) {
+            resolve(window.TossPayments);
+            return;
+          }
+          const script = document.createElement('script');
+          script.src = 'https://js.tosspayments.com/v1/payment';
+          script.onload = () => resolve(window.TossPayments);
+          script.onerror = () => reject(new Error('토스 페이먼츠 스크립트 로드 실패'));
+          document.head.appendChild(script);
+        });
+      };
+
+      const TossPayments = await loadTossPayments();
+      
+      // 클라이언트 키는 환경 변수나 설정에서 가져와야 합니다
+      // 테스트용 키: test_ck_... (실제로는 백엔드에서 받아오거나 환경 변수로 관리)
+      const clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY || 'test_ck_DpexMgkW36wVbqk5QqYrGbR5oz0C';
+      
+      const widget = TossPayments(clientKey);
+      
+      // 현재 전체 URL을 기반으로 success/fail URL 생성 (쿼리 파라미터 포함)
+      const currentUrl = window.location.href.split('?')[0]; // 기존 쿼리 파라미터 제거
+      const successUrl = `${currentUrl}?payment=success`;
+      const failUrl = `${currentUrl}?payment=fail`;
+      
+      // 결제 위젯 열기
+      await widget.requestPayment('카드', {
+        amount: prepareResponse.amount,
+        orderId: prepareResponse.pgOrderId,
+        orderName: `주문 ${prepareResponse.orderId}`,
+        customerName: selectedAddress.contact || '고객',
+        successUrl: successUrl,
+        failUrl: failUrl,
+      });
+
+      // 결제 위젯은 successUrl로 리다이렉트되므로, 여기서는 완료되지 않음
+      // successUrl에서 paymentKey를 받아서 confirm을 호출해야 함
+      
     } catch (err) {
-      const message = err.response?.data?.message ?? err.message ?? '주문 생성에 실패했습니다.';
+      console.error('결제 처리 오류:', err);
+      const message = err.response?.data?.message || err.message || '결제 처리에 실패했습니다.';
       alert(message);
-      onComplete(false);
-    } finally {
       setIsProcessing(false);
+      sessionStorage.removeItem('pendingPaymentId');
+      sessionStorage.removeItem('pendingOrderId');
+      sessionStorage.removeItem('pendingCheckout');
+      // 에러 발생 시에도 checkout 탭에 머물도록 함 (onComplete 호출 안 함)
+      // onComplete(false); // 주석 처리하여 메인으로 이동하지 않도록 함
     }
   };
 
@@ -365,6 +533,14 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
                 onSlideChange={(swiper) => {
                   if (swiper.activeIndex < paymentMethods.length) {
                     setSelectedPayment(paymentMethods[swiper.activeIndex]);
+                  } else if (swiper.activeIndex === paymentMethods.length) {
+                    // 마지막 슬라이드: 토스 스타일 간편결제
+                    setSelectedPayment({
+                      id: 'toss',
+                      name: 'Toss 스타일 간편결제',
+                      type: 'toss',
+                      color: '#f8fafc'
+                    });
                   }
                 }}
                 className="paymentSwiper"
