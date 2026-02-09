@@ -13,6 +13,7 @@ export const getOrderDetail = async (orderId) => {
 
 /**
  * 주문 생성 (결제 요청). 일반결제는 배달 시간대 미선택(주문 즉시 배달). 구독결제 시 deliveryTimeSlot 전달.
+ * 쿠폰/할인·포인트는 null·0 허용.
  * @param {{ addressId: number, paymentMethodId: number, deliveryTimeSlot?: string, deliveryRequest?: string, cartItemIds: number[], couponId?: number | null, usePoints?: number }} payload
  * @returns {Promise<{ orderId, orderNumber, status, storeOrders, payment, orderedAt }>}
  */
