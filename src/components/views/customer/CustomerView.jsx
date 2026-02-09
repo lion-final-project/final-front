@@ -87,6 +87,20 @@ const CustomerView = ({
     )
   );
 
+  // 토스 페이먼츠 결제 완료 후 돌아왔을 때 checkout 탭으로 이동
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentKey = urlParams.get('paymentKey');
+    const paymentStatus = urlParams.get('payment');
+    const pendingCheckout = sessionStorage.getItem('pendingCheckout');
+    
+    // 결제 관련 URL 파라미터가 있거나 pendingCheckout 플래그가 있으면 checkout 탭으로 이동
+    if (paymentKey || paymentStatus || pendingCheckout === 'true') {
+      setActiveTab('checkout');
+      // URL 파라미터는 CheckoutView에서 처리하므로 여기서는 제거하지 않음
+    }
+  }, []);
+
   useEffect(() => {
     if (!isLoggedIn) {
       setMyStoreId(null);
