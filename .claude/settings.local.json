@@ -3,7 +3,12 @@
     "allow": [
       "mcp__playwright__playwright_navigate",
       "mcp__playwright__playwright_screenshot",
-      "mcp__playwright__playwright_evaluate"
+      "mcp__playwright__playwright_evaluate",
+      "Bash(git rm:*)",
+      "Bash(git add:*)",
+      "Bash(node -e:*)",
+      "Bash(python3:*)",
+      "Bash(ls:*)"
     ]
   }
 }

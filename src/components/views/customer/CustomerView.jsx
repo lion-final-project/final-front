@@ -73,7 +73,8 @@ const CustomerView = ({
 
   const [cartItems, setCartItems] = useState([]);
   const [toast, setToast] = useState(null);
-  const [currentLocation, setCurrentLocation] = useState("역삼동 123-45");
+  const [currentLocation, setCurrentLocation] = useState("서울특별시 중구 세종대로 110");
+  const [coords, setCoords] = useState({ lat: 37.5665, lon: 126.9780 }); // Default: Seoul City Hall
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [orderList, setOrderList] = useState(orders);
   const [subscriptionList, setSubscriptionList] = useState([]);
@@ -151,6 +152,7 @@ const CustomerView = ({
         const defaultAddr = list.find((a) => a.isDefault);
         if (defaultAddr) {
           setCurrentLocation(`${defaultAddr.address} ${defaultAddr.detail}`);
+          setCoords({ lat: defaultAddr.latitude, lon: defaultAddr.longitude });
         }
       }
     } catch (err) {
@@ -1047,39 +1049,37 @@ const CustomerView = ({
                     </span>
                   </div>
 
-                  {isLoggedIn && (
-                    <button
-                      onClick={() => setIsLocationModalOpen(true)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "4px",
-                        padding: "6px 12px",
-                        borderRadius: "20px",
-                        border: "2px solid var(--primary)",
-                        background: "rgba(46, 204, 113, 0.05)",
-                        color: "var(--primary)",
-                        fontSize: "13px",
-                        fontWeight: "800",
-                        cursor: "pointer",
-                        transition: "all 0.2s",
-                        whiteSpace: "nowrap",
-                        animation:
-                          addressList.length === 0
-                            ? "pulse-highlight 2s infinite"
-                            : "none",
-                        boxShadow:
-                          addressList.length === 0
-                            ? "0 0 0 0 rgba(46, 204, 113, 0.7)"
-                            : "none",
-                      }}
-                    >
-                      📍{" "}
-                      {addressList.find((a) => a.isDefault)?.address ||
-                        currentLocation ||
-                        "배송지 등록하기"}
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setIsLocationModalOpen(true)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      padding: "6px 12px",
+                      borderRadius: "20px",
+                      border: "2px solid var(--primary)",
+                      background: "rgba(46, 204, 113, 0.05)",
+                      color: "var(--primary)",
+                      fontSize: "13px",
+                      fontWeight: "800",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      whiteSpace: "nowrap",
+                      animation:
+                        isLoggedIn && addressList.length === 0
+                          ? "pulse-highlight 2s infinite"
+                          : "none",
+                      boxShadow:
+                        isLoggedIn && addressList.length === 0
+                          ? "0 0 0 0 rgba(46, 204, 113, 0.7)"
+                          : "none",
+                    }}
+                  >
+                    📍{" "}
+                    {isLoggedIn && addressList.find((a) => a.isDefault)?.address
+                      ? addressList.find((a) => a.isDefault).address
+                      : currentLocation || "배송지 설정하기"}
+                  </button>
                   {["주문 많은 순", "거리순", "평점순", "배달비순"].map(
                     (sort) => (
                       <button
@@ -1142,6 +1142,7 @@ const CustomerView = ({
                 <StoreGrid
                   selectedCategory={selectedCategory}
                   searchQuery={searchQuery}
+                  coords={coords}
                   onAddToCart={onAddToCart}
                   onStoreClick={(store) => {
                     setSelectedStore(store);
@@ -1401,8 +1402,10 @@ const CustomerView = ({
         isOpen={isLocationModalOpen}
         onClose={() => setIsLocationModalOpen(false)}
         currentLocation={currentLocation}
-        onSetLocation={(loc) => {
+        coords={coords}
+        onSetLocation={(loc, newCoords) => {
           setCurrentLocation(loc);
+          if (newCoords) setCoords(newCoords);
           showToast(`주소가 '${loc}'으로 설정되었습니다.`);
         }}
       />
