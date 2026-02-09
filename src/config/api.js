@@ -36,6 +36,8 @@ export const subscriptionProductApi = {
   update: (id) => `${API_BASE_URL}/api/store/subscription-products/${id}`,
   updateStatus: (id) => `${API_BASE_URL}/api/store/subscription-products/${id}/status`,
   requestDeletion: (id) => `${API_BASE_URL}/api/store/subscription-products/${id}/deletion`,
+  /** 삭제 예정 구독 상품의 구독자에게 알림(SSE) 발송 */
+  notifySubscribers: (id) => `${API_BASE_URL}/api/store/subscription-products/${id}/notify-subscribers`,
   deleteImmediately: (id) => `${API_BASE_URL}/api/store/subscription-products/${id}`,
   /** 주간 배송 일정 (시간대별) 조회 */
   deliverySchedule: (startDate) =>

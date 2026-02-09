@@ -13,7 +13,6 @@ import Footer from '../../common/Footer';
 import { orders, reviews, stores, addresses, paymentMethods, faqs, categories, coupons, inquiries, loyaltyPoints } from '../../../data/mockData';
 import CartModal from '../../features/cart/CartModal';
 import StoreDetailView from './StoreDetailView';
-import TempStoreListView from './TempStoreListView';
 import StoreRegistrationView from '../store/StoreRegistrationView';
 import RiderRegistrationView from '../rider/RiderRegistrationView';
 import OrderManagementView from '../store/OrderManagementView';
@@ -69,8 +68,6 @@ const CustomerView = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [myStoreId, setMyStoreId] = useState(null);
   const [selectedStore, setSelectedStore] = useState(null); // Local state for full page view
-  const [showTempStoreList, setShowTempStoreList] = useState(false); // 임시: 전체 상점 목록 (구독 테스트용)
-
   const [cartItems, setCartItems] = useState([]);
   const [toast, setToast] = useState(null);
   const [currentLocation, setCurrentLocation] = useState("서울특별시 중구 세종대로 110");
@@ -1099,34 +1096,8 @@ const CustomerView = ({
                       </button>
                     ),
                   )}
-                  <button
-                    type="button"
-                    onClick={() => setShowTempStoreList(true)}
-                    style={{
-                      padding: "6px 12px",
-                      borderRadius: "20px",
-                      border: "1px solid #94a3b8",
-                      background: "#f8fafc",
-                      fontSize: "13px",
-                      fontWeight: "600",
-                      color: "#64748b",
-                      cursor: "pointer",
-                    }}
-                  >
-                    전체 상점 목록 (구독 테스트용)
-                  </button>
                 </div>
               </div>
-              {showTempStoreList ? (
-                <TempStoreListView
-                  onStoreClick={(store) => {
-                    setSelectedStore(store);
-                    setShowTempStoreList(false);
-                    window.scrollTo(0, 0);
-                  }}
-                  onClose={() => setShowTempStoreList(false)}
-                />
-              ) : (
               <div
                 className="main-layout"
                 style={{
@@ -1150,7 +1121,6 @@ const CustomerView = ({
                   }}
                 />
               </div>
-              )}
             </div>
           </>
         );
@@ -1206,60 +1176,46 @@ const CustomerView = ({
               }}
               onAddToCart={onAddToCart}
               onSubscribeCheckout={async (subProduct) => {
-                const deliveryTimeSlot = subProduct.deliveryTime ?? subProduct.deliveryTimeSlot;
+                const deliveryTimeSlot = subProduct.deliveryTimeSlot ?? subProduct.deliveryTime;
                 const subscriptionProductId = subProduct.id != null ? Number(subProduct.id) : null;
                 const isNumericId = subscriptionProductId != null && !Number.isNaN(subscriptionProductId);
 
-                if (deliveryTimeSlot && isNumericId && addressList.length > 0 && paymentMethodList.length > 0) {
-                  try {
-                    const addr = addressList.find((a) => a.isDefault) || addressList[0];
-                    const pay = paymentMethodList.find((p) => p.isDefault) || paymentMethodList[0];
-                    const deliveryDays = subProduct.daysOfWeek ?? [1];
-                    const res = await fetch(subscriptionApi.create(), {
-                      method: "POST",
-                      credentials: "include",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        subscriptionProductId,
-                        addressId: addr.id,
-                        paymentMethodId: pay.id,
-                        deliveryDays,
-                        deliveryTimeSlot,
-                      }),
-                    });
-                    const json = await res.json();
-                    if (!res.ok) throw new Error(json?.error?.message || json?.message || "구독 신청에 실패했습니다.");
-                    setSelectedStore(null);
-                    showToast("구독이 신청되었습니다.");
-                    fetchSubscriptions();
-                    window.scrollTo(0, 0);
-                  } catch (err) {
-                    showToast(err.message || "구독 신청에 실패했습니다.");
-                  }
-                } else {
-                  if (!deliveryTimeSlot || !isNumericId) {
-                    showToast("배송 시간대를 선택해 주세요. (실제 구독 상품이 있는 마트에서만 구독 신청이 가능합니다.)");
-                    return;
-                  }
-                  if (addressList.length === 0) {
-                    showToast("배송지를 먼저 등록해 주세요.");
-                    return;
-                  }
-                  if (paymentMethodList.length === 0) {
-                    showToast("결제 수단을 먼저 등록해 주세요.");
-                    return;
-                  }
+                if (!deliveryTimeSlot || !isNumericId) {
+                  showToast("배송 시간대를 선택해 주세요. (실제 구독 상품이 있는 마트에서만 구독 신청이 가능합니다.)");
+                  return;
+                }
+                if (addressList.length === 0) {
+                  showToast("배송지를 먼저 등록해 주세요.");
+                  return;
+                }
+
+                try {
+                  const addr = addressList.find((a) => a.isDefault) || addressList[0];
+                  const deliveryDays = Array.isArray(subProduct.daysOfWeek) && subProduct.daysOfWeek.length > 0
+                    ? subProduct.daysOfWeek.map((d) => (typeof d === 'number' ? d : Number(d)))
+                    : [1];
+                  const res = await fetch(subscriptionApi.create(), {
+                    method: "POST",
+                    credentials: "include",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      subscriptionProductId,
+                      addressId: addr.id,
+                      paymentMethodId: null,
+                      deliveryDays,
+                      deliveryTimeSlot,
+                    }),
+                  });
+                  const json = await res.json();
+                  if (!res.ok) throw new Error(json?.error?.message || json?.message || "구독 신청에 실패했습니다.");
                   setSelectedStore(null);
-                  setCartItems([
-                    {
-                      ...subProduct,
-                      quantity: 1,
-                      storeName: selectedStore.name,
-                      isSubscription: true,
-                    },
-                  ]);
-                  setActiveTab("checkout");
+                  showToast("구독이 신청되었습니다. 마이페이지 > 구독 관리에서 확인하실 수 있습니다.");
+                  await fetchSubscriptions();
+                  setActiveTab("mypage");
+                  setMyPageTab("subscription");
                   window.scrollTo(0, 0);
+                } catch (err) {
+                  showToast(err.message || "구독 신청에 실패했습니다.");
                 }
               }}
             />

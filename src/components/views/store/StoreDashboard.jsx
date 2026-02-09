@@ -812,8 +812,24 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     });
   };
 
-  const sendSubscriptionNotification = (sub) => {
-    alert(`[${sub.name}] 구독자들에게 알림을 발송했습니다.`);
+  const sendSubscriptionNotification = async (sub) => {
+    if (sub.status !== '삭제 예정') {
+      alert('구독자 알림은 삭제 예정 상태인 구독 상품에만 발송할 수 있습니다.');
+      return;
+    }
+    try {
+      const res = await fetch(subscriptionProductApi.notifySubscribers(sub.id), {
+        method: 'POST',
+        credentials: 'include',
+        headers: getSubscriptionHeaders(),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json?.error?.message || json?.message || '알림 발송 실패');
+      const count = json?.data?.notifiedCount ?? 0;
+      alert(`[${sub.name}] 구독자 ${count}명에게 삭제 예정 알림(SSE)을 발송했습니다.`);
+    } catch (err) {
+      alert(err.message || '알림 발송 중 오류가 발생했습니다.');
+    }
   };
 
   const handleConfirmReject = () => {

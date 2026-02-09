@@ -1,21 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../../config/api';
+import { DELIVERY_TIME_SLOTS } from '../../../constants/deliveryTimeSlots';
 
 const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) => {
   const [activeSubTab, setActiveSubTab] = useState('menu');
   const [reviewSort, setReviewSort] = useState('latest');
-  const [selectedDeliveryTime, setSelectedDeliveryTime] = useState('08:00~11:00');
+  const [selectedDeliveryTime, setSelectedDeliveryTime] = useState(DELIVERY_TIME_SLOTS[0]?.value ?? '08:00~11:00');
   const [subscriptionProducts, setSubscriptionProducts] = useState([]);
   const [subscriptionProductsLoading, setSubscriptionProductsLoading] = useState(false);
   /** 현재 로그인한 고객이 이미 구독 중인 구독 상품 ID 목록 (재구독 방지용) */
   const [mySubscriptionProductIds, setMySubscriptionProductIds] = useState([]);
 
-  const deliveryTimeSlots = [
-    '08:00~11:00',
-    '11:00~14:00',
-    '14:00~17:00',
-    '17:00~20:00'
-  ];
+  const deliveryTimeSlots = DELIVERY_TIME_SLOTS.map((s) => s.value);
 
   useEffect(() => {
     const storeId = store?.id;
@@ -594,7 +590,12 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
         selectedDeliveryTime={selectedDeliveryTime}
         setSelectedDeliveryTime={setSelectedDeliveryTime}
         onPayment={() => {
-          onSubscribeCheckout({ ...selectedSubForDetail, deliveryTime: selectedDeliveryTime });
+          const payload = {
+            ...selectedSubForDetail,
+            deliveryTime: selectedDeliveryTime,
+            deliveryTimeSlot: selectedDeliveryTime,
+          };
+          onSubscribeCheckout(payload);
           setSelectedSubForDetail(null);
         }}
       />
