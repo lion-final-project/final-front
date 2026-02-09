@@ -4,6 +4,7 @@ import { EffectCube, Pagination } from 'swiper/modules';
 import { addresses as defaultAddresses, paymentMethods as defaultPaymentMethods } from '../../../data/mockData';
 import { getCheckout } from '../../../api/checkoutApi';
 import { createOrder } from '../../../api/orderApi';
+import { getAvailableCoupons } from '../../../api/couponApi';
 
 // Import Swiper styles
 import 'swiper/css';
@@ -102,6 +103,9 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
   const [isProcessing, setIsProcessing] = useState(false);
   const [checkoutData, setCheckoutData] = useState(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [usePointsInput, setUsePointsInput] = useState(0);
+  const [selectedCouponId, setSelectedCouponId] = useState('');
+  const [availableCoupons, setAvailableCoupons] = useState([]);
 
   const cartItemIds = (cartItems || []).map((i) => i.cartProductId ?? i.id).filter(Boolean);
 
@@ -120,13 +124,23 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
   }, [paymentMethods]);
 
   useEffect(() => {
+    let cancelled = false;
+    getAvailableCoupons()
+      .then((list) => { if (!cancelled) setAvailableCoupons(list); })
+      .catch(() => { if (!cancelled) setAvailableCoupons([]); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
     if (cartItemIds.length === 0) {
       setCheckoutData(null);
       return;
     }
     let cancelled = false;
     setCheckoutLoading(true);
-    getCheckout(cartItemIds, selectedAddress?.id ?? undefined)
+    const usePoints = typeof usePointsInput === 'number' && usePointsInput >= 0 ? usePointsInput : 0;
+    const couponId = selectedCouponId === '' || selectedCouponId == null ? undefined : Number(selectedCouponId);
+    getCheckout(cartItemIds, selectedAddress?.id ?? undefined, { couponId: couponId ?? null, usePoints })
       .then((data) => {
         if (!cancelled) setCheckoutData(data);
       })
@@ -137,7 +151,14 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
         if (!cancelled) setCheckoutLoading(false);
       });
     return () => { cancelled = true; };
-  }, [cartItemIds.join(','), selectedAddress?.id]);
+  }, [cartItemIds.join(','), selectedAddress?.id, usePointsInput, selectedCouponId]);
+
+  const availablePoints = checkoutData?.availablePoints ?? 0;
+  useEffect(() => {
+    if (availablePoints > 0 && usePointsInput > availablePoints) {
+      setUsePointsInput(availablePoints);
+    }
+  }, [availablePoints]);
 
   const requestOptions = [
     '배송 전 연락바랍니다',
@@ -164,21 +185,29 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
   const points = summary?.points ?? 0;
   const finalPrice = summary?.finalTotal ?? totalPrice + deliveryFee - discount - points;
 
+  const effectivePaymentMethodId = checkoutData?.payment?.defaultPaymentMethodId ?? selectedPayment?.id;
+
   const handlePayment = async () => {
-    if (!selectedAddress?.id || !selectedPayment?.id || !cartItemIds.length) {
+    if (!selectedAddress?.id || effectivePaymentMethodId == null || !cartItemIds.length) {
       alert('배송지와 결제 수단을 선택하고, 장바구니에 상품이 있어야 합니다.');
       return;
     }
     setIsProcessing(true);
     try {
       const deliveryRequestText = deliveryRequest === '직접 입력' ? requestInput : (deliveryRequest || '');
+      const availablePoints = checkoutData?.availablePoints ?? 0;
+      const usePoints = Math.min(
+        typeof usePointsInput === 'number' && usePointsInput >= 0 ? usePointsInput : 0,
+        availablePoints
+      );
+      const couponId = selectedCouponId === '' || selectedCouponId == null ? null : Number(selectedCouponId);
       const data = await createOrder({
         addressId: selectedAddress.id,
-        paymentMethodId: selectedPayment.id,
+        paymentMethodId: effectivePaymentMethodId,
         deliveryRequest: deliveryRequestText,
         cartItemIds,
-        couponId: null,
-        usePoints: 0,
+        couponId,
+        usePoints,
       });
       onComplete(true, data?.orderId ?? null);
     } catch (err) {
@@ -455,13 +484,60 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
                 <span>상품 금액</span>
                 <span>{totalPrice.toLocaleString()}원</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-                <span>배송비</span>
-                <span>{deliveryFee.toLocaleString()}원</span>
+              {/* 쿠폰 · 포인트: 상품금액과 배송비 사이 (추가 기능 확장 시 공란 선택 가능) */}
+              <div style={{ padding: '12px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: '#475569', marginBottom: '10px' }}>쿠폰 · 포인트</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                    <label style={{ fontSize: '13px', color: '#64748b', minWidth: '72px', flexShrink: 0 }}>쿠폰</label>
+                    <select
+                      value={selectedCouponId}
+                      onChange={(e) => setSelectedCouponId(e.target.value)}
+                      style={{ flex: 1, minWidth: 0, maxWidth: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '14px', backgroundColor: 'white', cursor: 'pointer' }}
+                    >
+                      {availableCoupons.length === 0 ? (
+                        <option value="">사용 가능한 쿠폰이 없습니다.</option>
+                      ) : (
+                        <>
+                          <option value="">사용 안 함</option>
+                          {availableCoupons.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name} (-{c.discountAmount?.toLocaleString() ?? 0}원)</option>
+                          ))}
+                        </>
+                      )}
+                    </select>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>
+                      현재 보유 포인트: {(checkoutData?.availablePoints ?? 0).toLocaleString()}원
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <label style={{ fontSize: '13px', color: '#64748b', minWidth: '72px' }}>포인트 사용</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={checkoutData?.availablePoints ?? 0}
+                        value={usePointsInput === 0 ? '' : usePointsInput}
+                        onChange={(e) => {
+                          const availablePoints = checkoutData?.availablePoints ?? 0;
+                          const raw = parseInt(e.target.value, 10) || 0;
+                          const clamped = Math.min(Math.max(0, raw), availablePoints);
+                          setUsePointsInput(clamped);
+                        }}
+                        placeholder="0"
+                        style={{
+                          width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '14px',
+                          MozAppearance: 'textfield', WebkitAppearance: 'none', appearance: 'textfield',
+                        }}
+                      />
+                      <span style={{ fontSize: '13px', color: '#64748b' }}>원</span>
+                    </div>
+                  </div>
+                </div>
               </div>
               {discount > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
-                  <span>할인</span>
+                  <span>할인 적용</span>
                   <span>-{discount.toLocaleString()}원</span>
                 </div>
               )}
@@ -471,6 +547,10 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
                   <span>-{points.toLocaleString()}원</span>
                 </div>
               )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                <span>배송비</span>
+                <span>{deliveryFee.toLocaleString()}원</span>
+              </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
               <span style={{ fontWeight: '700', fontSize: '18px' }}>총 결제금액</span>
