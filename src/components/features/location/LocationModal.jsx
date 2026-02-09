@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import * as userApi from '../../api/userApi';
+import * as userApi from '../../../api/userApi';
 
 const LocationModal = ({ isOpen, onClose, currentLocation, coords, onSetLocation }) => {
   const [selectedAddress, setSelectedAddress] = useState(currentLocation);
