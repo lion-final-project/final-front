@@ -1,8 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 
+const isImageFile = (url) => {
+  if (!url) return false;
+  if (url.startsWith('data:image/')) return true;
+  const clean = url.split('?')[0].toLowerCase();
+  return clean.endsWith('.png') || clean.endsWith('.jpg') || clean.endsWith('.jpeg') || clean.endsWith('.gif') || clean.endsWith('.webp');
+};
+
+const isPdfFile = (url) => {
+  if (!url) return false;
+  if (url.startsWith('data:application/pdf')) return true;
+  const clean = url.split('?')[0].toLowerCase();
+  return clean.endsWith('.pdf');
+};
+
 const ApprovalDetailModal = ({ item, onClose, onAction }) => {
   const [actionType, setActionType] = useState(null); // 'REJECTED' or 'PENDING'
   const [reason, setReason] = useState('');
+  const [previewUrl, setPreviewUrl] = useState(null);
   const documentsRef = useRef(null);
 
   useEffect(() => {
@@ -40,17 +55,54 @@ const ApprovalDetailModal = ({ item, onClose, onAction }) => {
     >
       <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '12px', fontWeight: '600' }}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', backgroundColor: '#1e293b', borderRadius: '8px', border: '1px dashed #475569' }}>
-        <span style={{ fontSize: '20px' }}>{icon}</span>
         {fileName ? (
-          <button
-            type="button"
-            onClick={() => window.open(fileName, '_blank', 'noopener,noreferrer')}
-            style={{ background: 'none', border: 'none', padding: 0, fontSize: '14px', color: '#38bdf8', fontWeight: '700', textDecoration: 'underline', cursor: 'pointer' }}
-          >
-            {fileName}
-          </button>
+          isImageFile(fileName) ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
+              <button
+                type="button"
+                onClick={() => setPreviewUrl(fileName)}
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+              >
+                <img
+                  src={fileName}
+                  alt={`${label} 미리보기`}
+                  style={{ width: '72px', height: '72px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #334155' }}
+                />
+              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => setPreviewUrl(fileName)}
+                  style={{ background: '#38bdf8', border: 'none', padding: '6px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', color: '#0f172a', cursor: 'pointer', textAlign: 'left' }}
+                >
+                  미리보기
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.open(fileName, '_blank', 'noopener,noreferrer')}
+                  style={{ background: 'transparent', border: '1px solid #334155', padding: '6px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', color: '#e2e8f0', cursor: 'pointer', textAlign: 'left' }}
+                >
+                  새 탭 열기
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <span style={{ fontSize: '20px' }}>{icon}</span>
+              <button
+                type="button"
+                onClick={() => window.open(fileName, '_blank', 'noopener,noreferrer')}
+                style={{ background: 'none', border: 'none', padding: 0, fontSize: '14px', color: '#38bdf8', fontWeight: '700', textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                {isPdfFile(fileName) ? 'PDF 열기' : fileName}
+              </button>
+            </>
+          )
         ) : (
-          <span style={{ fontSize: '14px', color: '#64748b', fontWeight: '700' }}>첨부파일 없음</span>
+          <>
+            <span style={{ fontSize: '20px' }}>{icon}</span>
+            <span style={{ fontSize: '14px', color: '#64748b', fontWeight: '700' }}>첨부파일 없음</span>
+          </>
         )}
       </div>
     </div>
@@ -227,6 +279,35 @@ const ApprovalDetailModal = ({ item, onClose, onAction }) => {
            )}
         </div>
       </div>
+      {previewUrl && (
+        <div
+          onClick={() => setPreviewUrl(null)}
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.8)', zIndex: 2600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{ backgroundColor: '#0f172a', borderRadius: '16px', border: '1px solid #334155', padding: '16px', maxWidth: '90vw', maxHeight: '90vh' }}
+          >
+            <img src={previewUrl} alt="신청서 이미지 미리보기" style={{ maxWidth: '85vw', maxHeight: '80vh', objectFit: 'contain', display: 'block' }} />
+            <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => window.open(previewUrl, '_blank', 'noopener,noreferrer')}
+                style={{ background: '#38bdf8', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', color: '#0f172a', cursor: 'pointer' }}
+              >
+                새 탭 열기
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewUrl(null)}
+                style={{ background: 'transparent', border: '1px solid #334155', padding: '8px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', color: '#e2e8f0', cursor: 'pointer' }}
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
