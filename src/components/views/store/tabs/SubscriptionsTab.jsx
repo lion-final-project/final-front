@@ -219,7 +219,7 @@ const SubscriptionsTab = ({
                           {sub.status === '삭제 예정' ? (sub.subscribers === 0 ? '즉시 삭제' : '삭제 예약됨') : '삭제 요청'}
                         </button>
                         <button onClick={() => handleOpenSubscriptionModal(sub)} disabled={sub.status === '삭제 예정'} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', color: '#64748b', cursor: sub.status === '삭제 예정' ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: '600', opacity: sub.status === '삭제 예정' ? 0.5 : 1 }}>수정</button>
-                        <button onClick={() => sendSubscriptionNotification(sub)} style={{ padding: '6px 12px', borderRadius: '8px', border: sub.status === '삭제 예정' ? '1px solid #8b5cf6' : '1px solid #e2e8f0', background: 'white', color: sub.status === '삭제 예정' ? '#8b5cf6' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: '800' }}>🔔 알림</button>
+                        <button onClick={() => sendSubscriptionNotification(sub)} disabled={sub.status !== '삭제 예정'} style={{ padding: '6px 12px', borderRadius: '8px', border: sub.status === '삭제 예정' ? '1px solid #8b5cf6' : '1px solid #e2e8f0', background: 'white', color: sub.status === '삭제 예정' ? '#8b5cf6' : '#94a3b8', cursor: sub.status === '삭제 예정' ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: '800', opacity: sub.status === '삭제 예정' ? 1 : 0.6 }}>🔔 알림</button>
                       </div>
                     </td>
                   </tr>
