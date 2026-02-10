@@ -1,9 +1,11 @@
 import React from 'react';
 import MapSimulator from '../MapSimulator';
+import RiderMap from '../components/RiderMap';
 
-const MainTab = ({ earnings, activeDeliveries, deliveryRequests, setShowMsgModal, nextStep, handleAcceptRequest }) => {
+const MainTab = ({ earnings, activeDeliveries, deliveryRequests, setShowMsgModal, nextStep, handleAcceptRequest, currentLocation, lastSyncTime }) => {
   return (
     <div style={{ padding: '20px' }}>
+      {/* 수익 요약 카드 */}
       <div style={{ background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', padding: '24px', borderRadius: '24px', marginBottom: '32px', border: '1px solid #334155', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
@@ -17,6 +19,27 @@ const MainTab = ({ earnings, activeDeliveries, deliveryRequests, setShowMsgModal
         </div>
       </div>
 
+      {/* 실시간 위치 지도 */}
+      <div style={{ marginBottom: '32px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '16px' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: '800', margin: 0 }}>실시간 내 위치</h3>
+          {currentLocation && (
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '11px', color: '#94a3b8', backgroundColor: 'rgba(30, 41, 59, 0.8)', padding: '6px 10px', borderRadius: '8px', border: '1px solid #334155', marginBottom: '4px' }}>
+                <span style={{ color: '#38bdf8', fontWeight: '700' }}>📡 Redis:</span> {currentLocation.latitude.toFixed(6)}, {currentLocation.longitude.toFixed(6)}
+              </div>
+              {lastSyncTime && (
+                <div style={{ fontSize: '10px', color: '#64748b', marginRight: '4px' }}>
+                  마지막 업데이트: {lastSyncTime}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <RiderMap location={currentLocation} height="250px" />
+      </div>
+
+      {/* 진행 중인 배달 */}
       {activeDeliveries.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '32px' }}>
           <h3 style={{ fontSize: '18px', fontWeight: '800', margin: 0 }}>진행 중인 배달 ({activeDeliveries.length})</h3>
@@ -62,6 +85,7 @@ const MainTab = ({ earnings, activeDeliveries, deliveryRequests, setShowMsgModal
         </div>
       )}
 
+      {/* 주변 배달 요청 */}
       {activeDeliveries.length < 3 ? (
         <>
           <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '16px' }}>주변 배달 요청</h3>

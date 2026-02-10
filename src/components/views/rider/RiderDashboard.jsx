@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getRiderInfo, updateRiderStatus } from '../../../api/riderApi';
+import { getRiderInfo, updateRiderStatus, updateRiderLocation, getRiderLocation, removeRiderLocation } from '../../../api/riderApi';
 import MainTab from './tabs/MainTab';
 import EarningsTab from './tabs/EarningsTab';
 import HistoryTab from './tabs/HistoryTab';
@@ -17,6 +17,8 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
   const [activeTab, setActiveTab] = useState('main');
   const [isOnline, setIsOnline] = useState(false); // Default false until loaded
   const [riderData, setRiderData] = useState(initialRiderInfo); // Manage local rider data
+  const [currentLocation, setCurrentLocation] = useState(null);
+  const [lastSyncTime, setLastSyncTime] = useState(null);
 
 
   // Fetch Rider Info on Mount
@@ -34,7 +36,6 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
     };
     fetchInfo();
   }, []);
-
   const [activeDeliveries, setActiveDeliveries] = useState([]); // Array of { ...req, status }
   const [earnings, setEarnings] = useState({ today: 48500, weekly: 342000 });
   const [showMsgModal, setShowMsgModal] = useState(false);
@@ -52,6 +53,56 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
   const [expandedHistoryItems, setExpandedHistoryItems] = useState(new Set());
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [expandedSettlements, setExpandedSettlements] = useState(new Set());
+
+  // Location Tracking Logic (Improved for Precision and Real-time)
+  useEffect(() => {
+    let syncInterval;
+
+    if (isOnline || activeDeliveries.length > 0) {
+      if (navigator.geolocation) {
+        // Periodic Update (POST) and Sync (GET) from server - Unified into 2-second loop
+        syncInterval = setInterval(() => {
+          if (riderData?.id) {
+            navigator.geolocation.getCurrentPosition(
+              async (position) => {
+                const { latitude, longitude } = position.coords;
+                try {
+                  // 1. Update position to server (POST)
+                  await updateRiderLocation({
+                    riderId: `rider${riderData.id}`,
+                    latitude,
+                    longitude
+                  });
+
+                  // 2. Read position from server (GET) to ensure sync
+                  const response = await getRiderLocation(`rider${riderData.id}`);
+                  if (response && response.data) {
+                    setCurrentLocation({
+                      latitude: response.data.latitude,
+                      longitude: response.data.longitude
+                    });
+                    setLastSyncTime(new Date().toLocaleTimeString('ko-KR', { hour12: false }));
+                  }
+                } catch (error) {
+                  console.error('Location sync failed:', error);
+                }
+              },
+              (error) => console.error('Geolocation error:', error),
+              {
+                enableHighAccuracy: true,
+                maximumAge: 0, // Force fresh location, no cache
+                timeout: 5000  // 5 seconds timeout for individual request
+              }
+            );
+          }
+        }, 2000); // 2 seconds interval
+      }
+    }
+
+    return () => {
+      if (syncInterval) clearInterval(syncInterval);
+    };
+  }, [isOnline, activeDeliveries.length, riderData?.id]);
 
   // Multiple vehicles support
   const [registeredVehicles, setRegisteredVehicles] = useState([
@@ -105,7 +156,19 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
       const response = await updateRiderStatus(newStatus);
       if (response && response.data) {
         setRiderData(response.data);
-        setIsOnline(response.data['operation-status'] === 'ONLINE');
+        const nextIsOnline = response.data['operation-status'] === 'ONLINE';
+        setIsOnline(nextIsOnline);
+
+        // 운행 종료(OFFLINE) 시 Redis에서 위치 정보 삭제
+        if (!nextIsOnline && riderData?.id) {
+          try {
+            await removeRiderLocation(`rider${riderData.id}`);
+            setCurrentLocation(null); // 로컬 상태도 초기화
+            setLastSyncTime(null);
+          } catch (deleteError) {
+            console.error('Failed to remove location from Redis:', deleteError);
+          }
+        }
 
         setStatusPopup({
           type: newStatus === 'ONLINE' ? 'online' : 'offline',
@@ -250,6 +313,8 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
             setShowMsgModal={setShowMsgModal}
             nextStep={nextStep}
             handleAcceptRequest={handleAcceptRequest}
+            currentLocation={currentLocation}
+            lastSyncTime={lastSyncTime}
           />
         );
     }

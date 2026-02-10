@@ -51,3 +51,32 @@ export const updateRiderStatus = async (status) => { // status: 'RUNNING' or 'ST
         throw error;
     }
 };
+
+// 라이더 위치 업데이트
+export const updateRiderLocation = async (locationData) => {
+    try {
+        const response = await api.post('/api/riders/locations', locationData);
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};
+
+// 특정 라이더 위치 조회
+export const getRiderLocation = async (riderId) => {
+    try {
+        const response = await api.get(`/api/riders/locations/${riderId}`);
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};
+// 특정 라이더 위치 삭제
+export const removeRiderLocation = async (riderId) => {
+    try {
+        const response = await api.delete(`/api/riders/locations/${riderId}`);
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};
