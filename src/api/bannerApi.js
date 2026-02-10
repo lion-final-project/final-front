@@ -4,6 +4,7 @@
  * - 모달/UI: img, promotion, color, status(노출 중|일시 중지|종료)
  */
 const BASE_URL = '/api/admin/banners';
+const CUSTOMER_BASE_URL = '/api/banners';
 
 function toModalShape(b) {
   if (!b) return null;
@@ -89,3 +90,14 @@ export async function deleteBanner(bannerId) {
   const json = await res.json();
   return json.data;
 }
+
+// 고객 메인 배너 조회
+export async function getBannersForCustomer() {
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+  const url = API_BASE_URL ? `${API_BASE_URL}${CUSTOMER_BASE_URL}` : CUSTOMER_BASE_URL;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('메인 배너 조회 실패');
+  const json = await res.json();
+  return json.data ?? [];
+}
+
