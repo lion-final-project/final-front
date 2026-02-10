@@ -19,6 +19,7 @@ import OrderManagementView from '../store/OrderManagementView';
 import LocationModal from '../../features/location/LocationModal';
 import { API_BASE_URL, subscriptionApi } from '../../../config/api';
 import * as cartAPI from '../../../api/cart.js';
+import { getMyPaymentMethods, setDefaultPaymentMethod, deletePaymentMethod } from '../../../api/billingApi';
 
 // Import Swiper React components
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -94,11 +95,14 @@ const CustomerView = ({
     const paymentStatus = urlParams.get('payment');
     const billingStatus = urlParams.get('billing');
     const pendingCheckout = sessionStorage.getItem('pendingCheckout');
+    const pendingBilling = sessionStorage.getItem('pendingBilling');
     
-    // 카드 등록 관련 URL 파라미터가 있으면 mypage 탭으로 이동
-    if (billingStatus) {
+    // 카드 등록 관련 URL 파라미터나 플래그가 있으면 mypage 탭으로 이동하고 결제수단 서브탭으로 이동
+    if (billingStatus || pendingBilling === 'true') {
       setActiveTab('mypage');
+      setMyPageTab('payment');
       // URL 파라미터는 PaymentSubTab에서 처리하므로 여기서는 제거하지 않음
+      // pendingBilling 플래그는 PaymentSubTab에서 처리 완료 후 제거되므로 여기서는 유지
     }
     // 결제 관련 URL 파라미터가 있거나 pendingCheckout 플래그가 있으면 checkout 탭으로 이동
     else if (paymentKey || paymentStatus || pendingCheckout === 'true') {
@@ -106,6 +110,15 @@ const CustomerView = ({
       // URL 파라미터는 CheckoutView에서 처리하므로 여기서는 제거하지 않음
     }
   }, []);
+
+  // activeTab이 변경되지 않도록 보호 (카드 등록 중에는 mypage 유지)
+  useEffect(() => {
+    const pendingBilling = sessionStorage.getItem('pendingBilling');
+    if (pendingBilling === 'true' && activeTab !== 'mypage') {
+      setActiveTab('mypage');
+      setMyPageTab('payment');
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -180,6 +193,61 @@ const CustomerView = ({
   useEffect(() => {
     fetchAddresses();
   }, [fetchAddresses]);
+
+  // 카드사별 색상 매핑
+  const getCardColor = useCallback((cardCompany) => {
+    if (!cardCompany) return '#10b981';
+    
+    const colorMap = {
+      '현대카드': '#000000',
+      '신한카드': '#0046ff',
+      '삼성카드': '#1428a0',
+      'KB카드': '#e60012',
+      '롯데카드': '#ed1c24',
+      '하나카드': '#009490',
+      '우리카드': '#bcbcbc',
+      'NH카드': '#0075c8',
+      'BC카드': '#0064b7',
+      '카카오뱅크': '#fee500',
+      '토스뱅크': '#0064ff',
+    };
+    
+    // 카드사 이름에 포함된 키워드로 매칭
+    for (const [key, color] of Object.entries(colorMap)) {
+      if (cardCompany.includes(key.replace('카드', '').replace('뱅크', ''))) {
+        return color;
+      }
+    }
+    
+    // 매칭되지 않으면 랜덤 색상 (미리 정의된 색상 배열에서 선택)
+    const defaultColors = ['#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#f97316', '#06b6d4', '#84cc16'];
+    const hash = cardCompany.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return defaultColors[hash % defaultColors.length];
+  }, []);
+
+  // 결제 수단 목록 조회
+  const fetchPaymentMethods = useCallback(async () => {
+    if (!isLoggedIn) return;
+    try {
+      const methods = await getMyPaymentMethods();
+      const list = (methods || []).map((method) => ({
+        id: `card_${method.id}`,
+        name: method.cardCompany || '등록된 카드',
+        type: method.methodType === 'CARD' ? 'card' : method.methodType.toLowerCase(),
+        number: method.cardNumberMasked || '****',
+        color: getCardColor(method.cardCompany),
+        isDefault: method.isDefault || false,
+      }));
+      setPaymentMethodList(list);
+    } catch (err) {
+      console.error('결제 수단 목록 조회 실패:', err);
+      setPaymentMethodList([]);
+    }
+  }, [isLoggedIn, getCardColor]);
+
+  useEffect(() => {
+    fetchPaymentMethods();
+  }, [fetchPaymentMethods]);
 
   /** API-SUB-002: 내 구독 목록 조회. 백엔드 응답을 UI 형식으로 매핑 */
   const fetchSubscriptions = useCallback(async () => {
@@ -265,6 +333,14 @@ const CustomerView = ({
   const [trackingOrderId] = useState("202601210001"); // trackingOrderId is read, setTrackingOrderId is not.
 
   const [myPageTab, setMyPageTab] = useState("profile");
+
+  // 마이페이지 > 결제수단 탭 진입 시 최신 목록으로 동기화 (새로고침 없이 반영)
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    if (activeTab === "mypage" && myPageTab === "payment") {
+      fetchPaymentMethods();
+    }
+  }, [activeTab, myPageTab, isLoggedIn, fetchPaymentMethods]);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [selectedOrderForReview, setSelectedOrderForReview] = useState(null);
   const [reviewForm, setReviewForm] = useState({ rate: 5, content: "" });
@@ -724,28 +800,68 @@ const CustomerView = ({
     }
   };
 
-  const handleDeletePaymentMethod = (id) => {
-    if (window.confirm("이 결제 수단을 삭제하시겠습니까?")) {
-      const updatedList = paymentMethodList.filter((pm) => pm.id !== id);
-      // If the deleted one was default, make the first one default
-      if (
-        paymentMethodList.find((pm) => pm.id === id)?.isDefault &&
-        updatedList.length > 0
-      ) {
-        updatedList[0].isDefault = true;
+  const handleDeletePaymentMethod = async (id) => {
+    if (!window.confirm("이 결제 수단을 삭제하시겠습니까?")) {
+      return;
+    }
+
+    try {
+      // id 형식이 "card_123"이므로 숫자 부분만 추출
+      const paymentMethodId = typeof id === 'string' && id.startsWith('card_') 
+        ? parseInt(id.replace('card_', ''), 10)
+        : id;
+      
+      console.log('삭제 시도:', { 원본ID: id, 파싱된ID: paymentMethodId });
+      
+      if (!paymentMethodId || isNaN(paymentMethodId)) {
+        throw new Error('유효하지 않은 결제 수단 ID입니다.');
       }
-      setPaymentMethodList(updatedList);
+
+      // 백엔드 API 호출
+      await deletePaymentMethod(paymentMethodId);
+      
+      console.log('삭제 성공, 목록 갱신 중...');
+      
+      // 최신 목록으로 동기화
+      await fetchPaymentMethods();
+      
       showToast("결제 수단이 삭제되었습니다.");
+    } catch (err) {
+      console.error('결제 수단 삭제 실패:', err);
+      console.error('에러 상세:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        statusText: err.response?.statusText
+      });
+      const message = err.response?.data?.message || err.message || '결제 수단 삭제에 실패했습니다.';
+      alert(message);
     }
   };
 
-  const handleSetDefaultPaymentMethod = (id) => {
-    const updatedList = paymentMethodList.map((pm) => ({
-      ...pm,
-      isDefault: pm.id === id,
-    }));
-    setPaymentMethodList(updatedList);
-    showToast("기본 결제 수단으로 설정되었습니다.");
+  const handleSetDefaultPaymentMethod = async (id) => {
+    try {
+      // id 형식이 "card_123"이므로 숫자 부분만 추출
+      const paymentMethodId = typeof id === 'string' && id.startsWith('card_') 
+        ? parseInt(id.replace('card_', ''), 10)
+        : id;
+      
+      if (!paymentMethodId || isNaN(paymentMethodId)) {
+        throw new Error('유효하지 않은 결제 수단 ID입니다.');
+      }
+
+      // 백엔드 API 호출
+      await setDefaultPaymentMethod(paymentMethodId);
+      
+      // 최신 목록으로 동기화
+      await fetchPaymentMethods();
+      
+      showToast("기본 결제 수단으로 설정되었습니다.");
+    } catch (err) {
+      console.error('기본 결제 수단 설정 실패:', err);
+      const message = err.response?.data?.message || err.message || '기본 결제 수단 설정에 실패했습니다.';
+      alert(message);
+    }
   };
 
   const handleOpenPaymentModal = (pm = null) => {
@@ -796,12 +912,31 @@ const CustomerView = ({
   };
 
   const handleCardRegistered = (newPaymentMethod) => {
-    const updatedList = [...paymentMethodList];
-    updatedList.push({
-      ...newPaymentMethod,
-      isDefault: updatedList.length === 0 || newPaymentMethod.isDefault,
+    // 카드 등록 직후 즉시 UI에 반영(optimistic) + 백엔드 조회로 최종 동기화
+    setPaymentMethodList((prev) => {
+      const next = [...prev];
+
+      // 동일 카드가 이미 있으면 중복 추가 방지 (id 기반)
+      if (newPaymentMethod?.id && next.some((pm) => pm.id === newPaymentMethod.id)) {
+        return next;
+      }
+
+      // 첫 카드면 기본 카드로 표시
+      const shouldBeDefault = next.length === 0 || newPaymentMethod?.isDefault;
+      if (shouldBeDefault) {
+        for (let i = 0; i < next.length; i++) {
+          next[i] = { ...next[i], isDefault: false };
+        }
+      }
+
+      next.push({
+        ...newPaymentMethod,
+        isDefault: shouldBeDefault,
+      });
+      return next;
     });
-    setPaymentMethodList(updatedList);
+
+    fetchPaymentMethods();
     showToast("카드가 등록되었습니다.");
   };
 

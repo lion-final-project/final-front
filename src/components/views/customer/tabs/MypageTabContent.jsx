@@ -30,6 +30,7 @@ const MypageTabContent = (props) => {
     showToast, handleOpenAddressModal, handleSaveAddress, handleDeleteAddress,
     handleSetDefaultAddress, handleOpenPaymentModal, handleSavePaymentMethod,
     handleDeletePaymentMethod, handleSetDefaultPaymentMethod,
+    onCardRegistered,
     isAddressModalOpen, setIsAddressModalOpen, isPaymentModalOpen, setIsPaymentModalOpen,
     editingAddress, newAddress, setNewAddress, editingPaymentMethod, newPaymentMethod, setNewPaymentMethod,
   } = props;
@@ -288,6 +289,7 @@ const MypageTabContent = (props) => {
                     newPaymentMethod={newPaymentMethod}
                     setNewPaymentMethod={setNewPaymentMethod}
                     handleSavePaymentMethod={handleSavePaymentMethod}
+                    onCardRegistered={onCardRegistered}
                   />
                 )}
 

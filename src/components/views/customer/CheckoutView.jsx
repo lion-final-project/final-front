@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
-import { EffectCube, Pagination } from 'swiper/modules';
+import { EffectCoverflow, Pagination } from 'swiper/modules';
 import { addresses as defaultAddresses, paymentMethods as defaultPaymentMethods } from '../../../data/mockData';
 import { getCheckout } from '../../../api/checkoutApi';
 import { createOrder } from '../../../api/orderApi';
@@ -9,7 +9,7 @@ import { preparePayment, confirmPayment } from '../../../api/paymentApi';
 
 // Import Swiper styles
 import 'swiper/css';
-import 'swiper/css/effect-cube';
+import 'swiper/css/effect-coverflow';
 import 'swiper/css/pagination';
 
 const AddressModal = ({ isOpen, onClose, addresses, onSelect, currentAddressId }) => {
@@ -517,21 +517,24 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
           </section>
 
           {/* Payment Method Section */}
-          <section style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+          <section style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)' }}>
             <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '24px' }}>결제 수단</h3>
             
             <div style={{ width: '100%', maxWidth: '300px', margin: '0 auto', padding: '20px 0 40px' }}>
               <Swiper
-                effect={'cube'}
+                effect="coverflow"
                 grabCursor={true}
-                cubeEffect={{
-                  shadow: true,
+                centeredSlides={true}
+                slidesPerView="auto"
+                coverflowEffect={{
+                  rotate: 50,
+                  stretch: 0,
+                  depth: 100,
+                  modifier: 1,
                   slideShadows: true,
-                  shadowOffset: 20,
-                  shadowScale: 0.94,
                 }}
                 pagination={true}
-                modules={[EffectCube, Pagination]}
+                modules={[EffectCoverflow, Pagination]}
                 onSlideChange={(swiper) => {
                   // paymentMethods가 비어있으면 토스 PG 결제만 있음
                   if (paymentMethods.length === 0) {
@@ -556,119 +559,145 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
                 className="paymentSwiper"
               >
                 {paymentMethods.map(method => (
-                  <SwiperSlide key={method.id}>
+                  <SwiperSlide key={method.id} style={{ width: '300px', maxWidth: '85vw' }}>
                     <div style={{ 
                       width: '100%',
                       height: '180px',
                       borderRadius: '16px',
                       background: method.type === 'card' 
-                        ? `linear-gradient(135deg, ${method.color}, ${method.color}cc)` 
+                        ? method.color 
                         : method.color,
-                      padding: '24px',
+                      padding: '20px',
                       color: 'white',
                       display: 'flex',
                       flexDirection: 'column',
                       justifyContent: 'space-between',
-                      boxShadow: '0 10px 20px rgba(0,0,0,0.1)',
+                      boxShadow: '0 10px 20px rgba(0,0,0,0.15)',
                       position: 'relative',
                       overflow: 'hidden'
                     }}>
-                      {/* Card Chip Decoration */}
-                      <div style={{ 
-                        width: '40px', 
-                        height: '30px', 
-                        background: 'rgba(255,255,255,0.2)', 
-                        borderRadius: '6px',
-                        border: '1px solid rgba(255,255,255,0.3)'
-                      }} />
-                      
-                      <div>
-                        <div style={{ fontSize: '14px', opacity: 0.8, marginBottom: '4px' }}>{method.type === 'card' ? 'Credit Card' : 'Digital Wallet'}</div>
-                        <div style={{ fontSize: '20px', fontWeight: '800', letterSpacing: '1px' }}>{method.name}</div>
+                      {/* 상단: 카드사 이름 */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+                        <div>
+                          <div style={{ fontSize: '18px', fontWeight: '800', textShadow: '0 2px 4px rgba(0,0,0,0.2)', marginBottom: '4px' }}>
+                            {method.name}
+                          </div>
+                          <div style={{ fontSize: '11px', opacity: 0.85 }}>
+                            {method.type === 'card' ? 'Credit Card' : 'Payment Method'}
+                          </div>
+                        </div>
+                        {method.isDefault && (
+                          <div style={{ 
+                            backgroundColor: 'rgba(255,255,255,0.25)', 
+                            color: 'white', 
+                            padding: '4px 10px', 
+                            borderRadius: '12px', 
+                            fontSize: '10px', 
+                            fontWeight: '700',
+                            backdropFilter: 'blur(4px)'
+                          }}>
+                            기본
+                          </div>
+                        )}
                       </div>
 
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                        <div style={{ fontSize: '16px', fontWeight: '500', fontFamily: 'monospace' }}>
-                          {method.number || 'PAYMENT MODE'}
+                      {/* 중간: 카드 번호 */}
+                      <div style={{ marginBottom: '24px' }}>
+                        <div style={{ 
+                          fontSize: '20px', 
+                          letterSpacing: '3px', 
+                          fontWeight: '600', 
+                          textShadow: '0 2px 4px rgba(0,0,0,0.2)', 
+                          fontFamily: 'monospace',
+                          wordBreak: 'break-all'
+                        }}>
+                          {method.number || '**** **** **** ****'}
+                        </div>
+                      </div>
+
+                      {/* 하단: Card Holder */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <div style={{ fontSize: '9px', opacity: 0.8, textTransform: 'uppercase', marginBottom: '2px' }}>
+                            Card Holder
+                          </div>
+                          <div style={{ fontSize: '13px', fontWeight: '700', letterSpacing: '1px' }}>
+                            MEMBER
+                          </div>
                         </div>
                         <div style={{ 
-                          fontSize: '12px', 
-                          fontWeight: '900', 
+                          fontSize: '11px', 
+                          fontWeight: '700', 
                           padding: '4px 8px', 
                           background: 'rgba(255,255,255,0.2)', 
-                          borderRadius: '4px' 
+                          borderRadius: '6px',
+                          backdropFilter: 'blur(4px)'
                         }}>
-                          {method.type === 'card' ? 'VISA / MASTER' : 'N / K'}
+                          {method.type === 'card' ? 'VISA / MASTER' : 'PAYMENT'}
                         </div>
                       </div>
-
-                      {/* Sparkle background decoration */}
-                      <div style={{
-                        position: 'absolute',
-                        top: '-20px',
-                        right: '-20px',
-                        width: '100px',
-                        height: '100px',
-                        background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)',
-                        borderRadius: '50%'
-                      }} />
                     </div>
                   </SwiperSlide>
                 ))}
-                <SwiperSlide key="toss-pg">
+                <SwiperSlide key="toss-pg" style={{ width: '300px', maxWidth: '85vw' }}>
                   <div style={{ 
                     width: '100%',
                     height: '180px',
                     borderRadius: '16px',
-                    background: 'linear-gradient(135deg, #6366f1, #6366f1cc)',
-                    padding: '24px',
+                    background: '#6366f1',
+                    padding: '20px',
                     color: 'white',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
-                    boxShadow: '0 10px 20px rgba(0,0,0,0.1)',
+                    boxShadow: '0 10px 20px rgba(0,0,0,0.15)',
                     position: 'relative',
                     overflow: 'hidden'
                   }}>
-                    {/* Card Chip Decoration */}
-                    <div style={{ 
-                      width: '40px', 
-                      height: '30px', 
-                      background: 'rgba(255,255,255,0.2)', 
-                      borderRadius: '6px',
-                      border: '1px solid rgba(255,255,255,0.3)'
-                    }} />
-                    
-                    <div>
-                      <div style={{ fontSize: '14px', opacity: 0.8, marginBottom: '4px' }}>Credit Card</div>
-                      <div style={{ fontSize: '20px', fontWeight: '800', letterSpacing: '1px' }}>토스 PG 결제</div>
+                    {/* 상단: 토스 PG 결제 */}
+                    <div style={{ marginBottom: '24px' }}>
+                      <div style={{ fontSize: '18px', fontWeight: '800', textShadow: '0 2px 4px rgba(0,0,0,0.2)', marginBottom: '4px' }}>
+                        토스 PG 결제
+                      </div>
+                      <div style={{ fontSize: '11px', opacity: 0.85 }}>
+                        Credit Card
+                      </div>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                      <div style={{ fontSize: '16px', fontWeight: '500', fontFamily: 'monospace' }}>
+                    {/* 중간: 카드 번호 */}
+                    <div style={{ marginBottom: '24px' }}>
+                      <div style={{ 
+                        fontSize: '20px', 
+                        letterSpacing: '3px', 
+                        fontWeight: '600', 
+                        textShadow: '0 2px 4px rgba(0,0,0,0.2)', 
+                        fontFamily: 'monospace'
+                      }}>
                         PAYMENT MODE
                       </div>
+                    </div>
+
+                    {/* 하단: Card Holder */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ fontSize: '9px', opacity: 0.8, textTransform: 'uppercase', marginBottom: '2px' }}>
+                          Card Holder
+                        </div>
+                        <div style={{ fontSize: '13px', fontWeight: '700', letterSpacing: '1px' }}>
+                          MEMBER
+                        </div>
+                      </div>
                       <div style={{ 
-                        fontSize: '12px', 
-                        fontWeight: '900', 
+                        fontSize: '11px', 
+                        fontWeight: '700', 
                         padding: '4px 8px', 
                         background: 'rgba(255,255,255,0.2)', 
-                        borderRadius: '4px' 
+                        borderRadius: '6px',
+                        backdropFilter: 'blur(4px)'
                       }}>
                         VISA / MASTER
                       </div>
                     </div>
-
-                    {/* Sparkle background decoration */}
-                    <div style={{
-                      position: 'absolute',
-                      top: '-20px',
-                      right: '-20px',
-                      width: '100px',
-                      height: '100px',
-                      background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)',
-                      borderRadius: '50%'
-                    }} />
                   </div>
                 </SwiperSlide>
               </Swiper>
