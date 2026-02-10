@@ -1137,8 +1137,8 @@ const AdminDashboard = () => {
             banner={currentBanner}
             setBanner={setCurrentBanner}
             onSave={async () => {
-              if (!currentBanner.title || !currentBanner.img) {
-                alert('제목과 이미지는 필수 항목입니다.');
+              if (!currentBanner.title) {
+                alert('제목은 필수 항목입니다.');
                 return;
               }
               try {
