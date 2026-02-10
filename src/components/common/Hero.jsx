@@ -12,16 +12,19 @@ const Hero = ({ onShopClick, onPromoClick }) => {
       try {
         const banners = await getBannersForCustomer();
         if (!isMounted || !Array.isArray(banners) || banners.length === 0) return;
+
         const mapped = banners.map((b, index) => ({
           id: b.id ?? index,
           tag: b.content || '오늘의 추천 기획전',
           title: b.title ?? '',
           desc: b.content ?? '',
-          bgImage: b.imageUrl ?? '',
+          // 배너 배경: 이미지가 있으면 이미지, 없으면 overlay(gradient)를 사용
+          bgImage: b.imageUrl || '',
           primaryBtn: '지금 쇼핑하기',
           secondaryBtn: '기획전 보기',
           overlay: b.backgroundColor || 'linear-gradient(to right, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.2) 100%)',
         }));
+        if (mapped.length === 0) return;
         setSlides(mapped);
         setCurrentSlide(0);
       } catch (e) {
@@ -81,28 +84,43 @@ const Hero = ({ onShopClick, onPromoClick }) => {
           }}
         >
           {/* Background Image */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            backgroundImage: `url("${slide.bgImage}")`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            transform: currentSlide === index ? 'scale(1.05)' : 'scale(1)',
-            transition: 'transform 6s ease-out'
-          }} />
-          
-          {/* Gradient Overlay */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            background: slide.overlay
-          }} />
+          {slide.bgImage ? (
+            <>
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                backgroundImage: `url("${slide.bgImage}")`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                transform: currentSlide === index ? 'scale(1.05)' : 'scale(1)',
+                transition: 'transform 6s ease-out'
+              }} />
+              {/* 이미지 위에 어두운 오버레이 */}
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                background: 'linear-gradient(to right, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.2) 100%)'
+              }} />
+            </>
+          ) : (
+            // 이미지가 없으면 overlay(gradient)를 그대로 배경으로 사용
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              background: slide.overlay,
+              transform: currentSlide === index ? 'scale(1.05)' : 'scale(1)',
+              transition: 'transform 6s ease-out'
+            }} />
+          )}
 
           {/* Content */}
           <div style={{
