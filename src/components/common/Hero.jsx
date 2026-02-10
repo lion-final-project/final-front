@@ -1,57 +1,53 @@
 import React, { useState, useEffect } from 'react';
-
-const slides = [
-  {
-    id: 1,
-    tag: '🔥 오늘만 이 가격! 타임 세일 중',
-    title: <>우리 동네 마트의 <br /> 신선함을 집 앞으로</>,
-    desc: <>최대 50% 할인 혜택과 함께 <br /> 30분 내 초고속 배달을 경험하세요.</>,
-    bgImage: 'https://images.unsplash.com/photo-1542838132-92c53300491e?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80',
-    primaryBtn: '지금 쇼핑하기',
-    secondaryBtn: '기획전 보기',
-    overlay: 'linear-gradient(to right, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.2) 100%)'
-  },
-  {
-    id: 2,
-    tag: '🎫 신규 가입 혜택',
-    title: <>첫 주문이라면 <br /> 누구나 3,000원 할인</>,
-    desc: <>지금 가입하고 첫 구매 완료 시 <br /> 즉시 사용 가능한 쿠폰을 드려요.</>,
-    bgImage: 'https://images.unsplash.com/photo-1607623273573-599d75b03519?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80',
-    primaryBtn: '쿠폰 받기',
-    secondaryBtn: '자세히 보기',
-    overlay: 'linear-gradient(to right, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.1) 100%)'
-  },
-  {
-    id: 3,
-    tag: '🍞 갓 구운 빵',
-    title: <>매일 아침 구워낸 <br /> 따뜻한 베이커리</>,
-    desc: <>동네 유명 베이커리의 빵을 <br /> 집에서 편하게 즐겨보세요.</>,
-    bgImage: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&q=80',
-    primaryBtn: '빵집 구경하기',
-    secondaryBtn: '예약 주문',
-    overlay: 'linear-gradient(to right, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.1) 100%)'
-  }
-];
+import { getBannersForCustomer } from '../../api/bannerApi';
 
 const Hero = ({ onShopClick, onPromoClick }) => {
+  const [slides, setSlides] = useState([]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
 
   useEffect(() => {
-    if (isHovered) return; // Pause auto-play on hover
+    let isMounted = true;
+    (async () => {
+      try {
+        const banners = await getBannersForCustomer();
+        if (!isMounted || !Array.isArray(banners) || banners.length === 0) return;
+        const mapped = banners.map((b, index) => ({
+          id: b.id ?? index,
+          tag: b.content || '오늘의 추천 기획전',
+          title: b.title ?? '',
+          desc: b.content ?? '',
+          bgImage: b.imageUrl ?? '',
+          primaryBtn: '지금 쇼핑하기',
+          secondaryBtn: '기획전 보기',
+          overlay: b.backgroundColor || 'linear-gradient(to right, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.2) 100%)',
+        }));
+        setSlides(mapped);
+        setCurrentSlide(0);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+    return () => { isMounted = false; };
+  }, []);
+
+  useEffect(() => {
+    if (isHovered || slides.length === 0) return; // Pause auto-play on hover or when no slides
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % slides.length);
     }, 5000);
     return () => clearInterval(timer);
-  }, [isHovered]);
+  }, [isHovered, slides.length]);
 
   const nextSlide = (e) => {
     e.stopPropagation();
+    if (slides.length === 0) return;
     setCurrentSlide((prev) => (prev + 1) % slides.length);
   };
 
   const prevSlide = (e) => {
     e.stopPropagation();
+    if (slides.length === 0) return;
     setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
   };
 
