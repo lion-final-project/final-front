@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { subscriptionProductApi } from '../../../config/api';
 import {
   KO_TO_NUM,
@@ -11,7 +11,10 @@ import {
   getPriceDisplay,
   getApiBase,
   getStatusColor,
+  mapStoreOrderToDisplay,
+  mapCompletedStoreOrderToDisplay,
 } from './utils/storeDashboardUtils';
+import { getNewOrders, getCompletedOrders, getOrderHistory, acceptOrder, completePreparation, rejectOrder } from '../../../api/storeOrderApi';
 import OrdersTab from './tabs/OrdersTab';
 import DashboardTab from './tabs/DashboardTab';
 import SettlementsTab from './tabs/SettlementsTab';
@@ -20,7 +23,6 @@ import InventoryTab from './tabs/InventoryTab';
 import SubscriptionsTab from './tabs/SubscriptionsTab';
 import SettingsTab from './tabs/SettingsTab';
 import ReviewsTab from './tabs/ReviewsTab';
-import OrderDetailModal from './modals/OrderDetailModal';
 import SettlementDetailModal from './modals/SettlementDetailModal';
 import ProductModal from './modals/ProductModal';
 import SubscriptionModal from './modals/SubscriptionModal';
@@ -64,8 +66,11 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   const [stockAdjustValues, setStockAdjustValues] = useState({});
 
   // --- Restored Missing States ---
+  const [acceptingOrderId, setAcceptingOrderId] = useState(null);
+  const [completingOrderId, setCompletingOrderId] = useState(null);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [customRejectReason, setCustomRejectReason] = useState('');
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
 
@@ -174,6 +179,51 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     }
   };
 
+  const fetchNewOrders = async () => {
+    setOrdersLoading(true);
+    try {
+      const list = await getNewOrders();
+      const mapped = list.map(mapStoreOrderToDisplay);
+      setOrders(mapped);
+    } catch (e) {
+      console.error('신규 주문 조회 실패:', e);
+      setOrders([]);
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  const fetchCompletedOrders = async () => {
+    setCompletedOrdersLoading(true);
+    try {
+      const list = await getCompletedOrders();
+      const mapped = list.map(mapCompletedStoreOrderToDisplay);
+      setCompletedOrders(mapped);
+    } catch (e) {
+      console.error('완료 주문 조회 실패:', e);
+      setCompletedOrders([]);
+    } finally {
+      setCompletedOrdersLoading(false);
+    }
+  };
+
+  const fetchHistoryOrders = async (page = 0) => {
+    setHistoryLoading(true);
+    try {
+      const result = await getOrderHistory(page, 20);
+      const mapped = (result.content ?? []).map(mapCompletedStoreOrderToDisplay);
+      setHistoryOrders(mapped);
+      setHistoryPage(result.number ?? 0);
+      setHistoryTotalPages(result.totalPages ?? 0);
+      setHistoryTotalElements(result.totalElements ?? 0);
+    } catch (e) {
+      console.error('주문 내역 조회 실패:', e);
+      setHistoryOrders([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   const fetchCategories = async () => {
     try {
       const base = getApiBase();
@@ -244,47 +294,62 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     if (activeTab === 'products') {
       fetchCanEditProduct();
     }
+    if (activeTab === 'dashboard') {
+      fetchNewOrders();
+    }
   }, [activeTab]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      const now = Date.now();
-      setCurrentTime(now);
-      
-      setOrders(prevOrders => {
-        let changed = false;
-        const nowObj = new Date(now);
-        // getDay(): 0(일)~6(토) -> 우리 배열은 0(월)~6(일)
-        const dayIdx = nowObj.getDay() === 0 ? 6 : nowObj.getDay() - 1;
-        const todayHours = businessHours[dayIdx];
-        const currentTimeStr = `${String(nowObj.getHours()).padStart(2, '0')}:${String(nowObj.getMinutes()).padStart(2, '0')}`;
+    if (activeTab === 'orders' && mgmtFilter === 'handled') {
+      fetchCompletedOrders();
+    }
+  }, [activeTab, mgmtFilter]);
 
-        const newOrders = prevOrders.map(order => {
-          // 1. 영업 종료 시간 체크 (휴무일이거나 마감시간 이후인 경우)
-          if (order.status === '신규' || order.status === '준비중') {
-            const nowTime = nowObj.toTimeString().slice(0, 5);
-            if (todayHours.isClosed || nowTime > todayHours.close) {
-              changed = true;
-              return { ...order, status: '거절됨', rejectionReason: '영업 종료' };
-            }
-          }
+  useEffect(() => {
+    if (activeTab === 'orders' && orderSubTab === 'history') {
+      fetchHistoryOrders(0);
+    }
+  }, [activeTab, orderSubTab]);
 
-          // 2. 5분 초과 미응답 체크 (영업시간 내인 경우만)
-          if (order.status === '신규' && order.createdAt) {
-            const timeDiff = now - order.createdAt;
-            const limit = 5 * 60 * 1000;
-            if (timeDiff >= limit) {
-              changed = true;
-              return { ...order, status: '거절됨', rejectionReason: '마트 사정' };
-            }
-          }
-          return order;
-        });
-        return changed ? newOrders : prevOrders;
-      });
-    }, 1000);
+  // currentTime만 갱신 (자동 거절 / 준비시간 카운트다운 표시용). 실제 자동 거절은 백엔드 스케줄러에서 처리.
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // SSE 신규 주문 수신 시 목록 실시간 갱신
+  const fetchNewOrdersRef = useRef(fetchNewOrders);
+  fetchNewOrdersRef.current = fetchNewOrders;
+  useEffect(() => {
+    const handler = () => {
+      fetchNewOrdersRef.current();
+    };
+    window.addEventListener('store-order-created', handler);
+    return () => window.removeEventListener('store-order-created', handler);
+  }, []);
+
+  // SSE 누락 대비: 탭 포커스 시 대시보드면 신규 주문 재조회
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && activeTabRef.current === 'dashboard') {
+        fetchNewOrdersRef.current();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, []);
+
+  // SSE 누락 대비: 대시보드 탭일 때 60초마다 신규 주문 목록 폴링
+  const POLL_INTERVAL_MS = 60 * 1000;
+  useEffect(() => {
+    if (activeTab !== 'dashboard') return;
+    const timer = setInterval(() => {
+      fetchNewOrdersRef.current();
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [activeTab]);
 
   const fetchSubscriptions = async () => {
     setSubscriptionsLoading(true);
@@ -361,108 +426,59 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     img: null
   });
   
-  const [orders, setOrders] = useState([
-    { 
-      id: 'ORD20260123001', customer: '김철수', items: '대추토마토 500g 외 2건', 
-      itemsList: [{ name: '대추토마토 500g', qty: 1, price: '5,900원' }, { name: '흙당근 1kg', qty: 1, price: '4,500원' }, { name: '시금치 1단', qty: 1, price: '3,000원' }],
-      price: '18,400원', status: '준비중', date: '2026.01.23 14:20', prepTime: 15 
-    },
-    { 
-      id: 'ORD20260123002', customer: '이영희', items: '유기농 우유 1L', 
-      itemsList: [{ name: '유기농 우유 1L', qty: 1, price: '3,200원' }],
-      price: '3,200원', status: '배달중', date: '2026.01.23 13:45', prepTime: 10 
-    },
-    { 
-      id: 'ORD20260123003', customer: '박민수', items: '신선란 10구 외 1건', 
-      itemsList: [{ name: '신선란 10구', qty: 1, price: '4,500원' }, { name: '무항생제 계란 10구', qty: 1, price: '8,000원' }],
-      price: '12,500원', status: '픽업가능', date: '2026.01.23 13:10', prepTime: 10 
-    },
-    { 
-      id: 'ORD20260123004', customer: '최지우', items: '한우 등심 300g', 
-      itemsList: [{ name: '한우 등심 300g', qty: 1, price: '45,000원' }],
-      price: '45,000원', status: '픽업가능', date: '2026.01.23 14:55', prepTime: 10 
-    },
-    { 
-      id: 'ORD20260123005', customer: '정우성', items: '제철 과일 꾸러미', 
-      itemsList: [{ name: '제철 과일 꾸러미', qty: 1, price: '29,900원' }],
-      price: '29,900원', status: '배달완료', date: '2026.01.23 11:30', prepTime: 10 
-    },
-    { 
-      id: 'ORD20260123006', customer: '한소희', items: '사과 1개, 바나나 2개 외', 
-      itemsList: [{ name: '사과', qty: 1, price: '2,000원' }, { name: '바나나', qty: 2, price: '3,000원' }, { name: '키위 1박스', qty: 1, price: '15,000원' }],
-      price: '20,000원', status: '신규', date: '2026.01.23 15:10', prepTime: 10, createdAt: Date.now() 
-    },
-    { 
-      id: 'ORD20260123007', customer: '우영우', items: '김밥 재료 세트, 참기름', 
-      itemsList: [{ name: '김밥 재료 세트', qty: 1, price: '18,500원' }, { name: '참기름', qty: 1, price: '3,500원' }],
-      price: '22,000원', status: '신규', date: '2026.01.23 22:30', prepTime: 10, createdAt: Date.now() - 60000 
-    },
-    { 
-      id: 'ORD20260123008', customer: '이도현', items: '대패 삼겹살 500g, 쌈장', 
-      itemsList: [{ name: '대패 삼겹살 500g', qty: 1, price: '12,000원' }, { name: '쌈장', qty: 1, price: '1,500원' }],
-      price: '13,500원', status: '준비중', date: '2026.01.23 22:32', prepTime: 20 
-    },
-    { 
-      id: 'ORD20260123009', customer: '박보검', items: '생수 500ml 20개, 바나나 1송이', 
-      itemsList: [{ name: '생수 500ml 20개', qty: 1, price: '8,000원' }, { name: '바나나 1송이', qty: 1, price: '3,200원' }],
-      price: '11,200원', status: '픽업 대기중', date: '2026.01.23 22:35', prepTime: 10 
-    },
-    { 
-      id: 'ORD20260123010', customer: '안유진', items: '하겐다즈 파인트, 오레오', 
-      itemsList: [{ name: '하겐다즈 파인트', qty: 1, price: '14,500원' }, { name: '오레오', qty: 1, price: '2,000원' }],
-      price: '16,500원', status: '신규', date: '2026.01.23 22:38', prepTime: 10, createdAt: Date.now() - 120000 
-    },
-    { 
-      id: 'ORD20260123011', customer: '남주혁', items: '안성탕면 멀티, 단무지', 
-      itemsList: [{ name: '안성탕면 멀티', qty: 1, price: '4,500원' }, { name: '단무지', qty: 1, price: '2,300원' }],
-      price: '6,800원', status: '배달완료', date: '2026.01.23 21:00', prepTime: 10 
-    },
-    { 
-      id: 'ORD20260123012', customer: '김지원', items: '스타벅스 RTD 커피 4캔', 
-      itemsList: [{ name: '스타벅스 RTD 커피 4캔', qty: 1, price: '10,800원' }],
-      price: '10,800원', status: '신규', date: '2026.01.23 22:40', prepTime: 10, createdAt: Date.now() - 180000 
-    },
-    { 
-      id: 'ORD20260123013', customer: '공유', items: '스텔라 아르투아 500ml 4캔', 
-      itemsList: [{ name: '스텔라 아르투아 4캔', qty: 1, price: '11,000원' }],
-      price: '11,000원', status: '준비중', date: '2026.01.23 22:42', prepTime: 10 
-    },
-    { 
-      id: 'ORD20260123014', customer: '손석구', items: '비비고 김치찌개 외 1건', 
-      itemsList: [{ name: '비비고 김치찌개', qty: 1, price: '5,500원' }, { name: '햇반 2입', qty: 1, price: '3,500원' }],
-      price: '9,000원', status: '픽업 대기중', date: '2026.01.23 22:43', prepTime: 10 
-    },
-    { 
-      id: 'ORD20260123015', customer: '김혜수', items: '샴페인 1병, 치즈 플래터', 
-      itemsList: [{ name: '샴페인', qty: 1, price: '120,000원' }, { name: '치즈 플래터', qty: 1, price: '35,000원' }],
-      price: '155,000원', status: '픽업가능', date: '2026.01.23 22:45', prepTime: 10 
-    },
-    { 
-      id: 'ORD20260123016', customer: '유재석', items: '유기농 두부 2모', 
-      itemsList: [{ name: '유기농 두부', qty: 2, price: '5,000원' }],
-      price: '5,000원', status: '배달중', date: '2026.01.23 22:47', prepTime: 10 
-    },
-    { 
-      id: 'ORD20260123017', customer: '지석진', items: '비타민C 1박스', 
-      itemsList: [{ name: '비타민C', qty: 1, price: '25,000원' }],
-      price: '25,000원', status: '신규', date: '2026.01.23 22:50', prepTime: 10 
-    },
-    { 
-      id: 'ORD20260123018', customer: '송지효', items: '수분 크림, 마스크팩', 
-      itemsList: [{ name: '수분 크림', qty: 1, price: '18,000원' }, { name: '마스크팩', qty: 5, price: '5,000원' }],
-      price: '23,000원', status: '준비중', date: '2026.01.23 22:52', prepTime: 15 
-    },
-    { 
-      id: 'ORD20260123019', customer: '김종국', items: '닭가슴살 1kg', 
-      itemsList: [{ name: '닭가슴살', qty: 1, price: '12,000원' }],
-      price: '12,000원', status: '픽업가능', date: '2026.01.23 22:55', prepTime: 10 
-    },
-    { 
-      id: 'ORD20260123020', customer: '하하', items: '키즈 홍삼 1박스', 
-      itemsList: [{ name: '키즈 홍삼', qty: 1, price: '45,000원' }],
-      price: '45,000원', status: '배달완료', date: '2026.01.23 22:00', prepTime: 10 
-    },
-  ]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [orders, setOrders] = useState([]);
+  const [completedOrdersLoading, setCompletedOrdersLoading] = useState(false);
+  const [completedOrders, setCompletedOrders] = useState([]);
+  const [historyOrders, setHistoryOrders] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyPage, setHistoryPage] = useState(0);
+  const [historyTotalPages, setHistoryTotalPages] = useState(0);
+  const [historyTotalElements, setHistoryTotalElements] = useState(0);
+
+  const completedPrepIdsRef = React.useRef(new Set());
+  const autoRejectedIdsRef = React.useRef(new Set());
+  useEffect(() => {
+    if (activeTab !== 'dashboard') return;
+    const now = Date.now();
+
+    const toComplete = orders.filter(
+      (o) => o.status === '준비중' && o.readyAt != null && o.readyAt <= now && !completedPrepIdsRef.current.has(o.id)
+    );
+    if (toComplete.length > 0) {
+      toComplete.forEach((o) => completedPrepIdsRef.current.add(o.id));
+      (async () => {
+        for (const order of toComplete) {
+          try {
+            await completePreparation(order.id);
+          } catch (e) {
+            completedPrepIdsRef.current.delete(order.id);
+            console.error('준비 완료 처리 실패:', e);
+          }
+        }
+        await fetchNewOrders();
+      })();
+      return;
+    }
+
+    const expiredOrders = orders.filter(
+      (o) => o.status === '신규' && o.createdAt != null && o.createdAt + 5 * 60 * 1000 <= now && !autoRejectedIdsRef.current.has(o.id)
+    );
+    if (expiredOrders.length > 0) {
+      expiredOrders.forEach((o) => autoRejectedIdsRef.current.add(o.id));
+      (async () => {
+        for (const order of expiredOrders) {
+          try {
+            await rejectOrder(order.id, '자동 거절 (미응답)');
+          } catch (e) {
+            autoRejectedIdsRef.current.delete(order.id);
+            console.error('자동 거절 처리 실패:', e);
+          }
+        }
+        await fetchNewOrders();
+      })();
+    }
+  }, [activeTab, orders, currentTime]);
 
   const updateOrderStatus = (id, newStatus, rejectionReason = null) => {
     setOrders(prev => prev.map(o => o.id === id ? { ...o, status: newStatus, ...(rejectionReason != null && { rejectionReason }) } : o));
@@ -486,6 +502,33 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     if (order) {
       setSelectedOrder(order);
       setIsRejectModalOpen(true);
+    }
+  };
+
+  const handleAcceptOrder = async (storeOrderId, prepTime) => {
+    const prep = Math.min(25, Math.max(5, Number(prepTime) || 10));
+    setAcceptingOrderId(storeOrderId);
+    try {
+      await acceptOrder(storeOrderId, prep);
+      await fetchNewOrders();
+    } catch (e) {
+      const msg = e?.response?.data?.error?.message ?? e?.message ?? '주문 접수에 실패했습니다.';
+      alert(msg);
+    } finally {
+      setAcceptingOrderId(null);
+    }
+  };
+
+  const handleCompletePreparation = async (storeOrderId) => {
+    setCompletingOrderId(storeOrderId);
+    try {
+      await completePreparation(storeOrderId);
+      await fetchNewOrders();
+    } catch (e) {
+      const msg = e?.response?.data?.error?.message ?? e?.message ?? '준비 완료 처리에 실패했습니다.';
+      alert(msg);
+    } finally {
+      setCompletingOrderId(null);
     }
   };
 
@@ -832,12 +875,22 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     }
   };
 
-  const handleConfirmReject = () => {
-    if (selectedOrder) {
-      updateOrderStatus(selectedOrder.id, '거절됨', rejectReason || '기타 사유');
+  const handleConfirmReject = async () => {
+    if (!selectedOrder) return;
+    const reason =
+      rejectReason === '기타 사유'
+        ? (customRejectReason?.trim() || '기타 사유')
+        : (rejectReason || '기타 사유');
+    try {
+      await rejectOrder(selectedOrder.id, reason);
+      await fetchNewOrders();
       setIsRejectModalOpen(false);
       setSelectedOrder(null);
       setRejectReason('');
+      setCustomRejectReason('');
+    } catch (e) {
+      const msg = e?.response?.data?.error?.message ?? e?.message ?? '주문 거절에 실패했습니다.';
+      alert(msg);
     }
   };
 
@@ -849,19 +902,6 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     setReplyInput(prev => ({ ...prev, [reviewId]: '' }));
     alert('답변이 등록되었습니다.');
   };
-
-  // Rider Allocation Simulation: '픽업가능' -> '배차 완료'
-  useEffect(() => {
-    const ordersReady = orders.filter(o => o.status === '픽업가능');
-    if (ordersReady.length === 0) return;
-
-    const timers = ordersReady.map(order => {
-      return setTimeout(() => {
-        updateOrderStatus(order.id, '배차 완료');
-      }, 3000); 
-    });
-    return () => timers.forEach(clearTimeout);
-  }, [orders]);
 
   // Delivery Completion Simulation: '배달중' -> '배달완료'
   useEffect(() => {
@@ -882,13 +922,21 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
         return (
           <OrdersTab
             orders={orders}
+            ordersLoading={ordersLoading}
+            completedOrders={completedOrders}
+            completedOrdersLoading={completedOrdersLoading}
+            historyOrders={historyOrders}
+            historyLoading={historyLoading}
+            historyPage={historyPage}
+            historyTotalPages={historyTotalPages}
+            historyTotalElements={historyTotalElements}
+            onHistoryPageChange={fetchHistoryOrders}
             orderSubTab={orderSubTab}
             setOrderSubTab={setOrderSubTab}
             mgmtFilter={mgmtFilter}
             setMgmtFilter={setMgmtFilter}
             expandedOrders={expandedOrders}
             onToggleExpand={handleToggleExpand}
-            onSelectOrder={setSelectedOrder}
             onOpenReportModal={handleOpenReportModal}
           />
         );
@@ -973,14 +1021,18 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
         return (
           <DashboardTab
             orders={orders}
+            ordersLoading={ordersLoading}
             products={products}
             lowStockThreshold={lowStockThreshold}
             expandedOrders={expandedOrders}
             currentTime={currentTime}
             setActiveTab={setActiveTab}
             handleToggleExpand={handleToggleExpand}
-            updateOrderStatus={updateOrderStatus}
             updatePrepTime={updatePrepTime}
+            handleAcceptOrder={handleAcceptOrder}
+            acceptingOrderId={acceptingOrderId}
+            handleCompletePreparation={handleCompletePreparation}
+            completingOrderId={completingOrderId}
             handleOpenRejectModal={handleOpenRejectModal}
             toggleSoldOut={toggleSoldOut}
           />
@@ -1089,10 +1141,6 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
         </div>
       </div>
 
-      {selectedOrder && (
-        <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
-      )}
-
       {selectedSettlement && (
         <SettlementDetailModal settlement={selectedSettlement} onClose={() => setSelectedSettlement(null)} />
       )}
@@ -1124,8 +1172,13 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
         <RejectModal
           rejectReason={rejectReason}
           setRejectReason={setRejectReason}
+          customRejectReason={customRejectReason}
+          setCustomRejectReason={setCustomRejectReason}
           onConfirm={handleConfirmReject}
-          onClose={() => setIsRejectModalOpen(false)}
+          onClose={() => {
+            setIsRejectModalOpen(false);
+            setCustomRejectReason('');
+          }}
         />
       )}
 

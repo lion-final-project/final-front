@@ -145,6 +145,9 @@ function App() {
         }
       } else if (eventName === 'CONNECTED') {
         console.log('[SSE] 연결됨:', data);
+      } else if (eventName === 'STORE_ORDER_CREATED') {
+        // 스토어 신규 주문 알림 → 대시보드 목록 갱신용 커스텀 이벤트 (백엔드는 스토어 오너에게만 전송)
+        window.dispatchEvent(new CustomEvent('store-order-created', { detail: data }));
       }
     };
 
@@ -306,12 +309,12 @@ function App() {
     if (kakao === 'success') {
       checkAuth()
         .then(async (user) => {
-           if (user) {
-             handleLoginSuccess(user);
-             await fetchStoreRegistration();
-           }
+          if (user) {
+            handleLoginSuccess(user);
+            await fetchStoreRegistration();
+          }
         })
-        .catch(() => {})
+        .catch(() => { })
         .finally(() => {
           window.history.replaceState({}, '', window.location.pathname || '/');
         });
