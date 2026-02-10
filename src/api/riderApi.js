@@ -71,3 +71,12 @@ export const getRiderLocation = async (riderId) => {
         throw error;
     }
 };
+// 특정 라이더 위치 삭제
+export const removeRiderLocation = async (riderId) => {
+    try {
+        const response = await api.delete(`/api/riders/locations/${riderId}`);
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};

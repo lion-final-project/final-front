@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getRiderInfo, updateRiderStatus, updateRiderLocation, getRiderLocation } from '../../../api/riderApi';
+import { getRiderInfo, updateRiderStatus, updateRiderLocation, getRiderLocation, removeRiderLocation } from '../../../api/riderApi';
 import MainTab from './tabs/MainTab';
 import EarningsTab from './tabs/EarningsTab';
 import HistoryTab from './tabs/HistoryTab';
@@ -156,7 +156,19 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
       const response = await updateRiderStatus(newStatus);
       if (response && response.data) {
         setRiderData(response.data);
-        setIsOnline(response.data['operation-status'] === 'ONLINE');
+        const nextIsOnline = response.data['operation-status'] === 'ONLINE';
+        setIsOnline(nextIsOnline);
+
+        // 운행 종료(OFFLINE) 시 Redis에서 위치 정보 삭제
+        if (!nextIsOnline && riderData?.id) {
+          try {
+            await removeRiderLocation(`rider${riderData.id}`);
+            setCurrentLocation(null); // 로컬 상태도 초기화
+            setLastSyncTime(null);
+          } catch (deleteError) {
+            console.error('Failed to remove location from Redis:', deleteError);
+          }
+        }
 
         setStatusPopup({
           type: newStatus === 'ONLINE' ? 'online' : 'offline',
