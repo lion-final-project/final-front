@@ -27,7 +27,7 @@ const authHeader = () => ({});
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+  const itemsPerPage = 10;
   const [paymentMonthFilter, setPaymentMonthFilter] = useState('2026-01');
   const [settlementMonthFilter, setSettlementMonthFilter] = useState('2026-01');
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -36,26 +36,11 @@ const AdminDashboard = () => {
   const [approvalItems, setApprovalItems] = useState([]);
   const approvalFetchErrorShownRef = useRef(false);
 
-  const [stores, setStores] = useState([
-    { 
-      id: 'ST001', name: '행복 마트 강남점', loc: '역삼동', status: '정상', rep: '김행복', phone: '010-1234-5678', bizNum: '123-45-67890', bank: '국민은행 110-***-123456',
-      category: '대형 마트', 
-      intro: '지역 주민들에게 사랑받는 정직한 마트입니다. 매일 신선한 상품을 최적의 가격에 제공합니다.',
-      bankDetails: { bank: '국민은행', account: '110-123-456789', holder: '김행복' }
-    },
-    { 
-      id: 'ST002', name: '무림 정육점', loc: '삼성동', status: '정상', rep: '이무림', phone: '010-2222-3333', bizNum: '220-11-55555', bank: '신한은행 100-***-999888',
-      category: '정육/축산',
-      intro: '30년 전통의 노하우로 최상급 고기만을 선별하여 판매합니다.',
-      bankDetails: { bank: '신한은행', account: '1002-999-888777', holder: '이무림' }
-    },
-    { 
-      id: 'ST003', name: '싱싱 야채 센터', loc: '역삼동', status: '비활성', rep: '박싱싱', phone: '010-9999-8888', bizNum: '333-22-11111', bank: '우리은행 1002-***-444555',
-      category: '과일/채소',
-      intro: '농장 직송 신선함을 그대로 식탁까지 전달해 드립니다.',
-      bankDetails: { bank: '우리은행', account: '1002-111-222333', holder: '박싱싱' }
-    }
-  ]);
+  const [stores, setStores] = useState([]);
+  const [storeStats, setStoreStats] = useState({ total: 0, active: 0, inactive: 0 });
+  const [storePageInfo, setStorePageInfo] = useState({ page: 0, size: itemsPerPage, totalElements: 0, totalPages: 0, hasNext: false });
+  const [storeSearchInput, setStoreSearchInput] = useState('');
+  const [storeSearchTerm, setStoreSearchTerm] = useState('');
   const [users, setUsers] = useState([
     { 
       id: 'USR001', name: '김지현', email: 'jihyun@example.com', phone: '010-1111-2222',
@@ -113,24 +98,11 @@ const AdminDashboard = () => {
     }
   ]);
 
-  const [riders, setRiders] = useState([
-    { 
-      id: 'RID001', name: '김철수', status: '운행중', type: 'PROFESSIONAL', 
-      phone: '010-1234-5678', bankName: '신한은행', accountNumber: '110-123-456789', accountHolder: '김철수', idCardStatus: '완료'
-    },
-    { 
-      id: 'RID002', name: '이영희', status: '운행 불가', type: 'RESIDENT', 
-      phone: '010-2222-3333', bankName: '우리은행', accountNumber: '1002-999-888777', accountHolder: '이영희', idCardStatus: '완료'
-    },
-    { 
-      id: 'RID003', name: '박민수', status: '운행 불가', type: 'RESIDENT', 
-      phone: '010-4444-5555', bankName: '하나은행', accountNumber: '123-456-789012', accountHolder: '박민수', idCardStatus: '확인중'
-    },
-    { 
-      id: 'RID004', name: '최현우', status: '운행중', type: 'PROFESSIONAL', 
-      phone: '010-8888-9999', bankName: '국민은행', accountNumber: '110-999-000000', accountHolder: '최현우', idCardStatus: '완료'
-    }
-  ]);
+  const [riders, setRiders] = useState([]);
+  const [riderStats, setRiderStats] = useState({ total: 0, operating: 0, unavailable: 0, idCardPending: 0 });
+  const [riderPageInfo, setRiderPageInfo] = useState({ page: 0, size: itemsPerPage, totalElements: 0, totalPages: 0, hasNext: false });
+  const [riderSearchInput, setRiderSearchInput] = useState('');
+  const [riderSearchTerm, setRiderSearchTerm] = useState('');
 
   const [approvalStatusFilter, setApprovalStatusFilter] = useState('ALL'); // ALL, PENDING, HOLD
 
@@ -180,6 +152,7 @@ const AdminDashboard = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [activeTab, approvalFilter, approvalStatusFilter, reportsFilter, settlementFilter, userSearch, inquiryFilter]);
+
 
   const [selectedReport, setSelectedReport] = useState(null);
   const [inquiryList, setInquiryList] = useState([]);
@@ -368,6 +341,191 @@ const AdminDashboard = () => {
     }
   };
 
+  const mapStoreListItem = (item) => ({
+    id: item.storeId,
+    storeId: item.storeId,
+    name: item.storeName,
+    loc: [item.addressLine1, item.addressLine2].filter(Boolean).join(' '),
+    rep: item.representativeName,
+    status: item.isActive ? '운영중' : '운영중지',
+    isActive: item.isActive
+  });
+
+  const fetchStores = useCallback(async (page = currentPage, name = storeSearchTerm) => {
+    try {
+      const params = new URLSearchParams();
+      if (name && name.trim()) {
+        params.set('name', name.trim());
+      }
+      params.set('page', String(Math.max(page - 1, 0)));
+      params.set('size', String(itemsPerPage));
+      const response = await fetch(`${API_BASE_URL}/api/admin/stores?${params.toString()}`, {
+        headers: { ...authHeader() },
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to load stores');
+      }
+      const payload = await response.json();
+      const data = payload?.data || {};
+      const content = Array.isArray(data.content) ? data.content : [];
+      setStores(content.map(mapStoreListItem));
+      setStoreStats({
+        total: data.stats?.total ?? content.length,
+        active: data.stats?.active ?? content.filter(s => s.isActive).length,
+        inactive: data.stats?.inactive ?? content.filter(s => !s.isActive).length,
+        pending: data.stats?.pending ?? 0
+      });
+      setStorePageInfo(data.page || data.pageInfo || { page: 0, size: itemsPerPage, totalElements: content.length, totalPages: 1, hasNext: false });
+    } catch (error) {
+      console.error('Failed to load stores:', error);
+    }
+  }, [currentPage, itemsPerPage, storeSearchTerm]);
+  useEffect(() => {
+    if (activeTab === 'stores') {
+      fetchStores(currentPage, storeSearchTerm);
+    }
+  }, [activeTab, currentPage, storeSearchTerm, fetchStores]);
+
+
+  const handleStoreSearch = () => {
+    const term = storeSearchInput.trim();
+    setStoreSearchTerm(term);
+    setCurrentPage(1);
+    if (activeTab === 'stores') {
+      fetchStores(1, term);
+    }
+  };
+
+  const handleOpenStoreDetail = async (storeId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/stores/${storeId}`, {
+        headers: { ...authHeader() },
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to load store detail');
+      }
+      const payload = await response.json();
+      const detail = payload?.data;
+      if (!detail) return;
+      const loc = [detail.addressLine1, detail.addressLine2].filter(Boolean).join(' ');
+      setSelectedRecord({
+        id: detail.storeId,
+        storeId: detail.storeId,
+        name: detail.storeName,
+        loc,
+        rep: detail.representativeName,
+        phone: detail.phone || detail.representativePhone || detail.ownerPhone,
+        bizNum: detail.businessNumber,
+        bankDetails: {
+          bank: detail.settlementBankName,
+          account: detail.settlementBankAccount,
+          holder: detail.settlementAccountHolder
+        },
+        intro: detail.description,
+        status: detail.isActive ? '운영중' : '운영중지',
+        isActive: detail.isActive
+      });
+    } catch (error) {
+      console.error('Failed to load store detail:', error);
+    }
+  };
+
+
+  const mapRiderListItem = (item) => ({
+    id: item.riderId,
+    riderId: item.riderId,
+    name: item.name,
+    phone: item.phone,
+    bankName: item.bankName,
+    accountNumber: item.bankAccount,
+    accountHolder: item.accountHolder,
+    status: item.isActive ? '운행중' : '운행불가',
+    isActive: item.isActive
+  });
+
+  const resolveRiderSearch = (term) => {
+    if (!term) return { name: null, phone: null };
+    const cleaned = term.replace(/\s+/g, '');
+    const hasDigit = /\d/.test(cleaned);
+    return hasDigit ? { name: null, phone: term } : { name: term, phone: null };
+  };
+
+  const fetchRiders = useCallback(async (page = currentPage, term = riderSearchTerm) => {
+    try {
+      const params = new URLSearchParams();
+      const resolved = resolveRiderSearch(term ? term.trim() : '');
+      if (resolved.name) params.set('name', resolved.name);
+      if (resolved.phone) params.set('phone', resolved.phone);
+      params.set('page', String(Math.max(page - 1, 0)));
+      params.set('size', String(itemsPerPage));
+      const response = await fetch(`${API_BASE_URL}/api/admin/riders?${params.toString()}`, {
+        headers: { ...authHeader() },
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to load riders');
+      }
+      const payload = await response.json();
+      const data = payload?.data || {};
+      const content = Array.isArray(data.content) ? data.content : [];
+      setRiders(content.map(mapRiderListItem));
+      setRiderStats({
+        total: data.stats?.total ?? content.length,
+        operating: data.stats?.operating ?? content.filter(r => r.isActive).length,
+        unavailable: data.stats?.unavailable ?? content.filter(r => !r.isActive).length,
+        idCardPending: data.stats?.idCardPending ?? content.filter(r => r.idCardStatus !== '완료').length
+      });
+      setRiderPageInfo(data.page || data.pageInfo || { page: 0, size: itemsPerPage, totalElements: content.length, totalPages: 1, hasNext: false });
+    } catch (error) {
+      console.error('Failed to load riders:', error);
+    }
+  }, [currentPage, itemsPerPage, riderSearchTerm]);
+
+  useEffect(() => {
+    if (activeTab === 'riders') {
+      fetchRiders(currentPage, riderSearchTerm);
+    }
+  }, [activeTab, currentPage, riderSearchTerm, fetchRiders]);
+
+  const handleRiderSearch = () => {
+    const term = riderSearchInput.trim();
+    setRiderSearchTerm(term);
+    setCurrentPage(1);
+    if (activeTab === 'riders') {
+      fetchRiders(1, term);
+    }
+  };
+
+  const handleOpenRiderDetail = async (riderId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/riders/${riderId}`, {
+        headers: { ...authHeader() },
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to load rider detail');
+      }
+      const payload = await response.json();
+      const detail = payload?.data;
+      if (!detail) return;
+      setSelectedRecord({
+        id: detail.riderId,
+        riderId: detail.riderId,
+        name: detail.name,
+        phone: detail.phone,
+        bankName: detail.bankName,
+        accountNumber: detail.bankAccount,
+        accountHolder: detail.accountHolder,
+        status: detail.isActive ? '운행중' : '운행불가',
+        isActive: detail.isActive
+      });
+    } catch (error) {
+      console.error('Failed to load rider detail:', error);
+    }
+  };
+
   const fetchApprovalDetail = async (category, approvalId) => {
     const basePath = category === 'RIDER' ? 'riders' : 'stores';
     const response = await fetch(
@@ -475,20 +633,56 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleToggleStatus = (record, reason = '') => {
-    if (record.rep) { // Store
-      setStores(prev => prev.map(s => 
-        s.id === record.id ? { ...s, status: s.status === '정상' ? '비활성' : '정상' } : s
-      ));
+  const handleToggleStatus = async (record, reason = '') => {
+    if (record.rep) {
+      try {
+        const nextIsActive = !record.isActive;
+        const response = await fetch(`${API_BASE_URL}/api/admin/stores/${record.id}/status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader() },
+          credentials: 'include',
+          body: JSON.stringify({ isActive: nextIsActive, reason })
+        });
+        if (!response.ok) {
+          throw new Error('Failed to update store status');
+        }
+        await fetchStores(currentPage, storeSearchTerm);
+      } catch (error) {
+        console.error('Failed to update store status:', error);
+        alert('?? ?? ??? ??????.');
+      } finally {
+        setSelectedRecord(null);
+      }
+      return;
     } else if (record.type === 'USER') {
       setUsers(prev => prev.map(u => 
-        u.id === record.id ? { ...u, status: u.status === '활성' ? '정지' : '활성' } : u
+        u.id === record.id ? { ...u, status: u.status === '??' ? '??' : '??' } : u
       ));
       if (reason) {
-        alert(`[${record.name}] 고객님에게 정지 사유가 발송되었습니다: "${reason}"`);
+        alert(`[${record.name}] ???? ?? ??? ???????. "${reason}"`);
       }
+      setSelectedRecord(null);
+      return;
     }
-    setSelectedRecord(null);
+
+    try {
+      const nextIsActive = !record.isActive;
+      const response = await fetch(`${API_BASE_URL}/api/admin/riders/${record.id}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
+        credentials: 'include',
+        body: JSON.stringify({ isActive: nextIsActive, reason })
+      });
+      if (!response.ok) {
+        throw new Error('Failed to update rider status');
+      }
+      await fetchRiders(currentPage, riderSearchTerm);
+    } catch (error) {
+      console.error('Failed to update rider status:', error);
+      alert('??? ?? ??? ??????.');
+    } finally {
+      setSelectedRecord(null);
+    }
   };
 
   const handleResolveReport = (id, message) => {
@@ -578,9 +772,35 @@ const AdminDashboard = () => {
       case 'overview':
         return <OverviewTab chartPeriod={chartPeriod} setChartPeriod={setChartPeriod} setActiveTab={setActiveTab} detailedSettlements={detailedSettlements} riderSettlements={riderSettlements} reports={reports} approvalItems={approvalItems} inquiryList={inquiryList} />;
       case 'stores':
-        return <StoresTab stores={stores} currentPage={currentPage} itemsPerPage={itemsPerPage} setCurrentPage={setCurrentPage} setSelectedRecord={setSelectedRecord} />;
+        return (
+          <StoresTab
+            stores={stores}
+            stats={storeStats}
+            pageInfo={storePageInfo}
+            currentPage={currentPage}
+            itemsPerPage={itemsPerPage}
+            setCurrentPage={setCurrentPage}
+            searchInput={storeSearchInput}
+            setSearchInput={setStoreSearchInput}
+            onSearch={handleStoreSearch}
+            onOpenDetail={handleOpenStoreDetail}
+          />
+        );
       case 'riders':
-        return <RidersTab riders={riders} currentPage={currentPage} itemsPerPage={itemsPerPage} setCurrentPage={setCurrentPage} setSelectedRecord={setSelectedRecord} />;
+        return (
+          <RidersTab
+            riders={riders}
+            stats={riderStats}
+            pageInfo={riderPageInfo}
+            currentPage={currentPage}
+            itemsPerPage={itemsPerPage}
+            setCurrentPage={setCurrentPage}
+            searchInput={riderSearchInput}
+            setSearchInput={setRiderSearchInput}
+            onSearch={handleRiderSearch}
+            onOpenDetail={handleOpenRiderDetail}
+          />
+        );
       case 'users':
         return <UsersTab users={users} userSearch={userSearch} setUserSearch={setUserSearch} expandedUserId={expandedUserId} setExpandedUserId={setExpandedUserId} currentPage={currentPage} itemsPerPage={itemsPerPage} setCurrentPage={setCurrentPage} setSelectedRecord={setSelectedRecord} />;
       case 'inquiry':

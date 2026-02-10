@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 
 const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowReports }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -8,6 +8,7 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
   if (!record) return null;
   const isStore = !!record.rep;
   const isUser = record.type === 'USER';
+  const isRider = !isStore && !isUser;
 
   const relatedReports = reports.filter(r =>
     (r.reporter && r.reporter.name === record.name) ||
@@ -15,8 +16,21 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
     (r.reported && typeof r.reported.name === 'string' && r.reported.name.includes(record.name))
   );
 
+  const isActiveStatus = record.isActive === true
+    || record.status === '정상'
+    || record.status === '활성'
+    || record.status === '운행중'
+    || record.status === '운영중';
+
+  const statusLabel = record.status
+    || (isRider ? (record.isActive ? '운행중' : '운행불가') : (record.isActive ? '정상' : '비활성'));
+
+  const statusColor = isRider
+    ? (statusLabel === '운행중' ? '#10b981' : '#ef4444')
+    : ((statusLabel === '정상' || statusLabel === '활성' || statusLabel === '운영중') ? '#10b981' : '#ef4444');
+
   const handleStatusChange = () => {
-    if ((record.status === '정상' || record.status === '활성') && !showStopInput) {
+    if (isActiveStatus && !showStopInput) {
       setShowStopInput(true);
       return;
     }
@@ -25,6 +39,10 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
     setShowStopInput(false);
     setReason('');
   };
+
+  const toggleButtonLabel = isRider
+    ? (isActiveStatus ? '운행 비활성화' : '운행중으로 전환')
+    : (isActiveStatus ? (showStopInput ? '정지 완료' : '운영중지 처리') : '운영중으로 전환');
 
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backdropFilter: 'blur(3px)' }}>
@@ -75,7 +93,7 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
                 <div style={{ marginTop: '12px' }}>
                   <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '8px' }}>마트 소개</div>
                   <div style={{ color: '#cbd5e1', fontSize: '14px', lineHeight: '1.6', whiteSpace: 'pre-wrap', backgroundColor: '#1e293b', padding: '16px', borderRadius: '12px', border: '1px solid #334155' }}>
-                    {record.intro || '공식 소개글이 등록되지 않았습니다.'}
+                    {record.intro || '공식 소개글이 등록되어 있지 않습니다.'}
                   </div>
                 </div>
               </section>
@@ -105,7 +123,7 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '12px' }}>
                 <span style={{ color: '#94a3b8', fontSize: '14px' }}>누적 주문</span>
-                <span>{record.orders}회</span>
+                <span>{record.orders}건</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '12px' }}>
                 <span style={{ color: '#94a3b8', fontSize: '14px' }}>가입일</span>
@@ -113,7 +131,7 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
               </div>
               <div style={{ marginTop: '12px', padding: '16px', backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #334155' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '13px', color: '#94a3b8' }}>누적 신고 내역 ({relatedReports.length}건)</span>
+                  <span style={{ fontSize: '13px', color: '#94a3b8' }}>누적 신고 이력 ({relatedReports.length}건)</span>
                   <button
                     onClick={() => setIsHistoryOpen(!isHistoryOpen)}
                     style={{ padding: '6px 12px', borderRadius: '8px', backgroundColor: isHistoryOpen ? '#38bdf8' : '#334155', color: isHistoryOpen ? '#0f172a' : '#38bdf8', border: 'none', fontSize: '11px', cursor: 'pointer', fontWeight: '800', transition: 'all 0.2s' }}>
@@ -131,7 +149,7 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
                         <div style={{ color: '#cbd5e1' }}>{r.content}</div>
                       </div>
                     )) : (
-                      <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8', fontSize: '12px' }}>신고 내역이 없습니다.</div>
+                      <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8', fontSize: '12px' }}>신고 이력이 없습니다.</div>
                     )}
                   </div>
                 )}
@@ -139,13 +157,9 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
             </>
           ) : (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '12px' }}>
-                <span style={{ color: '#94a3b8', fontSize: '14px' }}>신분증 등록</span>
-                <span style={{ color: record.idCardStatus === '완료' ? '#10b981' : '#f59e0b', fontWeight: '800' }}>{record.idCardStatus || '미확인'}</span>
-              </div>
               <section style={{ backgroundColor: '#0f172a', padding: '24px', borderRadius: '20px', border: '1px solid #334155', marginTop: '12px' }}>
                 <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#38bdf8', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>🏦</span> 정산 계좌 정보
+                  <span>💳</span> 정산 계좌 정보
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '12px', marginBottom: '16px' }}>
                   <span style={{ color: '#94a3b8', fontSize: '14px' }}>은행명</span>
@@ -169,17 +183,17 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
 
           <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '12px', borderTop: '1px solid #334155', paddingTop: '12px' }}>
             <span style={{ color: '#94a3b8', fontSize: '14px' }}>현재 상태</span>
-            <span style={{ color: record.status === '정상' || record.status === '활성' ? '#10b981' : '#ef4444', fontWeight: '800' }}>{record.status} {record.status === '정지' && '(사유: 운영 정책 위반)'}</span>
+            <span style={{ color: statusColor, fontWeight: '800' }}>{statusLabel} {statusLabel === '정지' && '(사유: 운영 정책 위반)'}</span>
           </div>
         </div>
 
         {showStopInput && (
           <div style={{ marginTop: '24px', padding: '16px', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: '16px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-            <label style={{ display: 'block', fontSize: '13px', color: '#ef4444', fontWeight: '700', marginBottom: '8px' }}>🚫 계정 정지 사유 입력</label>
+            <label style={{ display: 'block', fontSize: '13px', color: '#ef4444', fontWeight: '700', marginBottom: '8px' }}>정지/비활성 사유 입력</label>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="상세한 정지 사유를 입력해주세요..."
+              placeholder="정지/비활성 사유를 입력해주세요..."
               style={{ width: '100%', padding: '12px', borderRadius: '8px', backgroundColor: '#0f172a', border: '1px solid #ef4444', color: 'white', fontSize: '14px', resize: 'none' }}
               rows="3"
             />
@@ -191,11 +205,11 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
             onClick={handleStatusChange}
             style={{
               flex: 1, padding: '14px', borderRadius: '12px',
-              background: record.status === '정지' || record.status === '비활성' ? '#10b981' : '#ef4444',
+              background: isActiveStatus ? '#ef4444' : '#10b981',
               color: 'white', border: 'none', fontWeight: '800', cursor: 'pointer'
             }}
           >
-            {record.status === '정지' || record.status === '비활성' ? '활성화 처리' : showStopInput ? '정지 완료' : '이용 정지/비활성'}
+            {toggleButtonLabel}
           </button>
           <button style={{ flex: 1, padding: '14px', borderRadius: '12px', background: '#334155', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }} onClick={onClose}>취소/닫기</button>
         </div>
