@@ -20,8 +20,11 @@ const MypageTabContent = (props) => {
     orderList, reviews, userInfo,     subscriptionList, subscriptionListLoading,
     subscriptionListError, subscriptionPayments, subscriptionFilter, setSubscriptionFilter,
     expandedSubId, setExpandedSubId, addressList, paymentMethodList,
-    storeRegistrationStatus, storeRegistrationStoreName,
-    setStoreRegistrationStatus, setStoreRegistrationStoreName,
+      storeRegistrationStatus, storeRegistrationStoreName,
+      riderRegistrationStatus,
+      riderRegistrationApprovalId,
+      setStoreRegistrationStatus, setStoreRegistrationStoreName,
+      refreshRiderRegistration,
     setIsResidentRider,
     inquiries, userRole, setUserRole, onOpenAuth,
     setIsTrackingOpen, handleOpenReviewModal, handleCancelOrder,
@@ -312,13 +315,16 @@ const MypageTabContent = (props) => {
 
                 {myPageTab === "application_status" && (
                   <ApplicationStatusSubTab
-                    storeRegistrationStatus={storeRegistrationStatus}
-                    storeRegistrationStoreName={storeRegistrationStoreName}
-                    setStoreRegistrationStatus={setStoreRegistrationStatus}
-                    setStoreRegistrationStoreName={setStoreRegistrationStoreName}
-                    setActiveTab={setActiveTab}
-                    isResidentRider={isResidentRider}
-                    verifyStep={verifyStep}
+                      storeRegistrationStatus={storeRegistrationStatus}
+                      storeRegistrationStoreName={storeRegistrationStoreName}
+                      riderRegistrationStatus={riderRegistrationStatus}
+                      riderRegistrationApprovalId={riderRegistrationApprovalId}
+                      setStoreRegistrationStatus={setStoreRegistrationStatus}
+                      setStoreRegistrationStoreName={setStoreRegistrationStoreName}
+                      refreshRiderRegistration={refreshRiderRegistration}
+                      setActiveTab={setActiveTab}
+                      isResidentRider={isResidentRider}
+                      verifyStep={verifyStep}
                     setVerifyStep={setVerifyStep}
                     showToast={showToast}
                   />
