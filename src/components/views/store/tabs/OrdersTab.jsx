@@ -1,22 +1,66 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { getStatusColor } from '../utils/storeDashboardUtils';
+
+const HISTORY_STATUS_OPTIONS = [
+  { value: '', label: '전체 상태' },
+  { value: '신규', label: '신규' },
+  { value: '준비중', label: '준비중' },
+  { value: '픽업가능', label: '픽업가능' },
+  { value: '픽업 완료', label: '픽업 완료' },
+  { value: '배달중', label: '배달중' },
+  { value: '배달완료', label: '배달완료' },
+  { value: '완료', label: '완료' },
+  { value: '거절됨', label: '거절됨' },
+  { value: '취소됨', label: '취소됨' },
+];
 
 const OrdersTab = ({
   orders,
+  ordersLoading = false,
+  completedOrders = [],
+  completedOrdersLoading = false,
+  historyOrders = [],
+  historyLoading = false,
+  historyPage = 0,
+  historyTotalPages = 0,
+  historyTotalElements = 0,
+  onHistoryPageChange,
   orderSubTab,
   setOrderSubTab,
   mgmtFilter,
   setMgmtFilter,
   expandedOrders,
   onToggleExpand,
-  onSelectOrder,
   onOpenReportModal,
 }) => {
-  const filteredOrders = orders.filter((order) => {
-    if (orderSubTab === 'history') return true;
-    if (mgmtFilter === 'unhandled') return ['신규', '준비중', '픽업 대기중', '픽업가능', '배달중'].includes(order.status);
-    return ['배달완료', '완료'].includes(order.status);
-  });
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [historyStatusFilter, setHistoryStatusFilter] = useState('');
+
+  const isHandledTab = orderSubTab === 'management' && mgmtFilter === 'handled';
+  const listForManagement = isHandledTab ? completedOrders : orders.filter((order) =>
+    ['신규', '준비중', '픽업 완료', '픽업가능', '배달중'].includes(order.status)
+  );
+  const baseList = orderSubTab === 'history' ? historyOrders : listForManagement;
+
+  const filteredByStatus = useMemo(() => {
+    if (orderSubTab !== 'history' || !historyStatusFilter) return baseList;
+    return baseList.filter((o) => o.status === historyStatusFilter);
+  }, [orderSubTab, baseList, historyStatusFilter]);
+
+  const filteredOrders = useMemo(() => {
+    const kw = (searchKeyword || '').trim().toLowerCase();
+    if (!kw) return filteredByStatus;
+    return filteredByStatus.filter((order) => {
+      const orderNum = String(order.orderNumber ?? order.id ?? '').toLowerCase();
+      const items = String(order.items ?? '').toLowerCase();
+      const idStr = String(order.id ?? '').toLowerCase();
+      return orderNum.includes(kw) || items.includes(kw) || idStr.includes(kw);
+    });
+  }, [filteredByStatus, searchKeyword]);
+
+  const isLoading = orderSubTab === 'history'
+    ? historyLoading
+    : orderSubTab === 'management' && (isHandledTab ? completedOrdersLoading : ordersLoading);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -93,7 +137,33 @@ const OrdersTab = ({
                 </button>
               </div>
             )}
-            <input type="text" placeholder="주문 검색..." style={{ padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px', width: '200px' }} />
+            {orderSubTab === 'history' && (
+              <select
+                value={historyStatusFilter}
+                onChange={(e) => setHistoryStatusFilter(e.target.value)}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: '10px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: '#475569',
+                  cursor: 'pointer',
+                  minWidth: '140px',
+                }}
+              >
+                {HISTORY_STATUS_OPTIONS.map((opt) => (
+                  <option key={opt.value || 'all'} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            )}
+            <input
+              type="text"
+              placeholder="주문 검색 (주문번호, 상품명)"
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              style={{ padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px', width: '220px' }}
+            />
           </div>
         </div>
 
@@ -106,11 +176,17 @@ const OrdersTab = ({
                 <th style={{ padding: '12px' }}>상품명</th>
                 <th style={{ padding: '12px' }}>결제금액</th>
                 <th style={{ padding: '12px' }}>상태</th>
-                <th style={{ padding: '12px' }}>{orderSubTab === 'management' ? '관리' : '상세'}</th>
+                <th style={{ padding: '12px' }}>관리</th>
               </tr>
             </thead>
             <tbody>
-              {filteredOrders.length > 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td colSpan="6" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted, #64748b)' }}>
+                    주문 목록을 불러오는 중...
+                  </td>
+                </tr>
+              ) : filteredOrders.length > 0 ? (
                 filteredOrders.map((order) => (
                   <React.Fragment key={order.id}>
                     <tr
@@ -139,7 +215,7 @@ const OrdersTab = ({
                         onClick={() => onToggleExpand(order.id)}
                         style={{ padding: '12px', fontWeight: '600', cursor: 'pointer', color: 'var(--primary)' }}
                       >
-                        {order.id}
+                        {order.orderNumber ?? order.id}
                       </td>
                       <td style={{ padding: '12px' }}>{order.items}</td>
                       <td style={{ padding: '12px' }}>{order.price}</td>
@@ -159,20 +235,6 @@ const OrdersTab = ({
                       </td>
                       <td style={{ padding: '12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <button
-                            onClick={() => onSelectOrder(order)}
-                            style={{
-                              padding: '6px 12px',
-                              borderRadius: '8px',
-                              border: '1px solid #cbd5e1',
-                              background: 'white',
-                              cursor: 'pointer',
-                              fontSize: '12px',
-                              color: '#64748b',
-                            }}
-                          >
-                            상세
-                          </button>
                           <button
                             onClick={() => onOpenReportModal(order)}
                             style={{
@@ -196,6 +258,12 @@ const OrdersTab = ({
                         <td colSpan="6" style={{ padding: '0 20px 20px 60px' }}>
                           <div style={{ background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                             <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748b', marginBottom: '8px' }}>주문 상세 목록</div>
+                            {order.date && (
+                              <div style={{ fontSize: '13px', color: '#475569', marginBottom: '10px' }}>
+                                <span style={{ fontWeight: '700', color: '#64748b', marginRight: '6px' }}>주문 시간:</span>
+                                {order.date}
+                              </div>
+                            )}
                             {order.itemsList &&
                               order.itemsList.map((item, idx) => (
                                 <div
@@ -215,6 +283,14 @@ const OrdersTab = ({
                                   <span style={{ fontWeight: '600' }}>{item.price}</span>
                                 </div>
                               ))}
+                            {(order.status === '거절됨' || order.status === '취소됨') && order.rejectionReason && (
+                              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #f1f5f9', fontSize: '13px' }}>
+                                <span style={{ fontWeight: '700', color: '#64748b', marginRight: '6px' }}>
+                                  {order.status === '거절됨' ? '거절 사유' : '취소 사유'}:
+                                </span>
+                                <span style={{ color: '#475569' }}>{order.rejectionReason}</span>
+                              </div>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -231,6 +307,53 @@ const OrdersTab = ({
             </tbody>
           </table>
         </div>
+
+        {orderSubTab === 'history' && historyTotalPages > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', padding: '12px', borderTop: '1px solid #e2e8f0' }}>
+            <span style={{ fontSize: '14px', color: '#64748b' }}>
+              전체 {historyTotalElements}건
+            </span>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => onHistoryPageChange?.(historyPage - 1)}
+                disabled={historyPage <= 0 || historyLoading}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0',
+                  background: 'white',
+                  cursor: historyPage <= 0 || historyLoading ? 'not-allowed' : 'pointer',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  color: historyPage <= 0 ? '#94a3b8' : '#475569',
+                }}
+              >
+                이전
+              </button>
+              <span style={{ fontSize: '14px', fontWeight: '600', color: '#475569' }}>
+                {historyPage + 1} / {historyTotalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => onHistoryPageChange?.(historyPage + 1)}
+                disabled={historyPage >= historyTotalPages - 1 || historyLoading}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0',
+                  background: 'white',
+                  cursor: historyPage >= historyTotalPages - 1 || historyLoading ? 'not-allowed' : 'pointer',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  color: historyPage >= historyTotalPages - 1 ? '#94a3b8' : '#475569',
+                }}
+              >
+                다음
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
