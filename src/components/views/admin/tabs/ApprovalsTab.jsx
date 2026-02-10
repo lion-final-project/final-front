@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import Pagination from '../../../ui/Pagination';
 
 const ApprovalsTab = (props) => {
@@ -14,7 +14,7 @@ const ApprovalsTab = (props) => {
         <div style={{ display: 'flex', gap: '8px' }}>
           <button onClick={() => setApprovalFilter('ALL')} style={{ padding: '10px 24px', borderRadius: '12px', border: 'none', backgroundColor: approvalFilter === 'ALL' ? '#38bdf8' : 'transparent', color: approvalFilter === 'ALL' ? '#0f172a' : '#94a3b8', fontWeight: '800', cursor: 'pointer' }}>전체 보기</button>
           <button onClick={() => setApprovalFilter('STORE')} style={{ padding: '10px 24px', borderRadius: '12px', border: 'none', backgroundColor: approvalFilter === 'STORE' ? '#38bdf8' : 'transparent', color: approvalFilter === 'STORE' ? '#0f172a' : '#94a3b8', fontWeight: '800', cursor: 'pointer' }}>마트 신청</button>
-          <button onClick={() => setApprovalFilter('RIDER')} style={{ padding: '10px 24px', borderRadius: '12px', border: 'none', backgroundColor: approvalFilter === 'RIDER' ? '#38bdf8' : 'transparent', color: approvalFilter === 'RIDER' ? '#0f172a' : '#94a3b8', fontWeight: '800', cursor: 'pointer' }}>라이더 신청</button>
+          <button onClick={() => setApprovalFilter('RIDER')} style={{ padding: '10px 24px', borderRadius: '12px', border: 'none', backgroundColor: approvalFilter === 'RIDER' ? '#38bdf8' : 'transparent', color: approvalFilter === 'RIDER' ? '#0f172a' : '#94a3b8', fontWeight: '800', cursor: 'pointer' }}>배달원 신청</button>
         </div>
         <div style={{ display: 'flex', gap: '8px', backgroundColor: '#0f172a', padding: '4px', borderRadius: '12px' }}>
           {['ALL', 'PENDING', 'HOLD', 'REJECTED'].map(s => (
