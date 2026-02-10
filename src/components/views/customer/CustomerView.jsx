@@ -87,6 +87,26 @@ const CustomerView = ({
     )
   );
 
+  // 토스 페이먼츠 결제/카드 등록 완료 후 돌아왔을 때 적절한 탭으로 이동
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentKey = urlParams.get('paymentKey');
+    const paymentStatus = urlParams.get('payment');
+    const billingStatus = urlParams.get('billing');
+    const pendingCheckout = sessionStorage.getItem('pendingCheckout');
+    
+    // 카드 등록 관련 URL 파라미터가 있으면 mypage 탭으로 이동
+    if (billingStatus) {
+      setActiveTab('mypage');
+      // URL 파라미터는 PaymentSubTab에서 처리하므로 여기서는 제거하지 않음
+    }
+    // 결제 관련 URL 파라미터가 있거나 pendingCheckout 플래그가 있으면 checkout 탭으로 이동
+    else if (paymentKey || paymentStatus || pendingCheckout === 'true') {
+      setActiveTab('checkout');
+      // URL 파라미터는 CheckoutView에서 처리하므로 여기서는 제거하지 않음
+    }
+  }, []);
+
   useEffect(() => {
     if (!isLoggedIn) {
       setMyStoreId(null);
@@ -262,7 +282,7 @@ const CustomerView = ({
 
   /* Address Management State */
   const [addressList, setAddressList] = useState([]);
-  const [paymentMethodList, setPaymentMethodList] = useState(paymentMethods);
+  const [paymentMethodList, setPaymentMethodList] = useState([]);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [editingPaymentMethod, setEditingPaymentMethod] = useState(null);
@@ -775,6 +795,16 @@ const CustomerView = ({
     setIsPaymentModalOpen(false);
   };
 
+  const handleCardRegistered = (newPaymentMethod) => {
+    const updatedList = [...paymentMethodList];
+    updatedList.push({
+      ...newPaymentMethod,
+      isDefault: updatedList.length === 0 || newPaymentMethod.isDefault,
+    });
+    setPaymentMethodList(updatedList);
+    showToast("카드가 등록되었습니다.");
+  };
+
   const renderActiveView = () => {
     switch (activeTab) {
       case "special":
@@ -946,6 +976,7 @@ const CustomerView = ({
             handleSavePaymentMethod={handleSavePaymentMethod}
             handleDeletePaymentMethod={handleDeletePaymentMethod}
             handleSetDefaultPaymentMethod={handleSetDefaultPaymentMethod}
+            onCardRegistered={handleCardRegistered}
             isAddressModalOpen={isAddressModalOpen}
             setIsAddressModalOpen={setIsAddressModalOpen}
             isPaymentModalOpen={isPaymentModalOpen}
