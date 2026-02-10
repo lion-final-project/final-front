@@ -15,15 +15,9 @@ const BannerModal = ({ banner, setBanner, onSave, onClose }) => {
       <div style={{ background: '#1e293b', width: '100%', maxWidth: '600px', borderRadius: '24px', padding: '32px', border: '1px solid #334155' }}>
         <h3 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '24px' }}>{banner.id ? '배너 수정' : '새 배너 등록'}</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>제목</label>
-              <input type="text" placeholder="배너 메인 타이틀" value={banner.title} onChange={(e) => setBanner({ ...banner, title: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '8px', background: '#0f172a', border: '1px solid #334155', color: 'white' }} />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>기획전 연동</label>
-              <input type="text" placeholder="예: 제철 과일 기획전" value={banner.promotion} onChange={(e) => setBanner({ ...banner, promotion: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '8px', background: '#0f172a', border: '1px solid #334155', color: 'white' }} />
-            </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>제목</label>
+            <input type="text" placeholder="배너 메인 타이틀" value={banner.title} onChange={(e) => setBanner({ ...banner, title: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '8px', background: '#0f172a', border: '1px solid #334155', color: 'white' }} />
           </div>
           <div>
             <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>내용 (설명)</label>
@@ -52,6 +46,16 @@ const BannerModal = ({ banner, setBanner, onSave, onClose }) => {
               </select>
             </div>
           </div>
+        </div>
+        <div style={{ marginTop: '24px' }}>
+          <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>기획전 연동</label>
+          <input
+            type="text"
+            placeholder="예: 제철 과일 기획전"
+            value={banner.promotion}
+            onChange={(e) => setBanner({ ...banner, promotion: e.target.value })}
+            style={{ width: '100%', padding: '12px', borderRadius: '8px', background: '#0f172a', border: '1px solid #334155', color: 'white' }}
+          />
         </div>
         <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
           <button onClick={onClose} style={{ flex: 1, padding: '14px', borderRadius: '12px', background: '#334155', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}>취소</button>
