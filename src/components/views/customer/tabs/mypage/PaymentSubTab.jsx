@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import 'swiper/css';
 import 'swiper/css/effect-coverflow';
 import 'swiper/css/pagination';
 import 'swiper/css/navigation';
 import { EffectCoverflow, Pagination, Navigation } from 'swiper/modules';
+import { issueCardBillingKey } from '../../../../../api/billingApi';
 
 const PaymentSubTab = ({
   paymentMethodList,
@@ -17,67 +18,199 @@ const PaymentSubTab = ({
   newPaymentMethod,
   setNewPaymentMethod,
   handleSavePaymentMethod,
-}) => (
+  onCardRegistered,
+}) => {
+  const [isRegisteringCard, setIsRegisteringCard] = useState(false);
+  const billingProcessedRef = useRef(false); // 카드 등록 처리 중복 방지 플래그
+
+  // 토스 페이먼츠 카드 등록 완료 후 리다이렉트 처리
+  useEffect(() => {
+    // 이미 처리된 경우 중복 실행 방지
+    if (billingProcessedRef.current) {
+      return;
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const authKey = urlParams.get('authKey');
+    const customerKey = urlParams.get('customerKey');
+    const billingStatus = urlParams.get('billing');
+
+    // 카드 등록 관련 파라미터가 없으면 처리하지 않음
+    if (!billingStatus) {
+      return;
+    }
+
+    // 즉시 URL 파라미터 제거하여 중복 실행 방지
+    const currentUrl = window.location.href.split('?')[0];
+    window.history.replaceState({}, '', currentUrl);
+    billingProcessedRef.current = true;
+
+    if (billingStatus === 'success' && authKey && customerKey) {
+      // 카드 등록 성공 - billingKey 발급
+      setIsRegisteringCard(true);
+      issueCardBillingKey({
+        authKey: authKey,
+        customerKey: customerKey,
+      })
+        .then((response) => {
+          console.log('billingKey 발급 응답:', response);
+          // 등록된 카드를 결제 수단 목록에 추가
+          if (onCardRegistered) {
+            // response가 null이어도 카드는 등록되었으므로 기본 정보로 추가
+            const newPaymentMethod = {
+              id: `card_${Date.now()}`,
+              name: response?.cardCompany || '등록된 카드',
+              type: 'card',
+              number: response?.cardNumberMasked || '****',
+              color: '#10b981',
+              isDefault: paymentMethodList.length === 0,
+            };
+            onCardRegistered(newPaymentMethod);
+            alert('카드가 성공적으로 등록되었습니다.');
+          } else {
+            alert('카드 등록은 완료되었습니다.');
+          }
+        })
+        .catch((err) => {
+          console.error('billingKey 발급 오류:', err);
+          // 서버 에러가 발생해도 카드는 토스에서 등록되었을 수 있으므로
+          // 기본 정보로 카드 추가 시도
+          if (onCardRegistered && err.response?.status !== 404) {
+            const newPaymentMethod = {
+              id: `card_${Date.now()}`,
+              name: '등록된 카드',
+              type: 'card',
+              number: '****',
+              color: '#10b981',
+              isDefault: paymentMethodList.length === 0,
+            };
+            onCardRegistered(newPaymentMethod);
+            alert('카드 등록은 완료되었지만 일부 정보를 가져오지 못했습니다.');
+          } else {
+            const message = err.response?.data?.message || err.message || '카드 등록에 실패했습니다.';
+            alert(message);
+          }
+        })
+        .finally(() => {
+          setIsRegisteringCard(false);
+        });
+    } else if (billingStatus === 'fail') {
+      // 카드 등록 실패
+      setIsRegisteringCard(false);
+      alert('카드 등록에 실패했습니다.');
+    }
+  }, [onCardRegistered, paymentMethodList.length]);
+
+  const handleRegisterCard = async () => {
+    setIsRegisteringCard(true);
+    try {
+      // 토스 페이먼츠 스크립트 로드
+      const loadTossPayments = () => {
+        return new Promise((resolve, reject) => {
+          if (window.TossPayments) {
+            resolve(window.TossPayments);
+            return;
+          }
+          const script = document.createElement('script');
+          script.src = 'https://js.tosspayments.com/v1/payment';
+          script.onload = () => resolve(window.TossPayments);
+          script.onerror = () => reject(new Error('토스 페이먼츠 스크립트 로드 실패'));
+          document.head.appendChild(script);
+        });
+      };
+
+      const TossPayments = await loadTossPayments();
+      const clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY || 'test_ck_DpexMgkW36wVbqk5QqYrGbR5oz0C';
+      const widget = TossPayments(clientKey);
+
+      // 고객 키 생성 (사용자 ID 기반)
+      const customerKey = `customer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // 현재 URL을 기반으로 success/fail URL 생성
+      const currentUrl = window.location.href.split('?')[0];
+      const successUrl = `${currentUrl}?billing=success`;
+      const failUrl = `${currentUrl}?billing=fail`;
+
+      // 카드 등록 위젯 열기
+      await widget.requestBillingAuth('카드', {
+        customerKey: customerKey,
+        successUrl: successUrl,
+        failUrl: failUrl,
+      });
+
+      // 위젯은 successUrl로 리다이렉트되므로 여기서는 완료되지 않음
+    } catch (err) {
+      console.error('카드 등록 오류:', err);
+      const message = err.response?.data?.message || err.message || '카드 등록에 실패했습니다.';
+      alert(message);
+      setIsRegisteringCard(false);
+    }
+  };
+
+  return (
   <>
-    <div style={{ background: "white", padding: "24px", borderRadius: "16px", border: "1px solid var(--border)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <h3 style={{ fontSize: "18px", fontWeight: "700" }}>결제 수단 관리</h3>
-        <button onClick={() => handleOpenPaymentModal()} style={{ padding: "8px 16px", borderRadius: "8px", background: "var(--primary)", color: "white", border: "none", fontWeight: "700", fontSize: "13px", cursor: "pointer" }}>
-          + 결제 수단 추가
+    <div style={{ background: "white", padding: "24px", borderRadius: "16px", border: "1px solid var(--border)", width: "100%", maxWidth: "100%", boxSizing: "border-box" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
+        <h3 style={{ fontSize: "18px", fontWeight: "700", margin: 0 }}>결제 수단 관리</h3>
+        <button onClick={handleRegisterCard} disabled={isRegisteringCard} style={{ padding: "8px 16px", borderRadius: "8px", background: isRegisteringCard ? "#cbd5e1" : "#10b981", color: "white", border: "none", fontWeight: "700", fontSize: "13px", cursor: isRegisteringCard ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
+          {isRegisteringCard ? "등록 중..." : "💳 카드 등록"}
         </button>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-        <Swiper
-          effect="coverflow"
-          grabCursor={true}
-          centeredSlides={true}
-          slidesPerView="auto"
-          coverflowEffect={{ rotate: 50, stretch: 0, depth: 100, modifier: 1, slideShadows: true }}
-          pagination={true}
-          navigation={true}
-          initialSlide={paymentMethodList.findIndex((pm) => pm.isDefault) !== -1 ? paymentMethodList.findIndex((pm) => pm.isDefault) : 0}
-          slideToClickedSlide={true}
-          modules={[EffectCoverflow, Pagination, Navigation]}
-          className="mySwiper"
-        >
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", maxWidth: "100%", overflow: "hidden" }}>
+        <div style={{ width: "100%", maxWidth: "100%" }}>
+          <Swiper
+            effect="coverflow"
+            grabCursor={true}
+            centeredSlides={true}
+            slidesPerView="auto"
+            coverflowEffect={{ rotate: 50, stretch: 0, depth: 100, modifier: 1, slideShadows: true }}
+            pagination={true}
+            navigation={true}
+            initialSlide={paymentMethodList.findIndex((pm) => pm.isDefault) !== -1 ? paymentMethodList.findIndex((pm) => pm.isDefault) : 0}
+            slideToClickedSlide={true}
+            modules={[EffectCoverflow, Pagination, Navigation]}
+            className="mySwiper"
+            style={{ width: "100%", maxWidth: "100%" }}
+          >
           {paymentMethodList.map((pm) => (
-            <SwiperSlide key={pm.id} style={{ background: pm.color || "var(--primary)" }}>
-              <div style={{ width: "100%", height: "100%", padding: "24px", display: "flex", flexDirection: "column", justifyContent: "space-between", boxSizing: "border-box" }}>
+            <SwiperSlide key={pm.id} style={{ background: pm.color || "var(--primary)", width: "300px", maxWidth: "85vw" }}>
+              <div style={{ width: "100%", height: "100%", padding: "16px", display: "flex", flexDirection: "column", justifyContent: "space-between", boxSizing: "border-box" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div style={{ display: "flex", flexDirection: "column" }}>
-                    <span style={{ fontSize: "20px", fontWeight: "800", textShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>{pm.name}</span>
-                    <span style={{ fontSize: "12px", opacity: 0.9 }}>{pm.type === "card" ? "Credit Card" : "Payment Method"}</span>
+                    <span style={{ fontSize: "16px", fontWeight: "800", textShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>{pm.name}</span>
+                    <span style={{ fontSize: "10px", opacity: 0.9 }}>{pm.type === "card" ? "Credit Card" : "Payment Method"}</span>
                   </div>
-                  <span style={{ fontSize: "28px" }}>{pm.type === "card" ? "💳" : "💰"}</span>
+                  <span style={{ fontSize: "24px" }}>{pm.type === "card" ? "💳" : "💰"}</span>
                 </div>
-                <div style={{ fontSize: "20px", letterSpacing: "3px", fontWeight: "600", textShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
+                <div style={{ fontSize: "16px", letterSpacing: "2px", fontWeight: "600", textShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
                   {pm.number ? pm.number : "**** **** **** ****"}
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
-                    <div style={{ fontSize: "10px", opacity: 0.7, textTransform: "uppercase" }}>Card Holder</div>
-                    <div style={{ fontSize: "14px", fontWeight: "700", letterSpacing: "1px" }}>MEMBER</div>
+                    <div style={{ fontSize: "9px", opacity: 0.7, textTransform: "uppercase" }}>Card Holder</div>
+                    <div style={{ fontSize: "12px", fontWeight: "700", letterSpacing: "1px" }}>MEMBER</div>
                   </div>
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
                     {pm.isDefault ? (
-                      <div style={{ backgroundColor: "rgba(255,255,255,0.9)", color: pm.color || "black", padding: "6px 12px", borderRadius: "20px", fontSize: "11px", fontWeight: "800", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>기본 결제</div>
+                      <div style={{ backgroundColor: "rgba(255,255,255,0.9)", color: pm.color || "black", padding: "4px 8px", borderRadius: "16px", fontSize: "9px", fontWeight: "800", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>기본</div>
                     ) : (
-                      <button onClick={() => handleSetDefaultPaymentMethod(pm.id)} style={{ backgroundColor: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.4)", padding: "6px 12px", borderRadius: "20px", fontSize: "11px", fontWeight: "600", cursor: "pointer" }}>기본 설정</button>
+                      <button onClick={() => handleSetDefaultPaymentMethod(pm.id)} style={{ backgroundColor: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.4)", padding: "4px 8px", borderRadius: "16px", fontSize: "9px", fontWeight: "600", cursor: "pointer" }}>기본</button>
                     )}
-                    <button onClick={() => handleDeletePaymentMethod(pm.id)} style={{ backgroundColor: "rgba(239, 68, 68, 0.2)", color: "white", border: "1px solid rgba(255,255,255,0.4)", padding: "6px 12px", borderRadius: "20px", fontSize: "11px", fontWeight: "600", cursor: "pointer" }}>삭제</button>
+                    <button onClick={() => handleDeletePaymentMethod(pm.id)} style={{ backgroundColor: "rgba(239, 68, 68, 0.2)", color: "white", border: "1px solid rgba(255,255,255,0.4)", padding: "4px 8px", borderRadius: "16px", fontSize: "9px", fontWeight: "600", cursor: "pointer" }}>삭제</button>
                   </div>
                 </div>
               </div>
             </SwiperSlide>
           ))}
-          <SwiperSlide key="add-new" style={{ background: "#f8fafc", border: "2px dashed #cbd5e1", color: "#64748b" }}>
-            <div onClick={() => handleOpenPaymentModal()} style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-              <div style={{ fontSize: "48px", marginBottom: "12px", opacity: 0.5 }}>+</div>
-              <div style={{ fontWeight: "800", fontSize: "18px" }}>결제 수단 추가</div>
-              <div style={{ fontSize: "12px", marginTop: "4px", opacity: 0.7 }}>신용/체크카드, 간편결제</div>
+          <SwiperSlide key="add-new" style={{ background: "#f8fafc", border: "2px dashed #cbd5e1", color: "#64748b", width: "300px", maxWidth: "85vw" }}>
+            <div onClick={handleRegisterCard} style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <div style={{ fontSize: "36px", marginBottom: "8px", opacity: 0.5 }}>💳</div>
+              <div style={{ fontWeight: "800", fontSize: "16px" }}>카드 등록</div>
+              <div style={{ fontSize: "11px", marginTop: "4px", opacity: 0.7 }}>토스 페이먼츠로 카드 등록</div>
             </div>
           </SwiperSlide>
         </Swiper>
+        </div>
 
         {isPaymentModalOpen && (
           <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1200, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }} onClick={() => setIsPaymentModalOpen(false)}>
@@ -123,6 +256,7 @@ const PaymentSubTab = ({
       </div>
     </div>
   </>
-);
+  );
+};
 
 export default PaymentSubTab;

@@ -94,9 +94,14 @@ const AddressModal = ({ isOpen, onClose, addresses, onSelect, currentAddressId }
 
 const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp, paymentMethods: paymentMethodsProp }) => {
   const addresses = addressesProp && addressesProp.length > 0 ? addressesProp : defaultAddresses;
-  const paymentMethods = paymentMethodsProp && paymentMethodsProp.length > 0 ? paymentMethodsProp : defaultPaymentMethods;
+  const paymentMethods = paymentMethodsProp && paymentMethodsProp.length > 0 ? paymentMethodsProp : [];
   const [selectedAddress, setSelectedAddress] = useState(addresses.find(a => a.isDefault) || addresses[0]);
-  const [selectedPayment, setSelectedPayment] = useState(paymentMethods.find(p => p.isDefault) || paymentMethods[0]);
+  const [selectedPayment, setSelectedPayment] = useState({
+    id: 'toss-pg',
+    name: '토스 PG 결제',
+    type: 'toss',
+    color: '#3b82f6'
+  });
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [deliveryRequest, setDeliveryRequest] = useState('');
   const [customRequest, setCustomRequest] = useState(false);
@@ -119,9 +124,19 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
   }, [addresses]);
 
   useEffect(() => {
-    const defaultPay = paymentMethods.find((p) => p.isDefault) || paymentMethods[0];
-    if (defaultPay && defaultPay.id !== selectedPayment?.id) {
-      setSelectedPayment(defaultPay);
+    // 토스 PG 결제를 기본 선택으로 설정
+    if (paymentMethods.length === 0) {
+      setSelectedPayment({
+        id: 'toss-pg',
+        name: '토스 PG 결제',
+        type: 'toss',
+        color: '#3b82f6'
+      });
+    } else {
+      const defaultPay = paymentMethods.find((p) => p.isDefault) || paymentMethods[0];
+      if (defaultPay && defaultPay.id !== selectedPayment?.id) {
+        setSelectedPayment(defaultPay);
+      }
     }
   }, [paymentMethods]);
 
@@ -267,8 +282,8 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
       return;
     }
     
-    // 토스 페이먼츠를 선택하지 않은 경우 기존 로직 사용
-    const isTossPayment = selectedPayment?.type === 'toss' || selectedPayment?.name === 'Toss 스타일 간편결제';
+    // 토스 PG 결제를 선택하지 않은 경우 기존 로직 사용
+    const isTossPayment = selectedPayment?.type === 'toss' || selectedPayment?.name === '토스 PG 결제';
     
     if (!isTossPayment) {
       setIsProcessing(true);
@@ -300,7 +315,7 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
       return;
     }
 
-    // 토스 페이먼츠 결제 플로우
+    // 토스 PG 결제 플로우 (카드 등록 없이 바로 결제)
     setIsProcessing(true);
     try {
       const deliveryRequestText = deliveryRequest === '직접 입력' ? requestInput : (deliveryRequest || '');
@@ -329,11 +344,9 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
       // paymentId를 세션 스토리지에 저장 (confirm 단계에서 사용)
       sessionStorage.setItem('pendingPaymentId', prepareResponse.paymentId.toString());
       sessionStorage.setItem('pendingOrderId', prepareResponse.orderId?.toString() || '');
-      // checkout 탭 유지를 위해 플래그 저장
       sessionStorage.setItem('pendingCheckout', 'true');
 
-      // 2. 토스 페이먼츠 결제 창 띄우기
-      // 동적으로 토스 페이먼츠 스크립트 로드
+      // 2. 토스 페이먼츠 결제 창 띄우기 (카드 등록 없이 바로 결제)
       const loadTossPayments = () => {
         return new Promise((resolve, reject) => {
           if (window.TossPayments) {
@@ -349,19 +362,13 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
       };
 
       const TossPayments = await loadTossPayments();
-      
-      // 클라이언트 키는 환경 변수나 설정에서 가져와야 합니다
-      // 테스트용 키: test_ck_... (실제로는 백엔드에서 받아오거나 환경 변수로 관리)
       const clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY || 'test_ck_DpexMgkW36wVbqk5QqYrGbR5oz0C';
-      
       const widget = TossPayments(clientKey);
-      
-      // 현재 전체 URL을 기반으로 success/fail URL 생성 (쿼리 파라미터 포함)
-      const currentUrl = window.location.href.split('?')[0]; // 기존 쿼리 파라미터 제거
+
+      const currentUrl = window.location.href.split('?')[0];
       const successUrl = `${currentUrl}?payment=success`;
       const failUrl = `${currentUrl}?payment=fail`;
-      
-      // 결제 위젯 열기
+
       await widget.requestPayment('카드', {
         amount: prepareResponse.amount,
         orderId: prepareResponse.pgOrderId,
@@ -371,19 +378,14 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
         failUrl: failUrl,
       });
 
-      // 결제 위젯은 successUrl로 리다이렉트되므로, 여기서는 완료되지 않음
-      // successUrl에서 paymentKey를 받아서 confirm을 호출해야 함
-      
     } catch (err) {
-      console.error('결제 처리 오류:', err);
+      console.error('토스 PG 결제 처리 오류:', err);
       const message = err.response?.data?.message || err.message || '결제 처리에 실패했습니다.';
       alert(message);
       setIsProcessing(false);
       sessionStorage.removeItem('pendingPaymentId');
       sessionStorage.removeItem('pendingOrderId');
       sessionStorage.removeItem('pendingCheckout');
-      // 에러 발생 시에도 checkout 탭에 머물도록 함 (onComplete 호출 안 함)
-      // onComplete(false); // 주석 처리하여 메인으로 이동하지 않도록 함
     }
   };
 
@@ -531,15 +533,23 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
                 pagination={true}
                 modules={[EffectCube, Pagination]}
                 onSlideChange={(swiper) => {
-                  if (swiper.activeIndex < paymentMethods.length) {
+                  // paymentMethods가 비어있으면 토스 PG 결제만 있음
+                  if (paymentMethods.length === 0) {
+                    setSelectedPayment({
+                      id: 'toss-pg',
+                      name: '토스 PG 결제',
+                      type: 'toss',
+                      color: '#3b82f6'
+                    });
+                  } else if (swiper.activeIndex < paymentMethods.length) {
                     setSelectedPayment(paymentMethods[swiper.activeIndex]);
                   } else if (swiper.activeIndex === paymentMethods.length) {
-                    // 마지막 슬라이드: 토스 스타일 간편결제
+                    // 마지막 슬라이드: 토스 PG 결제
                     setSelectedPayment({
-                      id: 'toss',
-                      name: 'Toss 스타일 간편결제',
+                      id: 'toss-pg',
+                      name: '토스 PG 결제',
                       type: 'toss',
-                      color: '#f8fafc'
+                      color: '#3b82f6'
                     });
                   }
                 }}
@@ -605,33 +615,67 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
                     </div>
                   </SwiperSlide>
                 ))}
-                <SwiperSlide key="add-new">
-                  <div 
-                    onClick={() => alert('토스페이먼츠 연동 창이 활성화됩니다.\n카드 번호를 입력하거나 앱에서 결제를 승인해주세요.')}
-                    style={{ 
-                      width: '100%',
-                      height: '180px',
-                      borderRadius: '16px',
-                      background: '#f8fafc',
-                      border: '2px dashed #cbd5e1',
-                      color: '#64748b',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      boxSizing: 'border-box'
-                    }}>
-                    <div style={{ fontSize: '32px', marginBottom: '8px', opacity: 0.5 }}>📱</div>
-                    <div style={{ fontWeight: '800', fontSize: '16px' }}>Toss 스타일 간편결제</div>
-                    <div style={{ fontSize: '12px', marginTop: '4px', opacity: 0.6 }}>토스페이 / 카드 빠른 등록</div>
+                <SwiperSlide key="toss-pg">
+                  <div style={{ 
+                    width: '100%',
+                    height: '180px',
+                    borderRadius: '16px',
+                    background: 'linear-gradient(135deg, #6366f1, #6366f1cc)',
+                    padding: '24px',
+                    color: 'white',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    boxShadow: '0 10px 20px rgba(0,0,0,0.1)',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}>
+                    {/* Card Chip Decoration */}
+                    <div style={{ 
+                      width: '40px', 
+                      height: '30px', 
+                      background: 'rgba(255,255,255,0.2)', 
+                      borderRadius: '6px',
+                      border: '1px solid rgba(255,255,255,0.3)'
+                    }} />
+                    
+                    <div>
+                      <div style={{ fontSize: '14px', opacity: 0.8, marginBottom: '4px' }}>Credit Card</div>
+                      <div style={{ fontSize: '20px', fontWeight: '800', letterSpacing: '1px' }}>토스 PG 결제</div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                      <div style={{ fontSize: '16px', fontWeight: '500', fontFamily: 'monospace' }}>
+                        PAYMENT MODE
+                      </div>
+                      <div style={{ 
+                        fontSize: '12px', 
+                        fontWeight: '900', 
+                        padding: '4px 8px', 
+                        background: 'rgba(255,255,255,0.2)', 
+                        borderRadius: '4px' 
+                      }}>
+                        VISA / MASTER
+                      </div>
+                    </div>
+
+                    {/* Sparkle background decoration */}
+                    <div style={{
+                      position: 'absolute',
+                      top: '-20px',
+                      right: '-20px',
+                      width: '100px',
+                      height: '100px',
+                      background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)',
+                      borderRadius: '50%'
+                    }} />
                   </div>
                 </SwiperSlide>
               </Swiper>
             </div>
 
             <div style={{ textAlign: 'center', marginTop: '12px' }}>
-              <div style={{ fontSize: '15px', fontWeight: '700' }}>선택된 결제수단: {selectedPayment.name}</div>
+              <div style={{ fontSize: '15px', fontWeight: '700' }}>선택된 결제수단: {selectedPayment?.name || '토스 PG 결제'}</div>
               <div style={{ fontSize: '13px', color: '#64748b', marginTop: '4px' }}>카드를 좌우로 밀어서 선택해주세요</div>
             </div>
           </section>
