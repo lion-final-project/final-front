@@ -318,6 +318,7 @@ const NotificationDropdown = ({ buttonRef, notifications, onMarkAsRead, onClearA
           top: `${position.top}px`,
           right: `${position.right}px`,
           width: '360px',
+          maxWidth: 'min(400px, 90vw)',
           maxHeight: '520px',
           backgroundColor: 'white',
           borderRadius: '12px',
@@ -465,7 +466,9 @@ const NotificationDropdown = ({ buttonRef, notifications, onMarkAsRead, onClearA
                   color: '#64748b', 
                   lineHeight: '1.5', 
                   paddingLeft: notif.read ? '0' : '20px',
-                  fontWeight: '400'
+                  fontWeight: '400',
+                  wordBreak: 'break-word',
+                  overflowWrap: 'break-word'
                 }}>
                   {notif.body}
                 </p>
