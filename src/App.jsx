@@ -306,12 +306,12 @@ function App() {
     if (kakao === 'success') {
       checkAuth()
         .then(async (user) => {
-           if (user) {
-             handleLoginSuccess(user);
-             await fetchStoreRegistration();
-           }
+          if (user) {
+            handleLoginSuccess(user);
+            await fetchStoreRegistration();
+          }
         })
-        .catch(() => {})
+        .catch(() => { })
         .finally(() => {
           window.history.replaceState({}, '', window.location.pathname || '/');
         });
