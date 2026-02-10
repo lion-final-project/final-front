@@ -48,6 +48,18 @@ export const subscribeNotifications = (onMessage, onError) => {
     }
   });
 
+  eventSource.addEventListener('store-order-created', (event) => {
+    try {
+      const data = event.data;
+      const storeOrderId = typeof data === 'string' ? parseInt(data, 10) : data;
+      if (onMessage && !isNaN(storeOrderId)) {
+        onMessage('STORE_ORDER_CREATED', storeOrderId);
+      }
+    } catch (e) {
+      console.error('[SSE] store-order-created 처리 오류:', e, '원본 데이터:', event.data);
+    }
+  });
+
   eventSource.onerror = (error) => {
     console.error('[SSE] 연결 오류:', error);
     console.error('[SSE] EventSource 상태:', eventSource.readyState);
