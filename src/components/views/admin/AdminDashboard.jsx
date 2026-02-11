@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getNotices, createNotice, updateNotice, deleteNotice } from '../../../api/noticeApi';
+import { getBanners, createBanner, updateBanner, deleteBanner, updateBannerOrder } from '../../../api/bannerApi';
 import { getFaqsForAdmin, createFaq, updateFaq, deleteFaq } from '../../../api/faqApi';
 import { getAdminInquiries, getAdminInquiryDetail, answerInquiry } from '../../../api/inquiryApi';
 import { formatDate, formatDateLocale, mapStoreApprovalItem, mapRiderApprovalItem, extractDocument } from './utils/adminDashboardUtils';
@@ -263,13 +264,23 @@ const AdminDashboard = () => {
     fetchFaqs();
   }, [fetchFaqs]);
 
+  const fetchBanners = useCallback(async () => {
+    try {
+      const list = await getBanners();
+      setBannerList(list ?? []);
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchBanners();
+  }, [fetchBanners]);
+
   const [isNoticeModalOpen, setIsNoticeModalOpen] = useState(false);
   const [currentNotice, setCurrentNotice] = useState(null);
 
-  const [bannerList, setBannerList] = useState([
-    { id: 1, title: '겨울철 비타민 충전!', content: '신선한 과일로 면역력을 높이세요', img: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=400&q=80', promotion: '제철 과일 기획전', color: 'linear-gradient(45deg, #ff9a9e, #fad0c4)', status: '노출 중' },
-    { id: 2, title: '따끈따끈 밀키트', content: '집에서 즐기는 맛집 요리', img: 'https://images.unsplash.com/photo-1547592166-23ac45744acd?w=400&q=80', promotion: '한겨울 밀키트 대전', color: 'linear-gradient(120deg, #a1c4fd, #c2e9fb)', status: '노출 중' }
-  ]);
+  const [bannerList, setBannerList] = useState([]);
   const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
   const [currentBanner, setCurrentBanner] = useState(null);
 
@@ -409,6 +420,13 @@ const AdminDashboard = () => {
       const payload = await response.json();
       const detail = payload?.data;
       if (!detail) return;
+      const approvalDetail = await fetchStoreApprovalDetailByStoreId(detail.storeId);
+      const approvalDocuments = approvalDetail?.documents || [];
+      const storeDocuments = {
+        businessRegistrationFile: extractDocument(approvalDocuments, 'BUSINESS_LICENSE'),
+        mailOrderFile: extractDocument(approvalDocuments, 'BUSINESS_REPORT'),
+        bankbookFile: extractDocument(approvalDocuments, 'BANK_PASSBOOK')
+      };
       const loc = [detail.addressLine1, detail.addressLine2].filter(Boolean).join(' ');
       setSelectedRecord({
         id: detail.storeId,
@@ -424,6 +442,7 @@ const AdminDashboard = () => {
           holder: detail.settlementAccountHolder
         },
         intro: detail.description,
+        documents: storeDocuments,
         status: detail.isActive ? '운영중' : '운영중지',
         isActive: detail.isActive
       });
@@ -510,6 +529,12 @@ const AdminDashboard = () => {
       const payload = await response.json();
       const detail = payload?.data;
       if (!detail) return;
+      const approvalDetail = await fetchRiderApprovalDetailByRiderId(detail.riderId);
+      const approvalDocuments = approvalDetail?.documents || [];
+      const riderDocuments = {
+        idCardFile: extractDocument(approvalDocuments, 'ID_CARD'),
+        bankbookFile: extractDocument(approvalDocuments, 'BANK_PASSBOOK')
+      };
       setSelectedRecord({
         id: detail.riderId,
         riderId: detail.riderId,
@@ -518,6 +543,7 @@ const AdminDashboard = () => {
         bankName: detail.bankName,
         accountNumber: detail.bankAccount,
         accountHolder: detail.accountHolder,
+        documents: riderDocuments,
         status: detail.isActive ? '운행중' : '운행불가',
         isActive: detail.isActive
       });
@@ -537,6 +563,42 @@ const AdminDashboard = () => {
     return payload.data;
   };
 
+  const fetchStoreApprovalDetailByStoreId = async (storeId) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/admin/stores/approvals?status=APPROVED&status=PENDING&status=HELD&status=REJECTED`,
+        { headers: { ...authHeader() }, credentials: 'include' }
+      );
+      if (!response.ok) return null;
+      const payload = await response.json();
+      const list = Array.isArray(payload?.data) ? payload.data : [];
+      const match = list.find(item => item.storeId === storeId);
+      if (!match) return null;
+      return await fetchApprovalDetail('STORE', match.approvalId);
+    } catch (error) {
+      console.error('Failed to load store approval detail:', error);
+      return null;
+    }
+  };
+
+  const fetchRiderApprovalDetailByRiderId = async (riderId) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/admin/riders/approvals?status=APPROVED&status=PENDING&status=HELD&status=REJECTED`,
+        { headers: { ...authHeader() }, credentials: 'include' }
+      );
+      if (!response.ok) return null;
+      const payload = await response.json();
+      const list = Array.isArray(payload?.data) ? payload.data : [];
+      const match = list.find(item => item.riderId === riderId);
+      if (!match) return null;
+      return await fetchApprovalDetail('RIDER', match.approvalId);
+    } catch (error) {
+      console.error('Failed to load rider approval detail:', error);
+      return null;
+    }
+  };
+
   const handleOpenApproval = async (item, focusSection = null) => {
     try {
       const detail = await fetchApprovalDetail(item.category, item.id);
@@ -544,13 +606,19 @@ const AdminDashboard = () => {
       const formData = item.category === 'STORE'
           ? {
             storeName: detail.store?.storeName,
+            category: detail.store?.categoryName,
+            companyName: detail.store?.businessOwnerName,
             businessNumber: detail.store?.businessNumber,
+            mailOrderNumber: detail.store?.telecomSalesReportNumber,
             repName: detail.store?.representativeName,
             contact: detail.store?.representativePhone,
             martContact: detail.store?.representativePhone,
             martIntro: detail.store?.addressLine1,
             addressLine2: detail.store?.addressLine2,
             postalCode: detail.store?.postalCode,
+            bankName: detail.store?.settlementBankName,
+            accountNumber: detail.store?.settlementBankAccount,
+            accountHolder: detail.store?.settlementAccountHolder,
             reason: detail.reason,
             businessRegistrationFile: extractDocument(documents, 'BUSINESS_LICENSE'),
             mailOrderFile: extractDocument(documents, 'BUSINESS_REPORT'),
@@ -576,6 +644,12 @@ const AdminDashboard = () => {
   useEffect(() => {
     fetchApprovals();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'approvals') {
+      fetchApprovals();
+    }
+  }, [activeTab]);
 
   const handleApprovalAction = async (approval, action, reason = '') => {
     console.log('[approval] action', { id: approval.id, action, reason });
@@ -649,17 +723,17 @@ const AdminDashboard = () => {
         await fetchStores(currentPage, storeSearchTerm);
       } catch (error) {
         console.error('Failed to update store status:', error);
-        alert('?? ?? ??? ??????.');
+        alert('마트 상태 변경에 실패했습니다.');
       } finally {
         setSelectedRecord(null);
       }
       return;
     } else if (record.type === 'USER') {
-      setUsers(prev => prev.map(u => 
-        u.id === record.id ? { ...u, status: u.status === '??' ? '??' : '??' } : u
+      setUsers(prev => prev.map(u =>
+        u.id === record.id ? { ...u, status: u.status === '활성' ? '정지' : '활성' } : u
       ));
       if (reason) {
-        alert(`[${record.name}] ???? ?? ??? ???????. "${reason}"`);
+        alert(`[${record.name}] 사용자 상태가 변경되었습니다. "${reason}"`);
       }
       setSelectedRecord(null);
       return;
@@ -679,7 +753,7 @@ const AdminDashboard = () => {
       await fetchRiders(currentPage, riderSearchTerm);
     } catch (error) {
       console.error('Failed to update rider status:', error);
-      alert('??? ?? ??? ??????.');
+      alert('배달원 상태 변경에 실패했습니다.');
     } finally {
       setSelectedRecord(null);
     }
@@ -827,9 +901,18 @@ const AdminDashboard = () => {
           <CmsTab
             bannerList={bannerList}
             setBannerList={setBannerList}
+            onBannerReorder={async (newList) => {
+              setBannerList(newList);
+              try {
+                await updateBannerOrder(newList);
+              } catch (e) {
+                console.error(e);
+                alert('배너 순서 저장에 실패했습니다.');
+              }
+            }}
             onBannerAdd={() => { setCurrentBanner({ title: '', content: '', img: '', promotion: '', status: '노출 중', color: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }); setIsBannerModalOpen(true); }}
             onBannerEdit={(b) => { setCurrentBanner(b); setIsBannerModalOpen(true); }}
-            onBannerDelete={(b) => { if (window.confirm('배너를 삭제하시겠습니까?')) setBannerList(bannerList.filter(x => x.id !== b.id)); }}
+            onBannerDelete={async (b) => { if (!window.confirm('배너를 삭제하시겠습니까?')) return; try { await deleteBanner(b.id); fetchBanners(); } catch (e) { alert('삭제에 실패했습니다.'); } }}
             promotions={promotions}
             setSelectedPromotion={setSelectedPromotion}
             onPromotionAdd={() => alert('신규 기획전 등록 화면으로 이동')}
@@ -1125,19 +1208,24 @@ const AdminDashboard = () => {
           <BannerModal
             banner={currentBanner}
             setBanner={setCurrentBanner}
-            onSave={() => {
-              if (!currentBanner.title || !currentBanner.img) {
-                alert('제목과 이미지는 필수 항목입니다.');
+            onSave={async () => {
+              if (!currentBanner.title) {
+                alert('제목은 필수 항목입니다.');
                 return;
               }
-              if (currentBanner.id) {
-                setBannerList(bannerList.map(b => b.id === currentBanner.id ? currentBanner : b));
-                alert('수정되었습니다.');
-              } else {
-                setBannerList([{ ...currentBanner, id: Date.now() }, ...bannerList]);
-                alert('등록되었습니다.');
+              try {
+                if (currentBanner.id) {
+                  await updateBanner(currentBanner.id, currentBanner);
+                  alert('수정되었습니다.');
+                } else {
+                  await createBanner(currentBanner);
+                  alert('등록되었습니다.');
+                }
+                fetchBanners();
+                setIsBannerModalOpen(false);
+              } catch (e) {
+                alert(e.message || '저장에 실패했습니다.');
               }
-              setIsBannerModalOpen(false);
             }}
             onClose={() => setIsBannerModalOpen(false)}
           />

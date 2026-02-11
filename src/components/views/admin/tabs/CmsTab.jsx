@@ -1,13 +1,40 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Pagination from '../../../ui/Pagination';
 
 const CmsTab = ({
-  bannerList, setBannerList, onBannerAdd, onBannerEdit, onBannerDelete,
+  bannerList, setBannerList, onBannerAdd, onBannerEdit, onBannerDelete, onBannerReorder,
   promotions, setSelectedPromotion, onPromotionAdd,
   noticeList, onNoticeAdd, onNoticeEdit, onNoticeDelete, fetchNotices,
   faqs, onFaqAdd, onFaqEdit, onFaqDelete,
   currentPage, itemsPerPage, setCurrentPage,
-}) => (
+}) => {
+  const [draggingIndex, setDraggingIndex] = useState(null);
+
+  const handleDragStart = (index) => {
+    setDraggingIndex(index);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (index) => {
+    if (draggingIndex === null || draggingIndex === index) return;
+    const updated = [...bannerList];
+    const [moved] = updated.splice(draggingIndex, 1);
+    updated.splice(index, 0, moved);
+    setDraggingIndex(null);
+    setBannerList(updated);
+    if (onBannerReorder) {
+      onBannerReorder(updated);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggingIndex(null);
+  };
+
+  return (
   <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
     <div style={{ backgroundColor: '#1e293b', padding: '24px', borderRadius: '16px', border: '1px solid #334155' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -15,8 +42,27 @@ const CmsTab = ({
         <button onClick={onBannerAdd} style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: '#38bdf8', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer' }}>+ 새 배너 추가</button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
-        {bannerList.map((banner) => (
-          <div key={banner.id} style={{ borderRadius: '16px', padding: '20px', background: banner.color, position: 'relative', height: '140px', display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+        {bannerList.map((banner, index) => (
+          <div
+            key={banner.id}
+            draggable
+            onDragStart={() => handleDragStart(index)}
+            onDragOver={handleDragOver}
+            onDrop={() => handleDrop(index)}
+            onDragEnd={handleDragEnd}
+            style={{
+              borderRadius: '16px',
+              padding: '20px',
+              background: banner.color,
+              position: 'relative',
+              height: '140px',
+              display: 'flex',
+              alignItems: 'center',
+              overflow: 'hidden',
+              cursor: 'move',
+              outline: draggingIndex === index ? '2px dashed rgba(148,163,184,0.8)' : 'none',
+            }}
+          >
             <div style={{ flex: 1, zIndex: 1 }}>
               <div style={{ fontSize: '18px', fontWeight: '800', color: 'white' }}>{banner.title}</div>
               <div style={{ fontSize: '13px', marginTop: '4px', color: 'white', opacity: 0.9 }}>{banner.content}</div>
@@ -106,6 +152,7 @@ const CmsTab = ({
       </div>
     </div>
   </div>
-);
+  );
+};
 
 export default CmsTab;

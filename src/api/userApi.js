@@ -82,3 +82,23 @@ export const getNearbyStores = async ({
  * @property {number} latitude - 위도
  * @property {number} longitude - 경도
  */
+
+/**
+ * 회원 탈퇴 가능 여부 조회 (GET /api/users/me/withdrawal/eligibility)
+ * @returns {Promise<{canWithdraw: boolean, blockedReasons: Array<{code: string, message: string}>}>}
+ */
+export const getWithdrawalEligibility = async () => {
+  const response = await api.get('/api/users/me/withdrawal/eligibility');
+  const data = response.data?.data ?? response.data;
+  return data;
+};
+
+/**
+ * 회원 탈퇴 확정 (DELETE /api/users/me). 제한 사유 있으면 409.
+ * @returns {Promise<{message: string, loggedOut: boolean, nextAction: string}>}
+ */
+export const deleteWithdrawal = async () => {
+  const response = await api.delete('/api/users/me');
+  const data = response.data?.data ?? response.data;
+  return data;
+};
