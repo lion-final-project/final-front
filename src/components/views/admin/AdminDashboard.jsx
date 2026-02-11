@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getNotices, createNotice, updateNotice, deleteNotice } from '../../../api/noticeApi';
+import { getBanners, createBanner, updateBanner, deleteBanner, updateBannerOrder } from '../../../api/bannerApi';
 import { getFaqsForAdmin, createFaq, updateFaq, deleteFaq } from '../../../api/faqApi';
 import { getAdminInquiries, getAdminInquiryDetail, answerInquiry } from '../../../api/inquiryApi';
 import { formatDate, formatDateLocale, mapStoreApprovalItem, mapRiderApprovalItem, extractDocument } from './utils/adminDashboardUtils';
@@ -263,13 +264,23 @@ const AdminDashboard = () => {
     fetchFaqs();
   }, [fetchFaqs]);
 
+  const fetchBanners = useCallback(async () => {
+    try {
+      const list = await getBanners();
+      setBannerList(list ?? []);
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchBanners();
+  }, [fetchBanners]);
+
   const [isNoticeModalOpen, setIsNoticeModalOpen] = useState(false);
   const [currentNotice, setCurrentNotice] = useState(null);
 
-  const [bannerList, setBannerList] = useState([
-    { id: 1, title: '겨울철 비타민 충전!', content: '신선한 과일로 면역력을 높이세요', img: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=400&q=80', promotion: '제철 과일 기획전', color: 'linear-gradient(45deg, #ff9a9e, #fad0c4)', status: '노출 중' },
-    { id: 2, title: '따끈따끈 밀키트', content: '집에서 즐기는 맛집 요리', img: 'https://images.unsplash.com/photo-1547592166-23ac45744acd?w=400&q=80', promotion: '한겨울 밀키트 대전', color: 'linear-gradient(120deg, #a1c4fd, #c2e9fb)', status: '노출 중' }
-  ]);
+  const [bannerList, setBannerList] = useState([]);
   const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
   const [currentBanner, setCurrentBanner] = useState(null);
 
@@ -827,9 +838,18 @@ const AdminDashboard = () => {
           <CmsTab
             bannerList={bannerList}
             setBannerList={setBannerList}
+            onBannerReorder={async (newList) => {
+              setBannerList(newList);
+              try {
+                await updateBannerOrder(newList);
+              } catch (e) {
+                console.error(e);
+                alert('배너 순서 저장에 실패했습니다.');
+              }
+            }}
             onBannerAdd={() => { setCurrentBanner({ title: '', content: '', img: '', promotion: '', status: '노출 중', color: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }); setIsBannerModalOpen(true); }}
             onBannerEdit={(b) => { setCurrentBanner(b); setIsBannerModalOpen(true); }}
-            onBannerDelete={(b) => { if (window.confirm('배너를 삭제하시겠습니까?')) setBannerList(bannerList.filter(x => x.id !== b.id)); }}
+            onBannerDelete={async (b) => { if (!window.confirm('배너를 삭제하시겠습니까?')) return; try { await deleteBanner(b.id); fetchBanners(); } catch (e) { alert('삭제에 실패했습니다.'); } }}
             promotions={promotions}
             setSelectedPromotion={setSelectedPromotion}
             onPromotionAdd={() => alert('신규 기획전 등록 화면으로 이동')}
@@ -1125,19 +1145,24 @@ const AdminDashboard = () => {
           <BannerModal
             banner={currentBanner}
             setBanner={setCurrentBanner}
-            onSave={() => {
-              if (!currentBanner.title || !currentBanner.img) {
-                alert('제목과 이미지는 필수 항목입니다.');
+            onSave={async () => {
+              if (!currentBanner.title) {
+                alert('제목은 필수 항목입니다.');
                 return;
               }
-              if (currentBanner.id) {
-                setBannerList(bannerList.map(b => b.id === currentBanner.id ? currentBanner : b));
-                alert('수정되었습니다.');
-              } else {
-                setBannerList([{ ...currentBanner, id: Date.now() }, ...bannerList]);
-                alert('등록되었습니다.');
+              try {
+                if (currentBanner.id) {
+                  await updateBanner(currentBanner.id, currentBanner);
+                  alert('수정되었습니다.');
+                } else {
+                  await createBanner(currentBanner);
+                  alert('등록되었습니다.');
+                }
+                fetchBanners();
+                setIsBannerModalOpen(false);
+              } catch (e) {
+                alert(e.message || '저장에 실패했습니다.');
               }
-              setIsBannerModalOpen(false);
             }}
             onClose={() => setIsBannerModalOpen(false)}
           />
