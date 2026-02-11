@@ -72,6 +72,8 @@ const CustomerView = ({
   const [myStoreId, setMyStoreId] = useState(null);
   const [selectedStore, setSelectedStore] = useState(null); // Local state for full page view
   const [cartItems, setCartItems] = useState([]);
+  /** 장바구니에서 "결제하기" 시 선택한 매장·상품만 결제창으로 전달. null이면 전체 장바구니 사용 */
+  const [checkoutCartItems, setCheckoutCartItems] = useState(null);
   const [toast, setToast] = useState(null);
   const [currentLocation, setCurrentLocation] = useState("서울특별시 중구 세종대로 110");
   const [coords, setCoords] = useState({ lat: 37.5665, lon: 126.9780 }); // Default: Seoul City Hall
@@ -839,15 +841,20 @@ const CustomerView = ({
       case "checkout":
         return (
           <CheckoutView
-            cartItems={cartItems}
+            cartItems={checkoutCartItems != null && checkoutCartItems.length > 0 ? checkoutCartItems : cartItems}
             addresses={addressList}
             paymentMethods={paymentMethodList}
-            onBack={() => setActiveTab("home")}
+            onBack={() => {
+              setCheckoutCartItems(null);
+              setActiveTab("home");
+            }}
             onComplete={(success, orderId) => {
               if (success) {
+                setCheckoutCartItems(null);
                 setIsSuccessModalOpen(true);
                 clearCart();
               } else {
+                setCheckoutCartItems(null);
                 setActiveTab("home");
                 showToast("결제에 실패하였습니다. 장바구니 상품이 유지됩니다.");
               }
@@ -1380,7 +1387,8 @@ const CustomerView = ({
         cartItems={cartItems}
         onUpdateQuantity={onUpdateQuantity}
         onRemoveFromCart={onRemoveFromCart}
-        onCheckout={() => {
+        onCheckout={(selectedItems) => {
+          setCheckoutCartItems(selectedItems && selectedItems.length > 0 ? selectedItems : null);
           setIsCartOpen(false);
           setActiveTab("checkout");
         }}
