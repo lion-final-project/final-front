@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Header from '../../common/Header';
 import Hero from '../../common/Hero';
 import StoreGrid from '../../common/StoreGrid';
@@ -74,6 +74,7 @@ const CustomerView = ({
   const [currentLocation, setCurrentLocation] = useState("서울특별시 중구 세종대로 110");
   const [coords, setCoords] = useState({ lat: 37.5665, lon: 126.9780 }); // Default: Seoul City Hall
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [isSubscriptionOrder, setIsSubscriptionOrder] = useState(false);
   const [orderList, setOrderList] = useState(orders);
   const [subscriptionList, setSubscriptionList] = useState([]);
   const [subscriptionListLoading, setSubscriptionListLoading] = useState(false);
@@ -94,27 +95,59 @@ const CustomerView = ({
     const paymentKey = urlParams.get('paymentKey');
     const paymentStatus = urlParams.get('payment');
     const billingStatus = urlParams.get('billing');
-    const pendingCheckout = sessionStorage.getItem('pendingCheckout');
     const pendingBilling = sessionStorage.getItem('pendingBilling');
+    const pendingSubscriptionCheckout = sessionStorage.getItem('pendingSubscriptionCheckout');
     
-    // 카드 등록 관련 URL 파라미터나 플래그가 있으면 mypage 탭으로 이동하고 결제수단 서브탭으로 이동
-    if (billingStatus || pendingBilling === 'true') {
-      setActiveTab('mypage');
+    // 마이페이지에서 카드 등록한 경우 (구독 결제창이 아닌 경우) mypage에 머물기 - 가장 우선순위
+    if ((billingStatus || pendingBilling === 'true') && !pendingSubscriptionCheckout) {
+      // 이미 mypage에 있으면 그대로 유지, 아니면 mypage로 이동
+      if (activeTab !== 'mypage') {
+        setActiveTab('mypage');
+      }
       setMyPageTab('payment');
       // URL 파라미터는 PaymentSubTab에서 처리하므로 여기서는 제거하지 않음
       // pendingBilling 플래그는 PaymentSubTab에서 처리 완료 후 제거되므로 여기서는 유지
+      return;
     }
-    // 결제 관련 URL 파라미터가 있거나 pendingCheckout 플래그가 있으면 checkout 탭으로 이동
-    else if (paymentKey || paymentStatus || pendingCheckout === 'true') {
+    
+    // 구독 결제창에서 카드 등록한 경우 결제창에 머물기
+    if (pendingSubscriptionCheckout && (billingStatus || pendingBilling === 'true')) {
+      setActiveTab('checkout');
+      // URL 파라미터는 CheckoutView에서 처리하도록 함
+      return;
+    }
+    
+    // 결제 관련 URL 파라미터가 있으면 checkout 탭으로 이동
+    // pendingCheckout 플래그만으로는 이동하지 않음 (새로고침 시 모든 페이지에서 결제창으로 이동하는 문제 방지)
+    if (paymentKey || paymentStatus) {
       setActiveTab('checkout');
       // URL 파라미터는 CheckoutView에서 처리하므로 여기서는 제거하지 않음
+      return;
     }
   }, []);
 
-  // activeTab이 변경되지 않도록 보호 (카드 등록 중에는 mypage 유지)
+  // activeTab이 변경되지 않도록 보호 (마이페이지에서 카드 등록 중에는 mypage 유지)
   useEffect(() => {
     const pendingBilling = sessionStorage.getItem('pendingBilling');
-    if (pendingBilling === 'true' && activeTab !== 'mypage') {
+    const pendingSubscriptionCheckout = sessionStorage.getItem('pendingSubscriptionCheckout');
+    
+    // 마이페이지에서 카드 등록 중이면 mypage에 머물기 (결제창으로 이동하지 않도록)
+    // pendingSubscriptionCheckout이 없거나 제거된 경우 mypage에 머물기
+    if (pendingBilling === 'true' && !pendingSubscriptionCheckout) {
+      if (activeTab === 'mypage') {
+        // 이미 mypage에 있으면 그대로 유지
+        setMyPageTab('payment');
+        return;
+      } else {
+        // 다른 탭에 있으면 mypage로 이동 (checkout으로 이동하지 않도록 강제)
+        setActiveTab('mypage');
+        setMyPageTab('payment');
+        return;
+      }
+    }
+    
+    // 마이페이지에서 카드 등록 중인데 checkout으로 이동하려고 하면 막기
+    if (pendingBilling === 'true' && !pendingSubscriptionCheckout && activeTab === 'checkout') {
       setActiveTab('mypage');
       setMyPageTab('payment');
     }
@@ -144,18 +177,23 @@ const CustomerView = ({
       });
   }, [isLoggedIn]);
 
-  useEffect(() => {
-    const fetchCart = async () => {
-      if (!isLoggedIn) {
-        setCartItems([]);
-        return;
-      }
+  const fetchCart = useCallback(async () => {
+    if (!isLoggedIn) {
+      setCartItems([]);
+      return;
+    }
+    try {
       const result = await cartAPI.getCart();
       setCartItems(Array.isArray(result?.items) ? result.items : []);
-    };
+    } catch (error) {
+      console.error("장바구니 조회 실패:", error);
+      setCartItems([]);
+    }
+  }, [isLoggedIn]);
 
+  useEffect(() => {
     fetchCart();
-  }, [isLoggedIn, cartRefreshTrigger]);
+  }, [fetchCart, cartRefreshTrigger]);
 
   const fetchAddresses = useCallback(async () => {
     if (!isLoggedIn) return;
@@ -226,23 +264,62 @@ const CustomerView = ({
   }, []);
 
   // 결제 수단 목록 조회
-  const fetchPaymentMethods = useCallback(async () => {
-    if (!isLoggedIn) return;
-    try {
-      const methods = await getMyPaymentMethods();
-      const list = (methods || []).map((method) => ({
-        id: `card_${method.id}`,
-        name: method.cardCompany || '등록된 카드',
-        type: method.methodType === 'CARD' ? 'card' : method.methodType.toLowerCase(),
-        number: method.cardNumberMasked || '****',
-        color: getCardColor(method.cardCompany),
-        isDefault: method.isDefault || false,
-      }));
-      setPaymentMethodList(list);
-    } catch (err) {
-      console.error('결제 수단 목록 조회 실패:', err);
-      setPaymentMethodList([]);
+  const fetchPaymentMethodsRef = useRef(null);
+  const fetchPaymentMethods = useCallback(async (immediate = false) => {
+    if (!isLoggedIn) return Promise.resolve();
+    
+    // 즉시 호출하는 경우 (카드 등록 후 등) 디바운싱 없이 바로 실행
+    if (immediate) {
+      try {
+        const methods = await getMyPaymentMethods();
+        const list = (methods || []).map((method) => ({
+          id: `card_${method.id}`,
+          name: method.cardCompany || '등록된 카드',
+          type: method.methodType === 'CARD' ? 'card' : method.methodType.toLowerCase(),
+          number: method.cardNumberMasked || '****',
+          color: getCardColor(method.cardCompany),
+          isDefault: method.isDefault || false,
+        }));
+        setPaymentMethodList(list);
+        return Promise.resolve(list);
+      } catch (err) {
+        console.error('결제 수단 목록 조회 실패:', err);
+        setPaymentMethodList([]);
+        return Promise.resolve([]);
+      }
     }
+    
+    // 일반 호출의 경우 디바운싱 적용
+    // 이미 진행 중인 요청이 있으면 취소
+    if (fetchPaymentMethodsRef.current) {
+      clearTimeout(fetchPaymentMethodsRef.current);
+    }
+    
+    // Promise를 반환하도록 수정
+    return new Promise((resolve) => {
+      // 디바운싱: 300ms 내에 여러 번 호출되면 마지막 호출만 실행
+      fetchPaymentMethodsRef.current = setTimeout(async () => {
+        try {
+          const methods = await getMyPaymentMethods();
+          const list = (methods || []).map((method) => ({
+            id: `card_${method.id}`,
+            name: method.cardCompany || '등록된 카드',
+            type: method.methodType === 'CARD' ? 'card' : method.methodType.toLowerCase(),
+            number: method.cardNumberMasked || '****',
+            color: getCardColor(method.cardCompany),
+            isDefault: method.isDefault || false,
+          }));
+          setPaymentMethodList(list);
+          resolve(list);
+        } catch (err) {
+          console.error('결제 수단 목록 조회 실패:', err);
+          setPaymentMethodList([]);
+          resolve([]);
+        } finally {
+          fetchPaymentMethodsRef.current = null;
+        }
+      }, 300);
+    });
   }, [isLoggedIn, getCardColor]);
 
   useEffect(() => {
@@ -912,32 +989,8 @@ const CustomerView = ({
   };
 
   const handleCardRegistered = (newPaymentMethod) => {
-    // 카드 등록 직후 즉시 UI에 반영(optimistic) + 백엔드 조회로 최종 동기화
-    setPaymentMethodList((prev) => {
-      const next = [...prev];
-
-      // 동일 카드가 이미 있으면 중복 추가 방지 (id 기반)
-      if (newPaymentMethod?.id && next.some((pm) => pm.id === newPaymentMethod.id)) {
-        return next;
-      }
-
-      // 첫 카드면 기본 카드로 표시
-      const shouldBeDefault = next.length === 0 || newPaymentMethod?.isDefault;
-      if (shouldBeDefault) {
-        for (let i = 0; i < next.length; i++) {
-          next[i] = { ...next[i], isDefault: false };
-        }
-      }
-
-      next.push({
-        ...newPaymentMethod,
-        isDefault: shouldBeDefault,
-      });
-      return next;
-    });
-
+    // 카드 등록 완료 후 서버에서 최신 목록을 가져옴 (로컬 상태 추가 없이)
     fetchPaymentMethods();
-    showToast("카드가 등록되었습니다.");
   };
 
   const renderActiveView = () => {
@@ -975,14 +1028,20 @@ const CustomerView = ({
             addresses={addressList}
             paymentMethods={paymentMethodList}
             onBack={() => setActiveTab("home")}
-            onComplete={(success, orderId) => {
+            onComplete={(success, orderId, isSubscription) => {
               if (success) {
+                setIsSubscriptionOrder(isSubscription || false);
                 setIsSuccessModalOpen(true);
                 clearCart();
               } else {
                 setActiveTab("home");
                 showToast("결제에 실패하였습니다. 장바구니 상품이 유지됩니다.");
               }
+            }}
+            onRefreshPaymentMethods={fetchPaymentMethods}
+            onNavigateToPaymentManagement={() => {
+              setActiveTab("mypage");
+              setMyPageTab("payment");
             }}
           />
         );
@@ -1112,6 +1171,7 @@ const CustomerView = ({
             handleDeletePaymentMethod={handleDeletePaymentMethod}
             handleSetDefaultPaymentMethod={handleSetDefaultPaymentMethod}
             onCardRegistered={handleCardRegistered}
+            onRefreshPaymentMethods={fetchPaymentMethods}
             isAddressModalOpen={isAddressModalOpen}
             setIsAddressModalOpen={setIsAddressModalOpen}
             isPaymentModalOpen={isPaymentModalOpen}
@@ -1326,6 +1386,10 @@ const CustomerView = ({
         hasStoreRole={hasStoreRole}
         onGoToStoreDashboard={() => setUserRole('STORE')}
         storeId={myStoreId}
+        onCartClick={async () => {
+          await fetchCart();
+          setIsCartOpen(true);
+        }}
       />
       <div style={{ minHeight: "calc(100vh - 200px)" }}>
         {selectedStore ? (
@@ -1355,34 +1419,23 @@ const CustomerView = ({
                   return;
                 }
 
-                try {
-                  const addr = addressList.find((a) => a.isDefault) || addressList[0];
-                  const deliveryDays = Array.isArray(subProduct.daysOfWeek) && subProduct.daysOfWeek.length > 0
-                    ? subProduct.daysOfWeek.map((d) => (typeof d === 'number' ? d : Number(d)))
-                    : [1];
-                  const res = await fetch(subscriptionApi.create(), {
-                    method: "POST",
-                    credentials: "include",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      subscriptionProductId,
-                      addressId: addr.id,
-                      paymentMethodId: null,
-                      deliveryDays,
-                      deliveryTimeSlot,
-                    }),
-                  });
-                  const json = await res.json();
-                  if (!res.ok) throw new Error(json?.error?.message || json?.message || "구독 신청에 실패했습니다.");
-                  setSelectedStore(null);
-                  showToast("구독이 신청되었습니다. 마이페이지 > 구독 관리에서 확인하실 수 있습니다.");
-                  await fetchSubscriptions();
-                  setActiveTab("mypage");
-                  setMyPageTab("subscription");
-                  window.scrollTo(0, 0);
-                } catch (err) {
-                  showToast(err.message || "구독 신청에 실패했습니다.");
-                }
+                // 구독 상품 정보를 sessionStorage에 저장하고 결제창으로 이동
+                const subscriptionData = {
+                  subscriptionProductId,
+                  deliveryTimeSlot,
+                  daysOfWeek: subProduct.daysOfWeek || [],
+                  price: subProduct.price,
+                  name: subProduct.name,
+                  desc: subProduct.desc,
+                  img: subProduct.img,
+                  totalDeliveryCount: subProduct.totalDeliveryCount,
+                };
+                sessionStorage.setItem('pendingSubscriptionCheckout', JSON.stringify(subscriptionData));
+                
+                // 결제창으로 이동
+                setSelectedStore(null);
+                setActiveTab("checkout");
+                window.scrollTo(0, 0);
               }}
             />
           </div>
@@ -1459,7 +1512,10 @@ const CustomerView = ({
           🚲
         </button>
         <button
-          onClick={() => setIsCartOpen(true)}
+          onClick={async () => {
+            await fetchCart();
+            setIsCartOpen(true);
+          }}
           style={{
             width: "60px",
             height: "60px",
@@ -1509,6 +1565,8 @@ const CustomerView = ({
         onUpdateQuantity={onUpdateQuantity}
         onRemoveFromCart={onRemoveFromCart}
         onCheckout={() => {
+          // 장바구니에서 결제로 넘어갈 때 구독 결제 정보 제거
+          sessionStorage.removeItem('pendingSubscriptionCheckout');
           setIsCartOpen(false);
           setActiveTab("checkout");
         }}
@@ -1535,6 +1593,7 @@ const CustomerView = ({
         isOpen={isSuccessModalOpen}
         onClose={() => {
           setIsSuccessModalOpen(false);
+          setIsSubscriptionOrder(false);
           clearCart();
           setActiveTab("home");
         }}
@@ -1542,7 +1601,12 @@ const CustomerView = ({
           setIsSuccessModalOpen(false);
           clearCart();
           setActiveTab("mypage");
-          setMyPageTab("profile");
+          if (isSubscriptionOrder) {
+            setMyPageTab("subscription");
+          } else {
+            setMyPageTab("profile");
+          }
+          setIsSubscriptionOrder(false);
         }}
       />
     </div>

@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
-import { EffectCoverflow, Pagination } from 'swiper/modules';
+import { Pagination } from 'swiper/modules';
 import { addresses as defaultAddresses, paymentMethods as defaultPaymentMethods } from '../../../data/mockData';
 import { getCheckout } from '../../../api/checkoutApi';
 import { createOrder } from '../../../api/orderApi';
 import { getAvailableCoupons } from '../../../api/couponApi';
 import { preparePayment, confirmPayment } from '../../../api/paymentApi';
+import { subscriptionApi } from '../../../config/api';
+import { issueCardBillingKey } from '../../../api/billingApi';
 
 // Import Swiper styles
 import 'swiper/css';
-import 'swiper/css/effect-coverflow';
 import 'swiper/css/pagination';
 
 const AddressModal = ({ isOpen, onClose, addresses, onSelect, currentAddressId }) => {
@@ -92,7 +93,7 @@ const AddressModal = ({ isOpen, onClose, addresses, onSelect, currentAddressId }
   );
 };
 
-const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp, paymentMethods: paymentMethodsProp }) => {
+const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp, paymentMethods: paymentMethodsProp, onRefreshPaymentMethods, onNavigateToPaymentManagement }) => {
   const addresses = addressesProp && addressesProp.length > 0 ? addressesProp : defaultAddresses;
   const paymentMethods = paymentMethodsProp && paymentMethodsProp.length > 0 ? paymentMethodsProp : [];
   const [selectedAddress, setSelectedAddress] = useState(addresses.find(a => a.isDefault) || addresses[0]);
@@ -113,32 +114,109 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
   const [selectedCouponId, setSelectedCouponId] = useState('');
   const [availableCoupons, setAvailableCoupons] = useState([]);
   const paymentProcessedRef = useRef(false); // 결제 처리 중복 방지 플래그
+  const [subscriptionCheckout, setSubscriptionCheckout] = useState(null); // 구독 결제 정보
+  const subscriptionCheckoutRef = useRef(null); // 구독 결제 정보 ref (무한 루프 방지)
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0); // 현재 슬라이드 인덱스
+  const billingProcessedRef = useRef(false); // 카드 등록 처리 중복 방지 플래그
 
   const cartItemIds = (cartItems || []).map((i) => i.cartProductId ?? i.id).filter(Boolean);
 
+  // CheckoutView 마운트 시 결제 모드 결정 및 초기화
   useEffect(() => {
+    // pendingCheckout 플래그는 제거 (새로고침 시 모든 페이지에서 결제창으로 이동하는 문제 방지)
+    // 결제 관련 URL 파라미터가 있을 때만 CustomerView에서 checkout으로 이동하도록 함
+    
+    // 1순위: 구독 결제 정보가 있으면 무조건 구독 결제 모드 (장바구니 상품 무시)
+    const pendingSubscription = sessionStorage.getItem('pendingSubscriptionCheckout');
+    if (pendingSubscription) {
+      try {
+        const subData = JSON.parse(pendingSubscription);
+        // 이미 같은 구독 정보가 설정되어 있으면 무시
+        if (subscriptionCheckoutRef.current?.subscriptionProductId === subData.subscriptionProductId) {
+          return;
+        }
+        subscriptionCheckoutRef.current = subData;
+        setSubscriptionCheckout(subData);
+        // 구독 결제 정보가 설정되면 일반 결제 관련 상태 완전 초기화
+        setCheckoutData(null);
+        setCheckoutLoading(false);
+        setUsePointsInput(0);
+        setSelectedCouponId('');
+        return;
+      } catch (e) {
+        console.error('구독 결제 정보 파싱 실패:', e);
+        sessionStorage.removeItem('pendingSubscriptionCheckout');
+      }
+    }
+    
+    // 2순위: 장바구니에 상품이 있으면 일반 결제 모드
+    if (cartItemIds.length > 0) {
+      // 이미 구독 결제 모드가 아니면 무시
+      if (!subscriptionCheckoutRef.current) {
+        return;
+      }
+      sessionStorage.removeItem('pendingSubscriptionCheckout');
+      subscriptionCheckoutRef.current = null;
+      setSubscriptionCheckout(null);
+      return;
+    }
+    
+    // 둘 다 없으면 초기화 (이미 null이면 무시)
+    if (subscriptionCheckoutRef.current !== null) {
+      subscriptionCheckoutRef.current = null;
+      setSubscriptionCheckout(null);
+      setCheckoutData(null);
+      setCheckoutLoading(false);
+    }
+  }, [cartItemIds.length]); // cartItemIds.length만 의존성으로 사용
+
+  // subscriptionCheckout이 변경될 때 ref 업데이트
+  useEffect(() => {
+    subscriptionCheckoutRef.current = subscriptionCheckout;
+  }, [subscriptionCheckout]);
+
+  useEffect(() => {
+    if (addresses.length === 0) return;
     const defaultAddr = addresses.find((a) => a.isDefault) || addresses[0];
     if (defaultAddr && defaultAddr.id !== selectedAddress?.id) {
       setSelectedAddress(defaultAddr);
     }
-  }, [addresses]);
+  }, [addresses.length, selectedAddress?.id]);
 
+  // paymentMethods prop 변경 감지용 ref
+  const paymentMethodsRef = useRef(paymentMethods);
+  
   useEffect(() => {
-    // 토스 PG 결제를 기본 선택으로 설정
+    // paymentMethods가 실제로 변경되었는지 확인
+    const hasChanged = JSON.stringify(paymentMethodsRef.current) !== JSON.stringify(paymentMethods);
+    if (hasChanged) {
+      paymentMethodsRef.current = paymentMethods;
+    }
+    
+    // 일반 결제일 때는 항상 토스 PG로 고정
+    if (!subscriptionCheckout) {
+      if (selectedPayment?.id !== 'toss-pg') {
+        setSelectedPayment({
+          id: 'toss-pg',
+          name: '토스 PG 결제',
+          type: 'toss',
+          color: '#3b82f6'
+        });
+      }
+      return;
+    }
+    
+    // 구독 결제일 때는 등록된 카드만 선택 가능
     if (paymentMethods.length === 0) {
-      setSelectedPayment({
-        id: 'toss-pg',
-        name: '토스 PG 결제',
-        type: 'toss',
-        color: '#3b82f6'
-      });
+      setSelectedPayment(null);
     } else {
       const defaultPay = paymentMethods.find((p) => p.isDefault) || paymentMethods[0];
-      if (defaultPay && defaultPay.id !== selectedPayment?.id) {
+      // paymentMethods가 변경되었거나 현재 선택된 결제 수단이 목록에 없으면 업데이트
+      if (defaultPay && (hasChanged || defaultPay.id !== selectedPayment?.id || !paymentMethods.find(p => p.id === selectedPayment?.id))) {
         setSelectedPayment(defaultPay);
       }
     }
-  }, [paymentMethods]);
+  }, [subscriptionCheckout, paymentMethods, selectedPayment?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,6 +225,8 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
       .catch(() => { if (!cancelled) setAvailableCoupons([]); });
     return () => { cancelled = true; };
   }, []);
+
+  // 구독 결제창에서 카드 등록 완료 후 리다이렉트 처리 - 제거 (더 이상 구독 결제창에서 카드 등록하지 않음)
 
   // 토스 페이먼츠 결제 완료 후 리다이렉트 처리
   useEffect(() => {
@@ -192,7 +272,7 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
           sessionStorage.removeItem('pendingPaymentId');
           sessionStorage.removeItem('pendingOrderId');
           sessionStorage.removeItem('pendingCheckout');
-          onComplete(true, pendingOrderId ? Number(pendingOrderId) : null);
+          onComplete(true, pendingOrderId ? Number(pendingOrderId) : null, false); // 일반 주문임을 표시
         })
         .catch((err) => {
           console.error('결제 확인 오류:', err);
@@ -221,8 +301,16 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
   }, [onComplete]);
 
   useEffect(() => {
+    // 구독 결제일 때는 일반 결제 데이터를 로드하지 않음
+    if (subscriptionCheckout) {
+      setCheckoutData(null);
+      setCheckoutLoading(false);
+      return;
+    }
+    
     if (cartItemIds.length === 0) {
       setCheckoutData(null);
+      setCheckoutLoading(false);
       return;
     }
     let cancelled = false;
@@ -233,8 +321,15 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
       .then((data) => {
         if (!cancelled) setCheckoutData(data);
       })
-      .catch(() => {
-        if (!cancelled) setCheckoutData(null);
+      .catch((err) => {
+        console.error('결제 정보 조회 실패:', err);
+        if (!cancelled) {
+          setCheckoutData(null);
+          // 500 에러 등 서버 에러 시 사용자에게 알림
+          if (err?.response?.status === 500) {
+            console.error('서버 오류 (500): 결제 정보를 불러올 수 없습니다.');
+          }
+        }
       })
       .finally(() => {
         if (!cancelled) setCheckoutLoading(false);
@@ -247,7 +342,7 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
     if (availablePoints > 0 && usePointsInput > availablePoints) {
       setUsePointsInput(availablePoints);
     }
-  }, [availablePoints]);
+  }, [availablePoints, usePointsInput]);
 
   const requestOptions = [
     '배송 전 연락바랍니다',
@@ -268,15 +363,83 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
   };
 
   const summary = checkoutData?.priceSummary;
-  const totalPrice = summary?.productTotal ?? cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const deliveryFee = summary?.deliveryTotal ?? 3000;
-  const discount = summary?.discount ?? 0;
-  const points = summary?.points ?? 0;
-  const finalPrice = summary?.finalTotal ?? totalPrice + deliveryFee - discount - points;
+  const totalPrice = subscriptionCheckout 
+    ? (subscriptionCheckout.price ?? 0)
+    : (summary?.productTotal ?? cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0));
+  const deliveryFee = subscriptionCheckout ? 0 : (summary?.deliveryTotal ?? 3000); // 구독은 무료배송
+  const discount = subscriptionCheckout ? 0 : (summary?.discount ?? 0);
+  const points = subscriptionCheckout ? 0 : (summary?.points ?? 0);
+  const finalPrice = subscriptionCheckout 
+    ? totalPrice 
+    : (summary?.finalTotal ?? totalPrice + deliveryFee - discount - points);
 
   const effectivePaymentMethodId = checkoutData?.payment?.defaultPaymentMethodId ?? selectedPayment?.id;
 
+  // 카드 등록 함수 - 제거 (구독 결제창에서는 카드 등록하지 않음, 결제수단관리로 이동)
+
   const handlePayment = async () => {
+    // 구독 결제인 경우
+    if (subscriptionCheckout) {
+      if (!selectedAddress?.id) {
+        alert('배송지를 선택해주세요.');
+        return;
+      }
+      
+      // 등록된 카드가 없으면 결제수단관리로 이동
+      if (paymentMethods.length === 0) {
+        if (onNavigateToPaymentManagement) {
+          onNavigateToPaymentManagement();
+        }
+        return;
+      }
+      
+      setIsProcessing(true);
+      try {
+        const addr = addresses.find((a) => a.id === selectedAddress.id) || addresses[0];
+        
+        // paymentMethodId 파싱 (card_123 형식에서 숫자만 추출)
+        const paymentMethodId = typeof effectivePaymentMethodId === 'string' && effectivePaymentMethodId.startsWith('card_')
+          ? parseInt(effectivePaymentMethodId.replace('card_', ''), 10)
+          : effectivePaymentMethodId;
+        
+        if (!paymentMethodId || (typeof paymentMethodId === 'number' && isNaN(paymentMethodId))) {
+          alert('결제 수단을 선택해주세요.');
+          setIsProcessing(false);
+          return;
+        }
+        
+        const deliveryDays = Array.isArray(subscriptionCheckout.daysOfWeek) && subscriptionCheckout.daysOfWeek.length > 0
+          ? subscriptionCheckout.daysOfWeek.map((d) => (typeof d === 'number' ? d : Number(d)))
+          : [1];
+        
+        const res = await fetch(subscriptionApi.create(), {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            subscriptionProductId: subscriptionCheckout.subscriptionProductId,
+            addressId: addr.id,
+            paymentMethodId: paymentMethodId,
+            deliveryDays,
+            deliveryTimeSlot: subscriptionCheckout.deliveryTimeSlot,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error?.message || json?.message || "구독 신청에 실패했습니다.");
+        
+        sessionStorage.removeItem('pendingSubscriptionCheckout');
+        onComplete(true, json?.data?.subscriptionId ?? null, true); // 구독 주문임을 표시
+      } catch (err) {
+        console.error('구독 신청 실패:', err);
+        const message = err.message || "구독 신청에 실패했습니다.";
+        alert(message);
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
+    
+    // 일반 주문 결제인 경우
     if (!selectedAddress?.id || effectivePaymentMethodId == null || !cartItemIds.length) {
       alert('배송지와 결제 수단을 선택하고, 장바구니에 상품이 있어야 합니다.');
       return;
@@ -483,239 +646,342 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
             currentAddressId={selectedAddress.id}
           />
 
-          {/* Order Summary Section - Grouped by Store */}
+          {/* Order Summary Section - Grouped by Store or Subscription */}
           <section style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '16px' }}>주문 예상 상품</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {Object.entries(cartItems.reduce((acc, item) => {
-                const store = item.storeName || '우리 동네 마트';
-                if (!acc[store]) acc[store] = [];
-                acc[store].push(item);
-                return acc;
-              }, {})).map(([storeName, items]) => (
-                <div key={storeName} style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
-                  <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--primary)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    🏪 {storeName}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {items.map(item => (
-                      <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-                        <span style={{ color: '#475569' }}>{item.name} x {item.quantity}</span>
-                        <span style={{ fontWeight: '600' }}>{(item.price * item.quantity).toLocaleString()}원</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12px', color: '#94a3b8' }}>배송료 3,000원 대기</span>
-                    <span style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>
-                      소계: {(items.reduce((s, i) => s + i.price * i.quantity, 0) + 3000).toLocaleString()}원
-                    </span>
+            <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '16px' }}>
+              {subscriptionCheckout ? '구독 상품' : '주문 예상 상품'}
+            </h3>
+            {subscriptionCheckout ? (
+              // 구독 결제 모드: 구독 상품만 표시 (장바구니 상품 무시)
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', backgroundColor: '#f8fafc', borderRadius: '12px' }}>
+                  {subscriptionCheckout.img && (
+                    <img 
+                      src={subscriptionCheckout.img} 
+                      alt={subscriptionCheckout.name}
+                      style={{ width: '80px', height: '80px', borderRadius: '12px', objectFit: 'cover' }}
+                    />
+                  )}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '16px', fontWeight: '700', color: '#1e293b', marginBottom: '4px' }}>
+                      {subscriptionCheckout.name}
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '8px' }}>
+                      {subscriptionCheckout.desc}
+                    </div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: '#be185d' }}>
+                      월 {subscriptionCheckout.price?.toLocaleString()}원
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
+                <div style={{ padding: '12px', backgroundColor: '#fdf2f8', borderRadius: '8px', fontSize: '14px', color: '#be185d' }}>
+                  배송 시간대: {subscriptionCheckout.deliveryTimeSlot}
+                </div>
+              </div>
+            ) : (
+              // 일반 결제 모드: 장바구니 상품만 표시
+              cartItems.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {Object.entries(cartItems.reduce((acc, item) => {
+                    const store = item.storeName || '우리 동네 마트';
+                    if (!acc[store]) acc[store] = [];
+                    acc[store].push(item);
+                    return acc;
+                  }, {})).map(([storeName, items]) => (
+                    <div key={storeName} style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
+                      <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--primary)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        🏪 {storeName}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {items.map(item => (
+                          <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                            <span style={{ color: '#475569' }}>{item.name} x {item.quantity}</span>
+                            <span style={{ fontWeight: '600' }}>{(item.price * item.quantity).toLocaleString()}원</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12px', color: '#94a3b8' }}>배송료 3,000원 대기</span>
+                        <span style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>
+                          소계: {(items.reduce((s, i) => s + i.price * i.quantity, 0) + 3000).toLocaleString()}원
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
+                  장바구니가 비어있습니다.
+                </div>
+              )
+            )}
           </section>
 
           {/* Payment Method Section */}
           <section style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)' }}>
             <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '24px' }}>결제 수단</h3>
             
-            <div style={{ width: '100%', maxWidth: '300px', margin: '0 auto', padding: '20px 0 40px' }}>
-              <Swiper
-                effect="coverflow"
-                grabCursor={true}
-                centeredSlides={true}
-                slidesPerView="auto"
-                coverflowEffect={{
-                  rotate: 50,
-                  stretch: 0,
-                  depth: 100,
-                  modifier: 1,
-                  slideShadows: true,
-                }}
-                pagination={true}
-                modules={[EffectCoverflow, Pagination]}
-                onSlideChange={(swiper) => {
-                  // paymentMethods가 비어있으면 토스 PG 결제만 있음
-                  if (paymentMethods.length === 0) {
-                    setSelectedPayment({
-                      id: 'toss-pg',
-                      name: '토스 PG 결제',
-                      type: 'toss',
-                      color: '#3b82f6'
-                    });
-                  } else if (swiper.activeIndex < paymentMethods.length) {
-                    setSelectedPayment(paymentMethods[swiper.activeIndex]);
-                  } else if (swiper.activeIndex === paymentMethods.length) {
-                    // 마지막 슬라이드: 토스 PG 결제
-                    setSelectedPayment({
-                      id: 'toss-pg',
-                      name: '토스 PG 결제',
-                      type: 'toss',
-                      color: '#3b82f6'
-                    });
-                  }
-                }}
-                className="paymentSwiper"
-              >
-                {paymentMethods.map(method => (
-                  <SwiperSlide key={method.id} style={{ width: '300px', maxWidth: '85vw' }}>
-                    <div style={{ 
-                      width: '100%',
-                      height: '180px',
-                      borderRadius: '16px',
-                      background: method.type === 'card' 
-                        ? method.color 
-                        : method.color,
-                      padding: '20px',
+            {/* 구독 결제일 때 등록된 카드가 없으면 버튼만 표시 */}
+            {subscriptionCheckout && paymentMethods.length === 0 ? (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px' }}>
+                {onNavigateToPaymentManagement && (
+                  <button
+                    onClick={onNavigateToPaymentManagement}
+                    style={{
+                      padding: '16px 32px',
+                      borderRadius: '12px',
+                      background: 'var(--primary)',
                       color: 'white',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                      boxShadow: '0 10px 20px rgba(0,0,0,0.15)',
-                      position: 'relative',
-                      overflow: 'hidden'
-                    }}>
-                      {/* 상단: 카드사 이름 */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
-                        <div>
-                          <div style={{ fontSize: '18px', fontWeight: '800', textShadow: '0 2px 4px rgba(0,0,0,0.2)', marginBottom: '4px' }}>
-                            {method.name}
-                          </div>
-                          <div style={{ fontSize: '11px', opacity: 0.85 }}>
-                            {method.type === 'card' ? 'Credit Card' : 'Payment Method'}
-                          </div>
-                        </div>
-                        {method.isDefault && (
-                          <div style={{ 
-                            backgroundColor: 'rgba(255,255,255,0.25)', 
-                            color: 'white', 
-                            padding: '4px 10px', 
-                            borderRadius: '12px', 
-                            fontSize: '10px', 
-                            fontWeight: '700',
-                            backdropFilter: 'blur(4px)'
-                          }}>
-                            기본
-                          </div>
-                        )}
-                      </div>
-
-                      {/* 중간: 카드 번호 */}
-                      <div style={{ marginBottom: '24px' }}>
+                      border: 'none',
+                      fontWeight: '700',
+                      fontSize: '16px',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)'
+                    }}
+                  >
+                    결제수단관리로 이동
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <div style={{ width: '100%', maxWidth: '300px', margin: '0 auto', paddingTop: '20px', paddingBottom: subscriptionCheckout ? '20px' : '30px' }}>
+                  <Swiper
+                    key={`payment-swiper-${paymentMethods.length}-${subscriptionCheckout ? 'subscription' : 'regular'}`}
+                    effect="slide"
+                    grabCursor={subscriptionCheckout}
+                    allowSlideNext={subscriptionCheckout}
+                    allowSlidePrev={subscriptionCheckout}
+                    centeredSlides={true}
+                    slidesPerView="auto"
+                    pagination={subscriptionCheckout ? { clickable: true } : false}
+                    modules={subscriptionCheckout ? [Pagination] : []}
+                    onSwiper={(swiper) => {
+                      // 초기 인덱스 설정
+                      if (subscriptionCheckout) {
+                        setCurrentSlideIndex(swiper.activeIndex);
+                      }
+                    }}
+                    onSlideChange={(swiper) => {
+                      setCurrentSlideIndex(swiper.activeIndex);
+                      // 일반 결제일 때는 토스 PG만 있음
+                      if (!subscriptionCheckout) {
+                        setSelectedPayment({
+                          id: 'toss-pg',
+                          name: '토스 PG 결제',
+                          type: 'toss',
+                          color: '#3b82f6'
+                        });
+                      } else {
+                        // 구독 결제일 때는 등록된 카드만 선택 가능
+                        if (swiper.activeIndex < paymentMethods.length) {
+                          setSelectedPayment(paymentMethods[swiper.activeIndex]);
+                        }
+                      }
+                    }}
+                    className="paymentSwiper"
+                  >
+                    {/* 일반 결제일 때: 토스 PG 결제 표시 */}
+                    {!subscriptionCheckout && (
+                      <SwiperSlide key="toss-pg" style={{ width: '300px', maxWidth: '85vw' }}>
                         <div style={{ 
-                          fontSize: '20px', 
-                          letterSpacing: '3px', 
-                          fontWeight: '600', 
-                          textShadow: '0 2px 4px rgba(0,0,0,0.2)', 
-                          fontFamily: 'monospace',
-                          wordBreak: 'break-all'
+                          width: '100%',
+                          height: '180px',
+                          borderRadius: '16px',
+                          background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                          padding: '20px',
+                          color: 'white',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          boxShadow: '0 10px 20px rgba(59, 130, 246, 0.3)',
+                          position: 'relative',
+                          overflow: 'hidden'
                         }}>
-                          {method.number || '**** **** **** ****'}
-                        </div>
-                      </div>
+                          {/* 배경 장식 */}
+                          <div style={{
+                            position: 'absolute',
+                            top: '-50px',
+                            right: '-50px',
+                            width: '150px',
+                            height: '150px',
+                            borderRadius: '50%',
+                            background: 'rgba(255, 255, 255, 0.1)',
+                            filter: 'blur(30px)'
+                          }} />
+                          <div style={{
+                            position: 'absolute',
+                            bottom: '-40px',
+                            left: '-40px',
+                            width: '120px',
+                            height: '120px',
+                            borderRadius: '50%',
+                            background: 'rgba(255, 255, 255, 0.08)',
+                            filter: 'blur(25px)'
+                          }} />
+                          
+                          {/* 상단 */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
+                            <div>
+                              <div style={{ fontSize: '18px', fontWeight: '800', marginBottom: '4px' }}>
+                                토스 PG 결제
+                              </div>
+                              <div style={{ fontSize: '11px', opacity: 0.9 }}>
+                                간편하고 안전한 결제
+                              </div>
+                            </div>
+                          </div>
 
-                      {/* 하단: Card Holder */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <div style={{ fontSize: '9px', opacity: 0.8, textTransform: 'uppercase', marginBottom: '2px' }}>
-                            Card Holder
+                          {/* 중간 - 로고 영역 */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, position: 'relative', zIndex: 1 }}>
+                            <div style={{
+                              fontSize: '32px',
+                              fontWeight: '800',
+                              letterSpacing: '2px',
+                              opacity: 0.9
+                            }}>
+                              TOSS
+                            </div>
                           </div>
-                          <div style={{ fontSize: '13px', fontWeight: '700', letterSpacing: '1px' }}>
-                            MEMBER
+
+                          {/* 하단 */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 1 }}>
+                            <div style={{ fontSize: '12px', opacity: 0.8 }}>
+                              결제 수단
+                            </div>
+                            <div style={{ 
+                              fontSize: '10px', 
+                              fontWeight: '700', 
+                              padding: '4px 8px', 
+                              background: 'rgba(255,255,255,0.2)', 
+                              borderRadius: '6px',
+                              backdropFilter: 'blur(4px)'
+                            }}>
+                              PAYMENT
+                            </div>
                           </div>
                         </div>
+                      </SwiperSlide>
+                    )}
+                    
+                    {/* 구독 결제일 때: 등록된 카드 결제수단 표시 (토스 PG 제외) */}
+                    {subscriptionCheckout && paymentMethods.map(method => (
+                      <SwiperSlide key={method.id} style={{ width: '300px', maxWidth: '85vw' }}>
                         <div style={{ 
-                          fontSize: '11px', 
-                          fontWeight: '700', 
-                          padding: '4px 8px', 
-                          background: 'rgba(255,255,255,0.2)', 
-                          borderRadius: '6px',
-                          backdropFilter: 'blur(4px)'
+                          width: '100%',
+                          height: '180px',
+                          borderRadius: '16px',
+                          background: method.type === 'card' 
+                            ? method.color 
+                            : method.color,
+                          padding: '20px',
+                          color: 'white',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          boxShadow: '0 10px 20px rgba(0,0,0,0.15)',
+                          position: 'relative',
+                          overflow: 'hidden'
                         }}>
-                          {method.type === 'card' ? 'VISA / MASTER' : 'PAYMENT'}
-                        </div>
-                      </div>
-                    </div>
-                  </SwiperSlide>
-                ))}
-                <SwiperSlide key="toss-pg" style={{ width: '300px', maxWidth: '85vw' }}>
-                  <div style={{ 
-                    width: '100%',
-                    height: '180px',
-                    borderRadius: '16px',
-                    background: '#6366f1',
-                    padding: '20px',
-                    color: 'white',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    boxShadow: '0 10px 20px rgba(0,0,0,0.15)',
-                    position: 'relative',
-                    overflow: 'hidden'
-                  }}>
-                    {/* 상단: 토스 PG 결제 */}
-                    <div style={{ marginBottom: '24px' }}>
-                      <div style={{ fontSize: '18px', fontWeight: '800', textShadow: '0 2px 4px rgba(0,0,0,0.2)', marginBottom: '4px' }}>
-                        토스 PG 결제
-                      </div>
-                      <div style={{ fontSize: '11px', opacity: 0.85 }}>
-                        Credit Card
-                      </div>
-                    </div>
+                          {/* 상단: 카드사 이름 */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+                            <div>
+                              <div style={{ fontSize: '18px', fontWeight: '800', textShadow: '0 2px 4px rgba(0,0,0,0.2)', marginBottom: '4px' }}>
+                                {method.name}
+                              </div>
+                              <div style={{ fontSize: '11px', opacity: 0.85 }}>
+                                {method.type === 'card' ? 'Credit Card' : 'Payment Method'}
+                              </div>
+                            </div>
+                            {method.isDefault && (
+                              <div style={{ 
+                                backgroundColor: 'rgba(255,255,255,0.25)', 
+                                color: 'white', 
+                                padding: '4px 10px', 
+                                borderRadius: '12px', 
+                                fontSize: '10px', 
+                                fontWeight: '700',
+                                backdropFilter: 'blur(4px)'
+                              }}>
+                                기본
+                              </div>
+                            )}
+                          </div>
 
-                    {/* 중간: 카드 번호 */}
-                    <div style={{ marginBottom: '24px' }}>
-                      <div style={{ 
-                        fontSize: '20px', 
-                        letterSpacing: '3px', 
-                        fontWeight: '600', 
-                        textShadow: '0 2px 4px rgba(0,0,0,0.2)', 
-                        fontFamily: 'monospace'
-                      }}>
-                        PAYMENT MODE
-                      </div>
-                    </div>
+                          {/* 중간: 카드 번호 */}
+                          <div style={{ marginBottom: '24px' }}>
+                            <div style={{ 
+                              fontSize: '20px', 
+                              letterSpacing: '3px', 
+                              fontWeight: '600', 
+                              textShadow: '0 2px 4px rgba(0,0,0,0.2)', 
+                              fontFamily: 'monospace',
+                              wordBreak: 'break-all'
+                            }}>
+                              {method.number || '**** **** **** ****'}
+                            </div>
+                          </div>
 
-                    {/* 하단: Card Holder */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ fontSize: '9px', opacity: 0.8, textTransform: 'uppercase', marginBottom: '2px' }}>
-                          Card Holder
+                          {/* 하단: Card Holder */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <div style={{ fontSize: '9px', opacity: 0.8, textTransform: 'uppercase', marginBottom: '2px' }}>
+                                Card Holder
+                              </div>
+                              <div style={{ fontSize: '13px', fontWeight: '700', letterSpacing: '1px' }}>
+                                MEMBER
+                              </div>
+                            </div>
+                            <div style={{ 
+                              fontSize: '11px', 
+                              fontWeight: '700', 
+                              padding: '4px 8px', 
+                              background: 'rgba(255,255,255,0.2)', 
+                              borderRadius: '6px',
+                              backdropFilter: 'blur(4px)'
+                            }}>
+                              {method.type === 'card' ? 'VISA / MASTER' : 'PAYMENT'}
+                            </div>
+                          </div>
                         </div>
-                        <div style={{ fontSize: '13px', fontWeight: '700', letterSpacing: '1px' }}>
-                          MEMBER
-                        </div>
-                      </div>
-                      <div style={{ 
-                        fontSize: '11px', 
-                        fontWeight: '700', 
-                        padding: '4px 8px', 
-                        background: 'rgba(255,255,255,0.2)', 
-                        borderRadius: '6px',
-                        backdropFilter: 'blur(4px)'
-                      }}>
-                        VISA / MASTER
-                      </div>
-                    </div>
-                  </div>
-                </SwiperSlide>
-              </Swiper>
-            </div>
+                      </SwiperSlide>
+                    ))}
+                  </Swiper>
+                </div>
 
-            <div style={{ textAlign: 'center', marginTop: '12px' }}>
-              <div style={{ fontSize: '15px', fontWeight: '700' }}>선택된 결제수단: {selectedPayment?.name || '토스 PG 결제'}</div>
-              <div style={{ fontSize: '13px', color: '#64748b', marginTop: '4px' }}>카드를 좌우로 밀어서 선택해주세요</div>
-            </div>
+                <div style={{ textAlign: 'center', marginTop: '12px' }}>
+                  <div style={{ fontSize: '15px', fontWeight: '700' }}>선택된 결제수단: {selectedPayment?.name || '토스 PG 결제'}</div>
+                  {subscriptionCheckout && paymentMethods.length > 0 && (
+                    <div style={{ fontSize: '13px', color: '#64748b', marginTop: '4px' }}>
+                      카드를 좌우로 밀어서 선택해주세요
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </section>
 
           <style>{`
             .paymentSwiper {
               width: 100%;
-              padding-bottom: 30px;
+            }
+            .paymentSwiper .swiper-pagination {
+              position: relative;
+              margin-top: 16px;
+              bottom: 0;
+            }
+            .paymentSwiper .swiper-pagination-bullet {
+              width: 8px;
+              height: 8px;
+              background: #cbd5e1;
+              opacity: 1;
+              margin: 0 4px;
+              transition: all 0.3s;
+              border-radius: 50%;
             }
             .paymentSwiper .swiper-pagination-bullet-active {
               background: var(--primary) !important;
+              opacity: 1;
             }
           `}</style>
 
@@ -733,57 +999,59 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
                 <span>상품 금액</span>
                 <span>{totalPrice.toLocaleString()}원</span>
               </div>
-              {/* 쿠폰 · 포인트: 상품금액과 배송비 사이 (추가 기능 확장 시 공란 선택 가능) */}
-              <div style={{ padding: '12px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                <div style={{ fontSize: '13px', fontWeight: '700', color: '#475569', marginBottom: '10px' }}>쿠폰 · 포인트</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                    <label style={{ fontSize: '13px', color: '#64748b', minWidth: '72px', flexShrink: 0 }}>쿠폰</label>
-                    <select
-                      value={selectedCouponId}
-                      onChange={(e) => setSelectedCouponId(e.target.value)}
-                      style={{ flex: 1, minWidth: 0, maxWidth: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '14px', backgroundColor: 'white', cursor: 'pointer' }}
-                    >
-                      {availableCoupons.length === 0 ? (
-                        <option value="">사용 가능한 쿠폰이 없습니다.</option>
-                      ) : (
-                        <>
-                          <option value="">사용 안 함</option>
-                          {availableCoupons.map((c) => (
-                            <option key={c.id} value={c.id}>{c.name} (-{c.discountAmount?.toLocaleString() ?? 0}원)</option>
-                          ))}
-                        </>
-                      )}
-                    </select>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>
-                      현재 보유 포인트: {(checkoutData?.availablePoints ?? 0).toLocaleString()}원
+              {/* 쿠폰 · 포인트: 상품금액과 배송비 사이 (구독 결제에서는 숨김) */}
+              {!subscriptionCheckout && (
+                <div style={{ padding: '12px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#475569', marginBottom: '10px' }}>쿠폰 · 포인트</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                      <label style={{ fontSize: '13px', color: '#64748b', minWidth: '72px', flexShrink: 0 }}>쿠폰</label>
+                      <select
+                        value={selectedCouponId}
+                        onChange={(e) => setSelectedCouponId(e.target.value)}
+                        style={{ flex: 1, minWidth: 0, maxWidth: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '14px', backgroundColor: 'white', cursor: 'pointer' }}
+                      >
+                        {availableCoupons.length === 0 ? (
+                          <option value="">사용 가능한 쿠폰이 없습니다.</option>
+                        ) : (
+                          <>
+                            <option value="">사용 안 함</option>
+                            {availableCoupons.map((c) => (
+                              <option key={c.id} value={c.id}>{c.name} (-{c.discountAmount?.toLocaleString() ?? 0}원)</option>
+                            ))}
+                          </>
+                        )}
+                      </select>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <label style={{ fontSize: '13px', color: '#64748b', minWidth: '72px' }}>포인트 사용</label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={checkoutData?.availablePoints ?? 0}
-                        value={usePointsInput === 0 ? '' : usePointsInput}
-                        onChange={(e) => {
-                          const availablePoints = checkoutData?.availablePoints ?? 0;
-                          const raw = parseInt(e.target.value, 10) || 0;
-                          const clamped = Math.min(Math.max(0, raw), availablePoints);
-                          setUsePointsInput(clamped);
-                        }}
-                        placeholder="0"
-                        style={{
-                          width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '14px',
-                          MozAppearance: 'textfield', WebkitAppearance: 'none', appearance: 'textfield',
-                        }}
-                      />
-                      <span style={{ fontSize: '13px', color: '#64748b' }}>원</span>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>
+                        현재 보유 포인트: {(checkoutData?.availablePoints ?? 0).toLocaleString()}원
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <label style={{ fontSize: '13px', color: '#64748b', minWidth: '72px' }}>포인트 사용</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={checkoutData?.availablePoints ?? 0}
+                          value={usePointsInput === 0 ? '' : usePointsInput}
+                          onChange={(e) => {
+                            const availablePoints = checkoutData?.availablePoints ?? 0;
+                            const raw = parseInt(e.target.value, 10) || 0;
+                            const clamped = Math.min(Math.max(0, raw), availablePoints);
+                            setUsePointsInput(clamped);
+                          }}
+                          placeholder="0"
+                          style={{
+                            width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '14px',
+                            MozAppearance: 'textfield', WebkitAppearance: 'none', appearance: 'textfield',
+                          }}
+                        />
+                        <span style={{ fontSize: '13px', color: '#64748b' }}>원</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
               {discount > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
                   <span>할인 적용</span>
@@ -810,26 +1078,27 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
             </div>
             <button 
               onClick={handlePayment}
-              disabled={isProcessing}
+              disabled={isProcessing || (subscriptionCheckout && paymentMethods.length === 0)}
               className="btn-primary"
               style={{ 
                 width: '100%', 
                 padding: '16px', 
                 borderRadius: '12px', 
-                background: isProcessing ? '#cbd5e1' : 'var(--primary)', 
+                background: (isProcessing || (subscriptionCheckout && paymentMethods.length === 0)) ? '#cbd5e1' : 'var(--primary)', 
                 color: 'white', 
                 border: 'none', 
                 fontWeight: '800', 
                 fontSize: '17px', 
-                cursor: isProcessing ? 'not-allowed' : 'pointer', 
-                boxShadow: isProcessing ? 'none' : '0 4px 14px rgba(16, 185, 129, 0.4)' 
+                cursor: (isProcessing || (subscriptionCheckout && paymentMethods.length === 0)) ? 'not-allowed' : 'pointer', 
+                boxShadow: (isProcessing || (subscriptionCheckout && paymentMethods.length === 0)) ? 'none' : '0 4px 14px rgba(16, 185, 129, 0.4)' 
               }}
             >
-              {isProcessing ? '결제 처리 중...' : `${finalPrice.toLocaleString()}원 결제하기`}
+              {isProcessing ? '결제 처리 중...' : (subscriptionCheckout && paymentMethods.length === 0) ? '카드를 등록해주세요' : `${finalPrice.toLocaleString()}원 결제하기`}
             </button>
           </div>
         </div>
       </div>
+
     </div>
   );
 };

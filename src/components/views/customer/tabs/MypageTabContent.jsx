@@ -28,9 +28,9 @@ const MypageTabContent = (props) => {
     setViewingReview, setSelectedOrderForReview, setIsReviewModalOpen,
     handleCancelSubscription, resumeSubscription, fetchSubscriptions, fetchAddresses,
     showToast, handleOpenAddressModal, handleSaveAddress, handleDeleteAddress,
-    handleSetDefaultAddress, handleOpenPaymentModal, handleSavePaymentMethod,
+    handleSetDefaultAddress,     handleOpenPaymentModal, handleSavePaymentMethod,
     handleDeletePaymentMethod, handleSetDefaultPaymentMethod,
-    onCardRegistered,
+    onCardRegistered, fetchPaymentMethods,
     isAddressModalOpen, setIsAddressModalOpen, isPaymentModalOpen, setIsPaymentModalOpen,
     editingAddress, newAddress, setNewAddress, editingPaymentMethod, newPaymentMethod, setNewPaymentMethod,
   } = props;
@@ -132,7 +132,7 @@ const MypageTabContent = (props) => {
                     { id: "user_profile", label: "내 정보 관리", icon: "👤" },
                     { id: "subscription", label: "구독 관리", icon: "📅" },
                     { id: "address", label: "배송지 관리", icon: "📍" },
-                    { id: "payment", label: "결제 수단 관리", icon: "💳" },
+                    { id: "payment", label: "구독 결제 관리", icon: "💳" },
                     { id: "coupon", label: "쿠폰함", icon: "🎫" },
                     { id: "help", label: "고객지원", icon: "📞" },
                     {
@@ -290,6 +290,7 @@ const MypageTabContent = (props) => {
                     setNewPaymentMethod={setNewPaymentMethod}
                     handleSavePaymentMethod={handleSavePaymentMethod}
                     onCardRegistered={onCardRegistered}
+                    onRefreshPaymentMethods={fetchPaymentMethods}
                   />
                 )}
 
