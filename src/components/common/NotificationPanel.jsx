@@ -60,7 +60,7 @@ const NotificationPanel = ({ isOpen, onClose, notifications, onMarkAsRead, onCle
                   <span style={{ fontSize: '14px', fontWeight: '700' }}>{notif.title}</span>
                   <span style={{ fontSize: '11px', color: '#94a3b8' }}>{notif.time}</span>
                 </div>
-                <p style={{ margin: 0, fontSize: '13px', color: '#64748b', lineHeight: '1.5', paddingLeft: notif.read ? '0' : '12px' }}>{notif.body}</p>
+                <p style={{ margin: 0, fontSize: '13px', color: '#64748b', lineHeight: '1.5', paddingLeft: notif.read ? '0' : '12px', wordBreak: 'break-word', overflowWrap: 'break-word' }}>{notif.body}</p>
               </div>
             ))
           )}
