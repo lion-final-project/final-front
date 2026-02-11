@@ -1,6 +1,53 @@
 import React from 'react';
+import { getWithdrawalEligibility, deleteWithdrawal } from '../../../../../api/userApi';
 
-const UserProfileSubTab = ({ userInfo = {}, subscriptionList, onLogout }) => (
+/**
+ * 탈퇴 가능 여부 조회 결과(blockedReasons)로 알림에 쓸 문구 배열을 만든다.
+ * @param {{ canWithdraw: boolean, blockedReasons?: Array<{code: string, message: string}> }} check
+ * @returns {string[]}
+ */
+function getWithdrawalBlockAlertMessages(check) {
+  const reasons = check.blockedReasons ?? [];
+  if (reasons.length === 0) {
+    return [check.canWithdraw ? '' : '탈퇴할 수 없는 상태입니다.'];
+  }
+  return reasons.map((r) => r.message || r.code).filter(Boolean);
+}
+
+const UserProfileSubTab = ({ userInfo = {}, subscriptionList, onLogout }) => {
+  const handleWithdraw = async () => {
+    try {
+      const check = await getWithdrawalEligibility();
+      if (!check.canWithdraw) {
+        const messages = getWithdrawalBlockAlertMessages(check);
+        alert(messages.filter(Boolean).join('\n') || '탈퇴할 수 없는 상태입니다.');
+        return;
+      }
+      if (!window.confirm('탈퇴 시 모든 적립금, 쿠폰, 주문 내역이 즉시 삭제되며 복구가 불가능합니다. 정말 탈퇴하시겠습니까?')) {
+        return;
+      }
+      if (!window.confirm('마지막 확인입니다. 동네마켓을 탈퇴하시겠습니까?')) {
+        return;
+      }
+      await deleteWithdrawal();
+      alert('탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.');
+      onLogout();
+    } catch (err) {
+      const data = err.response?.data;
+      const errorBody = data?.error;
+      const details = errorBody?.details;
+      if (err.response?.status === 409 && details?.length > 0) {
+        const messages = details.map((d) => d.message).filter(Boolean);
+        alert(messages.join('\n') || errorBody?.message || '탈퇴가 제한되었습니다.');
+        return;
+      }
+      const message = errorBody?.message || data?.message || err.message || '탈퇴 처리 중 오류가 발생했습니다.';
+      const detailText = details?.length ? '\n' + details.map((d) => d.message).join('\n') : '';
+      alert(message + detailText);
+    }
+  };
+
+  return (
   <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
     <div
       style={{
@@ -62,19 +109,7 @@ const UserProfileSubTab = ({ userInfo = {}, subscriptionList, onLogout }) => (
         신중하게 결정해 주시기 바랍니다.
       </p>
       <button
-        onClick={() => {
-          const hasActiveSub = subscriptionList.some((sub) => sub.status !== "해지됨");
-          if (hasActiveSub) {
-            alert("현재 이용 중이거나 해지 예정인 구독 상품이 있습니다. 구독 상품을 모두 해지(종료)하신 후에만 탈퇴가 가능합니다.");
-            return;
-          }
-          if (window.confirm("탈퇴 시 모든 적립금, 쿠폰, 주문 내역이 즉시 삭제되며 복구가 불가능합니다. 정말 탈퇴하시겠습니까?")) {
-            if (window.confirm("마지막 확인입니다. 동네마켓을 탈퇴하시겠습니까?")) {
-              alert("탈퇴 처리가 완료되었습니다. 그동안 이용해주셔서 감사합니다.");
-              onLogout();
-            }
-          }
-        }}
+        onClick={handleWithdraw}
         style={{
           padding: "12px 24px",
           borderRadius: "10px",
@@ -99,6 +134,7 @@ const UserProfileSubTab = ({ userInfo = {}, subscriptionList, onLogout }) => (
       </button>
     </div>
   </div>
-);
+  );
+};
 
 export default UserProfileSubTab;

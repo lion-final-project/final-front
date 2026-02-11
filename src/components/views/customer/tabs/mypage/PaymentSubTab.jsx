@@ -58,14 +58,40 @@ const PaymentSubTab = ({
         customerKey: customerKey,
       })
         .then(async () => {
-          // 결제 수단 목록 새로고침 - 즉시 호출하여 바로 업데이트
+          // 결제 수단 목록 새로고침 - 백엔드 처리 지연을 고려하여 여러 번 재시도
           if (onRefreshPaymentMethods) {
-            await onRefreshPaymentMethods(true); // immediate = true
-            // 약간의 지연 후 다시 한 번 새로고침하여 확실하게 업데이트
-            setTimeout(async () => {
-              if (onRefreshPaymentMethods) {
-                await onRefreshPaymentMethods(true); // immediate = true
+            // 즉시 첫 번째 호출
+            let currentList = await onRefreshPaymentMethods(true);
+            
+            // 백엔드 처리 지연을 고려하여 재시도 (최대 10번, 점진적 간격)
+            let retryCount = 0;
+            const maxRetries = 10;
+            
+            const retryRefresh = async () => {
+              if (retryCount < maxRetries && onRefreshPaymentMethods) {
+                retryCount++;
+                // 점진적 간격: 500ms, 1000ms, 1500ms, 2000ms...
+                const retryInterval = 500 + (retryCount * 500);
+                await new Promise(resolve => setTimeout(resolve, retryInterval));
+                
+                const newList = await onRefreshPaymentMethods(true);
+                // 카드가 추가되었는지 확인 (리스트 길이가 증가했는지)
+                if (newList && newList.length > (currentList?.length || 0)) {
+                  // 카드가 추가되었으면 재시도 중단
+                  return;
+                }
+                currentList = newList;
+                
+                // 마지막 시도가 아니면 계속 재시도
+                if (retryCount < maxRetries) {
+                  await retryRefresh();
+                }
               }
+            };
+            
+            // 첫 번째 재시도는 500ms 후 시작
+            setTimeout(() => {
+              retryRefresh();
             }, 500);
           }
         })
@@ -73,12 +99,38 @@ const PaymentSubTab = ({
           console.error('billingKey 발급 오류:', err);
           // 결제 수단 목록 새로고침 시도 (에러가 발생해도 카드는 등록되었을 수 있음)
           if (onRefreshPaymentMethods) {
-            await onRefreshPaymentMethods(true); // immediate = true
-            // 약간의 지연 후 다시 한 번 새로고침하여 확실하게 업데이트
-            setTimeout(async () => {
-              if (onRefreshPaymentMethods) {
-                await onRefreshPaymentMethods(true); // immediate = true
+            // 즉시 첫 번째 호출
+            let currentList = await onRefreshPaymentMethods(true);
+            
+            // 백엔드 처리 지연을 고려하여 재시도 (최대 10번, 점진적 간격)
+            let retryCount = 0;
+            const maxRetries = 10;
+            
+            const retryRefresh = async () => {
+              if (retryCount < maxRetries && onRefreshPaymentMethods) {
+                retryCount++;
+                // 점진적 간격: 500ms, 1000ms, 1500ms, 2000ms...
+                const retryInterval = 500 + (retryCount * 500);
+                await new Promise(resolve => setTimeout(resolve, retryInterval));
+                
+                const newList = await onRefreshPaymentMethods(true);
+                // 카드가 추가되었는지 확인 (리스트 길이가 증가했는지)
+                if (newList && newList.length > (currentList?.length || 0)) {
+                  // 카드가 추가되었으면 재시도 중단
+                  return;
+                }
+                currentList = newList;
+                
+                // 마지막 시도가 아니면 계속 재시도
+                if (retryCount < maxRetries) {
+                  await retryRefresh();
+                }
               }
+            };
+            
+            // 첫 번째 재시도는 500ms 후 시작
+            setTimeout(() => {
+              retryRefresh();
             }, 500);
           }
         })
@@ -170,6 +222,7 @@ const PaymentSubTab = ({
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", maxWidth: "100%", overflow: "hidden" }}>
         <div style={{ width: "100%", maxWidth: "100%" }}>
           <Swiper
+            key={`payment-methods-${paymentMethodList.length}-${paymentMethodList.map(pm => pm.id).join('-')}`}
             effect="coverflow"
             grabCursor={true}
             centeredSlides={true}

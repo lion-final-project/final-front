@@ -52,6 +52,8 @@ function App() {
   const [isResidentRider, setIsResidentRider] = useState(false);
   const [storeRegistrationStatus, setStoreRegistrationStatus] = useState('NONE'); // NONE, PENDING, APPROVED
   const [storeRegistrationStoreName, setStoreRegistrationStoreName] = useState(null); // 입점 신청한 상호명
+  const [riderRegistrationStatus, setRiderRegistrationStatus] = useState('NONE');
+  const [riderRegistrationApprovalId, setRiderRegistrationApprovalId] = useState(null);
   const [riderInfo, setRiderInfo] = useState(null);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -223,6 +225,37 @@ function App() {
       setStoreRegistrationStoreName(null);
     }
   };
+  const fetchRiderRegistration = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/riders/registration`, { credentials: 'include' });
+      if (res.ok) {
+        const json = await res.json();
+        const data = json?.data;
+          if (data?.status) {
+            setRiderRegistrationStatus(data.status);
+            setIsResidentRider(data.status === 'APPROVED');
+            setRiderRegistrationApprovalId(data.approvalId ?? null);
+          } else {
+            setRiderRegistrationStatus('NONE');
+            setIsResidentRider(false);
+            setRiderRegistrationApprovalId(null);
+          }
+        } else {
+          setRiderRegistrationStatus('NONE');
+          setIsResidentRider(false);
+          setRiderRegistrationApprovalId(null);
+        }
+      } catch {
+        setRiderRegistrationStatus('NONE');
+        setIsResidentRider(false);
+        setRiderRegistrationApprovalId(null);
+      }
+    };
+
+  const refreshRiderRegistration = useCallback(() => {
+    fetchRiderRegistration();
+  }, []);
+
 
   // 앱 로드 시 인증 상태 확인
   useEffect(() => {
@@ -233,6 +266,7 @@ function App() {
           setIsLoggedIn(true);
           setUserInfo(user);
           await fetchStoreRegistration();
+          await fetchRiderRegistration();
         }
       } catch (error) {
         console.log('Not logged in');
@@ -294,6 +328,8 @@ function App() {
     const role = Array.isArray(roles) && roles.length > 0 ? roles[0] : 'CUSTOMER';
     const normalizedRole = typeof role === 'string' ? role.replace('ROLE_', '') : role;
     setUserRole(normalizedRole === 'STORE' ? 'CUSTOMER' : normalizedRole);
+    fetchStoreRegistration();
+    fetchRiderRegistration();
   };
 
   // 카카오 로그인 콜백 후 5173으로 리다이렉트된 경우: URL 쿼리 처리 후 /me로 로그인 상태 반영
@@ -312,6 +348,7 @@ function App() {
           if (user) {
             handleLoginSuccess(user);
             await fetchStoreRegistration();
+            await fetchRiderRegistration();
           }
         })
         .catch(() => { })
@@ -343,10 +380,13 @@ function App() {
         setIsResidentRider={setIsResidentRider}
         storeRegistrationStatus={storeRegistrationStatus}
         setStoreRegistrationStatus={setStoreRegistrationStatus}
-        storeRegistrationStoreName={storeRegistrationStoreName}
-        setStoreRegistrationStoreName={setStoreRegistrationStoreName}
-        riderInfo={riderInfo}
-        setRiderInfo={setRiderInfo}
+      storeRegistrationStoreName={storeRegistrationStoreName}
+      setStoreRegistrationStoreName={setStoreRegistrationStoreName}
+      riderRegistrationStatus={riderRegistrationStatus}
+      riderRegistrationApprovalId={riderRegistrationApprovalId}
+      refreshRiderRegistration={refreshRiderRegistration}
+      riderInfo={riderInfo}
+      setRiderInfo={setRiderInfo}
         notificationCount={unreadCount}
         userInfo={userInfo}
         isNotificationOpen={isNotificationOpen}
