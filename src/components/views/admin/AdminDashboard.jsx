@@ -645,6 +645,12 @@ const AdminDashboard = () => {
     fetchApprovals();
   }, []);
 
+  useEffect(() => {
+    if (activeTab === 'approvals') {
+      fetchApprovals();
+    }
+  }, [activeTab]);
+
   const handleApprovalAction = async (approval, action, reason = '') => {
     console.log('[approval] action', { id: approval.id, action, reason });
     try {
@@ -717,17 +723,17 @@ const AdminDashboard = () => {
         await fetchStores(currentPage, storeSearchTerm);
       } catch (error) {
         console.error('Failed to update store status:', error);
-        alert('?? ?? ??? ??????.');
+        alert('마트 상태 변경에 실패했습니다.');
       } finally {
         setSelectedRecord(null);
       }
       return;
     } else if (record.type === 'USER') {
-      setUsers(prev => prev.map(u => 
-        u.id === record.id ? { ...u, status: u.status === '??' ? '??' : '??' } : u
+      setUsers(prev => prev.map(u =>
+        u.id === record.id ? { ...u, status: u.status === '활성' ? '정지' : '활성' } : u
       ));
       if (reason) {
-        alert(`[${record.name}] ???? ?? ??? ???????. "${reason}"`);
+        alert(`[${record.name}] 사용자 상태가 변경되었습니다. "${reason}"`);
       }
       setSelectedRecord(null);
       return;
@@ -747,7 +753,7 @@ const AdminDashboard = () => {
       await fetchRiders(currentPage, riderSearchTerm);
     } catch (error) {
       console.error('Failed to update rider status:', error);
-      alert('??? ?? ??? ??????.');
+      alert('배달원 상태 변경에 실패했습니다.');
     } finally {
       setSelectedRecord(null);
     }

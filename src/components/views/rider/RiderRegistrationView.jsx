@@ -104,18 +104,17 @@ const RiderRegistrationView = ({ onBack, onComplete, onRefreshStatus, userInfo }
     try {
       setIsLoading(true);
       const response = await getRiderApprovals();
-      if (response && response.data && response.data.content && response.data.content.length > 0) {
+      if (response?.data?.content?.length > 0) {
         setApprovals(response.data.content);
         setStatus('LIST');
-        if (onRefreshStatus) onRefreshStatus();
       } else {
         setStatus('NONE');
-        if (onRefreshStatus) onRefreshStatus();
       }
+      onRefreshStatus?.();
     } catch (error) {
       console.error('Failed to fetch approvals:', error);
       setStatus('NONE');
-      if (onRefreshStatus) onRefreshStatus();
+      onRefreshStatus?.();
     } finally {
       setIsLoading(false);
     }
@@ -176,7 +175,7 @@ const RiderRegistrationView = ({ onBack, onComplete, onRefreshStatus, userInfo }
       setResponseData(result.data);
 
       setStatus('PENDING');
-      if (onRefreshStatus) onRefreshStatus();
+      onRefreshStatus?.();
       window.scrollTo(0, 0);
     } catch (error) {
       console.error('Registration failed:', error);
@@ -187,9 +186,29 @@ const RiderRegistrationView = ({ onBack, onComplete, onRefreshStatus, userInfo }
   };
 
   if (status === 'LIST') {
+    const hasApprovedHistory = approvals.some((approval) => approval.status === 'APPROVED');
+
     return (
       <div style={{ maxWidth: '600px', margin: '0 auto', padding: '40px 20px' }}>
         <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '24px' }}>라이더 등록 신청</h2>
+
+        {hasApprovedHistory && (
+          <div
+            style={{
+              marginBottom: '16px',
+              padding: '14px 16px',
+              borderRadius: '12px',
+              backgroundColor: '#ecfeff',
+              border: '1px solid #67e8f9',
+              color: '#155e75',
+              fontSize: '14px',
+              fontWeight: '700',
+            }}
+          >
+            라이더 등록 승인이 완료되었습니다. 다시 신청할 수 없습니다.
+          </div>
+        )}
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {approvals.map((approval) => (
             <div
@@ -209,6 +228,7 @@ const RiderRegistrationView = ({ onBack, onComplete, onRefreshStatus, userInfo }
                     {getStatusLabel(approval.status)}
                   </div>
                 </div>
+
                 {approval.status === 'PENDING' && (
                   <button
                     onClick={() => handleDelete(approval.approvalId)}
@@ -230,19 +250,21 @@ const RiderRegistrationView = ({ onBack, onComplete, onRefreshStatus, userInfo }
               <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', fontSize: '14px', color: '#475569' }}>
                 <div style={{ marginBottom: '4px' }}><strong>이름:</strong> {approval.name}</div>
                 <div style={{ marginBottom: '4px' }}><strong>연락처:</strong> {approval.phone}</div>
-                <div><strong>계좌:</strong> {approval.bankName} {approval.bankAccount} (예금주: {approval.accountHolder})</div>
+                <div><strong>계좌:</strong> {approval.bankName} {approval.bankAccount} (예금주 {approval.accountHolder})</div>
               </div>
             </div>
           ))}
         </div>
 
-        <button
-          onClick={() => setStatus('NONE')}
-          className="btn-primary"
-          style={{ width: '100%', marginTop: '32px', padding: '16px', backgroundColor: '#38bdf8' }}
-        >
-          다시 신청하기
-        </button>
+        {!hasApprovedHistory && (
+          <button
+            onClick={() => setStatus('NONE')}
+            className="btn-primary"
+            style={{ width: '100%', marginTop: '32px', padding: '16px', backgroundColor: '#38bdf8' }}
+          >
+            다시 신청하기
+          </button>
+        )}
 
         <button
           onClick={onBack}
@@ -268,15 +290,15 @@ const RiderRegistrationView = ({ onBack, onComplete, onRefreshStatus, userInfo }
       <div style={{ maxWidth: '600px', margin: '0 auto', textAlign: 'center', padding: '60px 20px' }}>
         <div style={{ background: 'white', padding: '40px', borderRadius: '24px', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
           <div style={{ fontSize: '64px', marginBottom: '24px' }}>
-            {status === 'APPROVED' ? '✅' : '⏳'}
+            {status === 'APPROVED' ? '승인 완료' : '심사 진행 중'}
           </div>
           <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '16px' }}>
             {status === 'APPROVED' ? '승인' : '심사 대기 중'}
           </h2>
           <p style={{ color: '#64748b', marginBottom: '32px', lineHeight: '1.6' }}>
             {status === 'APPROVED'
-              ? '라이더 등록 승인이 완료되었습니다. 바로 활동을 시작할 수 있습니다.'
-              : '등록 신청이 접수되었습니다. 빠른 시일 내에 결과를 안내드리겠습니다.'}
+              ? '라이더 등록 승인이 완료되었습니다. 바로 배달 업무를 시작할 수 있습니다.'
+              : '등록 신청이 접수되었습니다. 심사 결과는 알림으로 안내됩니다.'}
           </p>
 
           {status === 'APPROVED' ? (
@@ -306,7 +328,7 @@ const RiderRegistrationView = ({ onBack, onComplete, onRefreshStatus, userInfo }
       <div style={{ background: 'white', borderRadius: '12px', padding: '24px', borderTop: '10px solid var(--primary)', marginBottom: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
         <h2 style={{ fontSize: '26px', fontWeight: '800', marginBottom: '8px' }}>라이더 등록 신청</h2>
         <p style={{ color: '#64748b', fontSize: '14px', lineHeight: '1.6' }}>
-          동네마켓 파트너 라이더로 함께할 분을 기다립니다. 아래 정보를 정확히 입력해주세요.
+          동네마켓 파트너 라이더로 활동할 분을 모집합니다. 아래 정보를 정확하게 입력해주세요.
         </p>
       </div>
 
