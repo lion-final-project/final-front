@@ -1,4 +1,45 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
+
+const isImageFile = (url) => {
+  if (!url) return false;
+  if (url.startsWith('data:image/')) return true;
+  const clean = url.split('?')[0].toLowerCase();
+  return clean.endsWith('.png') || clean.endsWith('.jpg') || clean.endsWith('.jpeg') || clean.endsWith('.gif') || clean.endsWith('.webp');
+};
+
+const FilePreview = ({ label, url }) => (
+  <div style={{ backgroundColor: '#0f172a', padding: '16px', borderRadius: '12px', border: '1px solid #334155', marginTop: '10px' }}>
+    <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '8px', fontWeight: '700' }}>{label}</div>
+    {url ? (
+      isImageFile(url) ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <img
+            src={url}
+            alt={label}
+            style={{ width: '86px', height: '86px', objectFit: 'cover', borderRadius: '10px', border: '1px solid #334155' }}
+          />
+          <button
+            type="button"
+            onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+            style={{ background: 'transparent', border: '1px solid #334155', padding: '8px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', color: '#38bdf8', cursor: 'pointer' }}
+          >
+            새 탭 열기
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+          style={{ background: 'none', border: 'none', padding: 0, fontSize: '13px', color: '#38bdf8', fontWeight: '700', textDecoration: 'underline', cursor: 'pointer' }}
+        >
+          파일 열기
+        </button>
+      )
+    ) : (
+      <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '700' }}>첨부파일 없음</span>
+    )}
+  </div>
+);
 
 const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowReports }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -23,7 +64,7 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
     || record.status === '운영중';
 
   const statusLabel = record.status
-    || (isRider ? (record.isActive ? '운행중' : '운행불가') : (record.isActive ? '정상' : '비활성'));
+    || (isRider ? (record.isActive ? '운행중' : '운행불가') : (record.isActive ? '운영중' : '운영중지'));
 
   const statusColor = isRider
     ? (statusLabel === '운행중' ? '#10b981' : '#ef4444')
@@ -48,7 +89,7 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backdropFilter: 'blur(3px)' }}>
       <div style={{ backgroundColor: '#1e293b', width: '100%', maxWidth: '550px', borderRadius: '24px', padding: '32px', border: '1px solid #334155', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <h2 style={{ fontSize: '22px', fontWeight: '800', margin: 0 }}>{isStore ? '마트 상세 정보' : isUser ? '고객 상세 정보' : '데이터 상세 조회'}</h2>
+          <h2 style={{ fontSize: '22px', fontWeight: '800', margin: 0 }}>{isStore ? '마트 상세 정보' : isUser ? '고객 상세 정보' : '배달원 상세 정보'}</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '24px', cursor: 'pointer' }}>×</button>
         </div>
 
@@ -76,6 +117,15 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
                   <span style={{ color: '#94a3b8', fontSize: '14px' }}>대표자</span>
                   <span style={{ fontWeight: '700' }}>{record.rep}</span>
                 </div>
+              </section>
+
+              <section style={{ backgroundColor: '#0f172a', padding: '24px', borderRadius: '20px', border: '1px solid #334155' }}>
+                <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#38bdf8', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>📄</span> 첨부 서류
+                </h3>
+                <FilePreview label="사업자등록증 이미지" url={record.documents?.businessRegistrationFile} />
+                <FilePreview label="통신판매업 신고증 이미지" url={record.documents?.mailOrderFile} />
+                <FilePreview label="통장 사본 이미지" url={record.documents?.bankbookFile} />
               </section>
 
               <section style={{ backgroundColor: '#0f172a', padding: '24px', borderRadius: '20px', border: '1px solid #334155' }}>
@@ -174,6 +224,15 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
                   <span style={{ fontWeight: '700' }}>{record.accountHolder || record.name}</span>
                 </div>
               </section>
+
+              <section style={{ backgroundColor: '#0f172a', padding: '24px', borderRadius: '20px', border: '1px solid #334155', marginTop: '12px' }}>
+                <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#38bdf8', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>📄</span> 첨부 서류
+                </h3>
+                <FilePreview label="신분증 사본" url={record.documents?.idCardFile} />
+                <FilePreview label="통장 사본" url={record.documents?.bankbookFile} />
+              </section>
+
               <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '12px', marginTop: '12px' }}>
                 <span style={{ color: '#94a3b8', fontSize: '14px' }}>연락처</span>
                 <span>{record.phone || '010-1234-5678'}</span>

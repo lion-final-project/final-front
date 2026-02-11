@@ -181,6 +181,11 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
   const [addressSearchValue, setAddressSearchValue] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [registrationInfo, setRegistrationInfo] = useState({
+    storeName: '',
+    representativeName: '',
+    status: '',
+  });
 
   const [files, setFiles] = useState({
     businessRegistration: null,
@@ -196,6 +201,31 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
       .then((json) => setStoreCategories(Array.isArray(json?.data) ? json.data : []))
       .catch(() => setStoreCategories([]));
   }, []);
+
+  useEffect(() => {
+    if (status === 'NONE') return;
+    const base = getApiBase();
+    fetch(`${base}/api/stores/registration`, { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const data = json?.data;
+        if (!data) return;
+        setRegistrationInfo({
+          storeName: data.storeName || '',
+          representativeName: data.representativeName || '',
+          status: data.status || status,
+        });
+      })
+      .catch(() => {});
+  }, [status]);
+
+  const getStoreStatusLabel = (value) => {
+    if (value === 'APPROVED') return '승인';
+    if (value === 'PENDING') return '심사 대기';
+    if (value === 'REJECTED') return '거절';
+    if (value === 'HELD') return '보류';
+    return value || '-';
+  };
 
   const toggleOffDay = (day) => {
     setFormData(prev => ({
@@ -431,6 +461,11 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
       const regJson = await regRes.json().catch(() => ({}));
       const data = regJson?.data;
       setStatus(data?.status === 'APPROVED' ? 'APPROVED' : 'PENDING');
+      setRegistrationInfo({
+        storeName: data?.storeName || formData.storeName || '',
+        representativeName: data?.representativeName || formData.repName || '',
+        status: data?.status || 'PENDING',
+      });
       if (data?.storeName && setStoreRegistrationStoreName) setStoreRegistrationStoreName(data.storeName);
       window.scrollTo(0, 0);
     } catch (err) {
@@ -467,7 +502,9 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
         ) : (
           <div style={{ padding: '20px', backgroundColor: '#f8fafc', borderRadius: '12px', fontSize: '14px', color: '#475569' }}>
             <div style={{ fontWeight: '700', marginBottom: '8px' }}>신청 정보</div>
-            <div>{formData.storeName} ({storeCategories.find(c => c.categoryName === formData.category)?.categoryName ?? formData.category})</div>
+            <div>마트이름: {registrationInfo.storeName || formData.storeName || '-'}</div>
+            <div>대표이름: {registrationInfo.representativeName || formData.repName || '-'}</div>
+            <div>승인상태: {getStoreStatusLabel(registrationInfo.status || status)}</div>
           </div>
         )}
         

@@ -54,6 +54,9 @@ const CustomerView = ({
   setStoreRegistrationStatus,
   storeRegistrationStoreName,
   setStoreRegistrationStoreName,
+  riderRegistrationStatus,
+  riderRegistrationApprovalId,
+  refreshRiderRegistration,
   riderInfo,
   setRiderInfo,
   userInfo,
@@ -881,6 +884,7 @@ const CustomerView = ({
           <RiderRegistrationView
             userInfo={userInfo}
             onBack={() => setActiveTab("partner")}
+            onRefreshStatus={refreshRiderRegistration}
             onComplete={(data) => {
               setRiderInfo(data);
               setUserRole("RIDER");
@@ -959,6 +963,9 @@ const CustomerView = ({
             storeRegistrationStoreName={storeRegistrationStoreName}
             setStoreRegistrationStatus={setStoreRegistrationStatus}
             setStoreRegistrationStoreName={setStoreRegistrationStoreName}
+            riderRegistrationStatus={riderRegistrationStatus}
+            riderRegistrationApprovalId={riderRegistrationApprovalId}
+            refreshRiderRegistration={refreshRiderRegistration}
             setIsResidentRider={setIsResidentRider}
             inquiries={inquiries}
             userRole={userRole}
