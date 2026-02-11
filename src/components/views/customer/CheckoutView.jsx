@@ -115,30 +115,36 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
   const paymentProcessedRef = useRef(false); // 결제 처리 중복 방지 플래그
 
   const cartItemIds = (cartItems || []).map((i) => i.cartProductId ?? i.id).filter(Boolean);
+  // 의존성 배열을 원시값으로 고정해 매 렌더마다 새 배열 참조로 effect가 도는 무한 루프 방지
+  const defaultAddressId = (addresses && addresses.length) ? (addresses.find((a) => a.isDefault)?.id ?? addresses[0]?.id) : undefined;
+  const paymentMethodsLength = (paymentMethods && paymentMethods.length) || 0;
+  const defaultPaymentId = paymentMethodsLength > 0 ? (paymentMethods.find((p) => p.isDefault)?.id ?? paymentMethods[0]?.id) : null;
 
   useEffect(() => {
-    const defaultAddr = addresses.find((a) => a.isDefault) || addresses[0];
-    if (defaultAddr && defaultAddr.id !== selectedAddress?.id) {
-      setSelectedAddress(defaultAddr);
-    }
-  }, [addresses]);
+    if (defaultAddressId == null) return;
+    if (selectedAddress?.id === defaultAddressId) return;
+    const defaultAddr = addresses.find((a) => a.id === defaultAddressId) || addresses[0];
+    if (defaultAddr) setSelectedAddress(defaultAddr);
+  }, [defaultAddressId, selectedAddress?.id, addresses]);
 
   useEffect(() => {
-    // 토스 PG 결제를 기본 선택으로 설정
-    if (paymentMethods.length === 0) {
-      setSelectedPayment({
-        id: 'toss-pg',
-        name: '토스 PG 결제',
-        type: 'toss',
-        color: '#3b82f6'
-      });
-    } else {
-      const defaultPay = paymentMethods.find((p) => p.isDefault) || paymentMethods[0];
-      if (defaultPay && defaultPay.id !== selectedPayment?.id) {
-        setSelectedPayment(defaultPay);
+    // 토스 PG 결제를 기본 선택으로 설정 (이미 동일하면 setState 생략 → 무한 루프 방지)
+    if (paymentMethodsLength === 0) {
+      if (selectedPayment?.id !== 'toss-pg') {
+        setSelectedPayment({
+          id: 'toss-pg',
+          name: '토스 PG 결제',
+          type: 'toss',
+          color: '#3b82f6'
+        });
       }
+      return;
     }
-  }, [paymentMethods]);
+    if (defaultPaymentId != null && selectedPayment?.id !== defaultPaymentId) {
+      const defaultPay = paymentMethods.find((p) => p.id === defaultPaymentId) || paymentMethods[0];
+      if (defaultPay) setSelectedPayment(defaultPay);
+    }
+  }, [paymentMethodsLength, defaultPaymentId, selectedPayment?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -220,16 +226,21 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
     }
   }, [onComplete]);
 
+  // cartItemIds는 매 렌더 새 배열이므로 문자열로 고정해 무한 요청 방지
+  const cartItemIdsKey = cartItemIds.length ? cartItemIds.join(',') : '';
+  const addressIdForApi = selectedAddress?.id ?? undefined;
+
   useEffect(() => {
-    if (cartItemIds.length === 0) {
+    if (!cartItemIdsKey) {
       setCheckoutData(null);
       return;
     }
     let cancelled = false;
     setCheckoutLoading(true);
+    const ids = cartItemIdsKey.split(',').map((id) => Number(id)).filter((n) => !Number.isNaN(n));
     const usePoints = typeof usePointsInput === 'number' && usePointsInput >= 0 ? usePointsInput : 0;
     const couponId = selectedCouponId === '' || selectedCouponId == null ? undefined : Number(selectedCouponId);
-    getCheckout(cartItemIds, selectedAddress?.id ?? undefined, { couponId: couponId ?? null, usePoints })
+    getCheckout(ids, addressIdForApi, { couponId: couponId ?? null, usePoints })
       .then((data) => {
         if (!cancelled) setCheckoutData(data);
       })
@@ -240,7 +251,7 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
         if (!cancelled) setCheckoutLoading(false);
       });
     return () => { cancelled = true; };
-  }, [cartItemIds.join(','), selectedAddress?.id, usePointsInput, selectedCouponId]);
+  }, [cartItemIdsKey, addressIdForApi, usePointsInput, selectedCouponId]);
 
   const availablePoints = checkoutData?.availablePoints ?? 0;
   useEffect(() => {
@@ -319,21 +330,33 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
     setIsProcessing(true);
     try {
       const deliveryRequestText = deliveryRequest === '직접 입력' ? requestInput : (deliveryRequest || '');
-      
-      // cartItems를 productQuantities Map으로 변환
+      const deliveryAddressStr = (selectedAddress?.address || '') + (selectedAddress?.detail ? ' ' + selectedAddress.detail : '').trim();
+      if (!deliveryAddressStr.trim()) {
+        alert('배송지를 선택해 주세요.');
+        setIsProcessing(false);
+        return;
+      }
+
+      // cartItems를 productQuantities Map으로 변환 (productId는 숫자, 무한 루프로 인한 NaN/undefined 방지)
       const productQuantities = {};
-      cartItems.forEach(item => {
-        const productId = item.productId || item.id;
-        if (productId) {
-          productQuantities[productId] = item.quantity || 1;
+      (cartItems || []).forEach((item) => {
+        const productId = Number(item.productId ?? item.id);
+        const qty = Math.max(1, Number(item.quantity) || 1);
+        if (Number.isFinite(productId) && productId > 0) {
+          productQuantities[productId] = qty;
         }
       });
+      if (Object.keys(productQuantities).length === 0) {
+        alert('결제할 상품이 없습니다.');
+        setIsProcessing(false);
+        return;
+      }
 
       // 1. 결제 준비 API 호출
       const prepareResponse = await preparePayment({
         productQuantities,
         paymentMethod: 'TOSS_PAY',
-        deliveryAddress: selectedAddress.address + (selectedAddress.detail ? ' ' + selectedAddress.detail : ''),
+        deliveryAddress: deliveryAddressStr.trim(),
         deliveryRequest: deliveryRequestText,
       });
 
@@ -483,36 +506,60 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
             currentAddressId={selectedAddress.id}
           />
 
-          {/* Order Summary Section - Grouped by Store */}
+          {/* Order Summary Section - API storeGroups 기준 (배송지 거리별 배송비·거리 km 표시) */}
           <section style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid var(--border)' }}>
             <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '16px' }}>주문 예상 상품</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {Object.entries(cartItems.reduce((acc, item) => {
-                const store = item.storeName || '우리 동네 마트';
-                if (!acc[store]) acc[store] = [];
-                acc[store].push(item);
-                return acc;
-              }, {})).map(([storeName, items]) => (
-                <div key={storeName} style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
-                  <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--primary)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    🏪 {storeName}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {items.map(item => (
-                      <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-                        <span style={{ color: '#475569' }}>{item.name} x {item.quantity}</span>
-                        <span style={{ fontWeight: '600' }}>{(item.price * item.quantity).toLocaleString()}원</span>
+              {checkoutData?.storeGroups && checkoutData.storeGroups.length > 0
+                ? checkoutData.storeGroups.map((sg) => (
+                    <div key={sg.storeId ?? sg.storeName} style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
+                      <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--primary)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        🏪 {sg.storeName}
                       </div>
-                    ))}
-                  </div>
-                  <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12px', color: '#94a3b8' }}>배송료 3,000원 대기</span>
-                    <span style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>
-                      소계: {(items.reduce((s, i) => s + i.price * i.quantity, 0) + 3000).toLocaleString()}원
-                    </span>
-                  </div>
-                </div>
-              ))}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {(sg.items || []).map((item) => (
+                          <div key={item.cartItemId ?? item.productId} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                            <span style={{ color: '#475569' }}>{item.productName} x {item.quantity}</span>
+                            <span style={{ fontWeight: '600' }}>{(item.subtotal ?? (item.unitPrice * item.quantity)).toLocaleString()}원</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                          배송료 {sg.distanceKm != null ? `약 ${sg.distanceKm}km · ` : ''}{(sg.deliveryFee ?? 0).toLocaleString()}원
+                        </span>
+                        <span style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>
+                          소계: {(sg.storeFinalPrice ?? 0).toLocaleString()}원
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                : Object.entries((cartItems || []).reduce((acc, item) => {
+                    const store = item.storeName || '우리 동네 마트';
+                    if (!acc[store]) acc[store] = [];
+                    acc[store].push(item);
+                    return acc;
+                  }, {})).map(([storeName, items]) => (
+                    <div key={storeName} style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
+                      <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--primary)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        🏪 {storeName}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {items.map(item => (
+                          <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                            <span style={{ color: '#475569' }}>{item.name} x {item.quantity}</span>
+                            <span style={{ fontWeight: '600' }}>{(item.price * item.quantity).toLocaleString()}원</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12px', color: '#94a3b8' }}>배송료 계산 중...</span>
+                        <span style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>
+                          소계: {items.reduce((s, i) => s + i.price * i.quantity, 0).toLocaleString()}원
+                        </span>
+                      </div>
+                    </div>
+                  ))}
             </div>
           </section>
 
