@@ -91,6 +91,22 @@ export async function deleteBanner(bannerId) {
   return json.data;
 }
 
+// 배너 순서 변경 (displayOrder 기준)
+export async function updateBannerOrder(banners) {
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+  const url = API_BASE_URL ? `${API_BASE_URL}${BASE_URL}/order` : `${BASE_URL}/order`;
+  const bannerIds = banners.map((b) => b.id);
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bannerIds }),
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error('배너 순서 변경 실패');
+  const json = await res.json();
+  return json.data;
+}
+
 // 고객 메인 배너 조회
 export async function getBannersForCustomer() {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';

@@ -62,7 +62,7 @@ const Hero = ({ onShopClick, onPromoClick }) => {
         marginTop: '32px',
         position: 'relative',
         height: '400px',
-        borderRadius: 'var(--radius)',
+        borderRadius: '0px', //var(--radius)
         overflow: 'hidden',
         boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
       }}
