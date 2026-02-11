@@ -84,21 +84,21 @@ export const getNearbyStores = async ({
  */
 
 /**
- * 회원 탈퇴 가능 여부 조회 (GET /api/users/me/withdrawal/check)
- * @returns {Promise<{withdrawable: boolean, reasons: string[], activeSubscriptionCount: number, pendingPaymentCount: number, inProgressOrderCount: number}>}
+ * 회원 탈퇴 가능 여부 조회 (GET /api/users/me/withdrawal/eligibility)
+ * @returns {Promise<{canWithdraw: boolean, blockedReasons: Array<{code: string, message: string}>}>}
  */
-export const getWithdrawalCheck = async () => {
-  const response = await api.get('/api/users/me/withdrawal/check');
+export const getWithdrawalEligibility = async () => {
+  const response = await api.get('/api/users/me/withdrawal/eligibility');
   const data = response.data?.data ?? response.data;
   return data;
 };
 
 /**
- * 회원 탈퇴 확정 (POST /api/users/me/withdrawal). 제한 사유 있으면 409.
- * @returns {Promise<{userId: number, status: string, deletedAt: string}>}
+ * 회원 탈퇴 확정 (DELETE /api/users/me). 제한 사유 있으면 409.
+ * @returns {Promise<{message: string, loggedOut: boolean, nextAction: string}>}
  */
-export const postWithdrawal = async () => {
-  const response = await api.post('/api/users/me/withdrawal');
+export const deleteWithdrawal = async () => {
+  const response = await api.delete('/api/users/me');
   const data = response.data?.data ?? response.data;
   return data;
 };
