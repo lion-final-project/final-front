@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getNotices, createNotice, updateNotice, deleteNotice } from '../../../api/noticeApi';
-import { getBanners, createBanner, updateBanner, deleteBanner } from '../../../api/bannerApi';
+import { getBanners, createBanner, updateBanner, deleteBanner, updateBannerOrder } from '../../../api/bannerApi';
 import { getFaqsForAdmin, createFaq, updateFaq, deleteFaq } from '../../../api/faqApi';
 import { getAdminInquiries, getAdminInquiryDetail, answerInquiry } from '../../../api/inquiryApi';
 import { formatDate, formatDateLocale, mapStoreApprovalItem, mapRiderApprovalItem, extractDocument } from './utils/adminDashboardUtils';
@@ -838,6 +838,15 @@ const AdminDashboard = () => {
           <CmsTab
             bannerList={bannerList}
             setBannerList={setBannerList}
+            onBannerReorder={async (newList) => {
+              setBannerList(newList);
+              try {
+                await updateBannerOrder(newList);
+              } catch (e) {
+                console.error(e);
+                alert('배너 순서 저장에 실패했습니다.');
+              }
+            }}
             onBannerAdd={() => { setCurrentBanner({ title: '', content: '', img: '', promotion: '', status: '노출 중', color: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }); setIsBannerModalOpen(true); }}
             onBannerEdit={(b) => { setCurrentBanner(b); setIsBannerModalOpen(true); }}
             onBannerDelete={async (b) => { if (!window.confirm('배너를 삭제하시겠습니까?')) return; try { await deleteBanner(b.id); fetchBanners(); } catch (e) { alert('삭제에 실패했습니다.'); } }}
