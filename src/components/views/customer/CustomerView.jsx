@@ -35,6 +35,7 @@ import {
   setDefaultPaymentMethod,
   deletePaymentMethod,
 } from "../../../api/billingApi";
+import * as storeApi from "../../../api/storeApi";
 
 // Import Swiper React components
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -88,6 +89,7 @@ const CustomerView = ({
     return savedTab || "home";
   });
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [storeCategories, setStoreCategories] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [myStoreId, setMyStoreId] = useState(null);
   const [selectedStore, setSelectedStore] = useState(null); // Local state for full page view
@@ -553,6 +555,22 @@ const CustomerView = ({
   });
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [viewingReview, setViewingReview] = useState(null);
+
+  const fetchStoreCategories = useCallback(async () => {
+    try {
+      const data = await storeApi.getStoreCategories();
+      // "전체" 카테고리 추가
+      setStoreCategories([{ id: "all", categoryName: "전체" }, ...data]);
+    } catch (err) {
+      console.error("카테고리 로직 실패:", err);
+      // 실패 시 기본 카테고리라도 표시 (fallback)
+      setStoreCategories([{ id: "all", categoryName: "전체" }]);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStoreCategories();
+  }, [fetchStoreCategories]);
 
   const handleOpenAddressModal = (addr = null) => {
     if (addr) {
@@ -1390,6 +1408,7 @@ const CustomerView = ({
                       style={{
                         padding: "10px 16px",
                         paddingLeft: "38px",
+                        paddingRight: "40px",
                         borderRadius: "24px",
                         border: "2px solid var(--border)",
                         fontSize: "14px",
@@ -1416,6 +1435,36 @@ const CustomerView = ({
                     >
                       🔍
                     </span>
+                    {localSearchTerm && (
+                      <button
+                        onClick={() => {
+                          setLocalSearchTerm("");
+                          setSearchQuery("");
+                          showToast("검색어가 초기화되었습니다.");
+                        }}
+                        style={{
+                          position: "absolute",
+                          right: "12px",
+                          background: "#f1f5f9",
+                          border: "none",
+                          borderRadius: "50%",
+                          width: "20px",
+                          height: "20px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "10px",
+                          color: "#64748b",
+                          cursor: "pointer",
+                          transition: "all 0.2s",
+                        }}
+                        onMouseEnter={(e) => (e.target.style.background = "#e2e8f0")}
+                        onMouseLeave={(e) => (e.target.style.background = "#f1f5f9")}
+                        title="검색어 초기화"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
 
                   <button
@@ -1481,6 +1530,7 @@ const CustomerView = ({
                 <CategorySidebar
                   selectedCategory={selectedCategory}
                   setSelectedCategory={setSelectedCategory}
+                  categories={storeCategories}
                 />
                 <StoreGrid
                   selectedCategory={selectedCategory}
