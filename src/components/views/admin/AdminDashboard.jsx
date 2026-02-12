@@ -420,6 +420,13 @@ const AdminDashboard = () => {
       const payload = await response.json();
       const detail = payload?.data;
       if (!detail) return;
+      const approvalDetail = await fetchStoreApprovalDetailByStoreId(detail.storeId);
+      const approvalDocuments = approvalDetail?.documents || [];
+      const storeDocuments = {
+        businessRegistrationFile: extractDocument(approvalDocuments, 'BUSINESS_LICENSE'),
+        mailOrderFile: extractDocument(approvalDocuments, 'BUSINESS_REPORT'),
+        bankbookFile: extractDocument(approvalDocuments, 'BANK_PASSBOOK')
+      };
       const loc = [detail.addressLine1, detail.addressLine2].filter(Boolean).join(' ');
       setSelectedRecord({
         id: detail.storeId,
@@ -435,6 +442,7 @@ const AdminDashboard = () => {
           holder: detail.settlementAccountHolder
         },
         intro: detail.description,
+        documents: storeDocuments,
         status: detail.isActive ? '운영중' : '운영중지',
         isActive: detail.isActive
       });
@@ -521,6 +529,12 @@ const AdminDashboard = () => {
       const payload = await response.json();
       const detail = payload?.data;
       if (!detail) return;
+      const approvalDetail = await fetchRiderApprovalDetailByRiderId(detail.riderId);
+      const approvalDocuments = approvalDetail?.documents || [];
+      const riderDocuments = {
+        idCardFile: extractDocument(approvalDocuments, 'ID_CARD'),
+        bankbookFile: extractDocument(approvalDocuments, 'BANK_PASSBOOK')
+      };
       setSelectedRecord({
         id: detail.riderId,
         riderId: detail.riderId,
@@ -529,6 +543,7 @@ const AdminDashboard = () => {
         bankName: detail.bankName,
         accountNumber: detail.bankAccount,
         accountHolder: detail.accountHolder,
+        documents: riderDocuments,
         status: detail.isActive ? '운행중' : '운행불가',
         isActive: detail.isActive
       });
@@ -548,6 +563,42 @@ const AdminDashboard = () => {
     return payload.data;
   };
 
+  const fetchStoreApprovalDetailByStoreId = async (storeId) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/admin/stores/approvals?status=APPROVED&status=PENDING&status=HELD&status=REJECTED`,
+        { headers: { ...authHeader() }, credentials: 'include' }
+      );
+      if (!response.ok) return null;
+      const payload = await response.json();
+      const list = Array.isArray(payload?.data) ? payload.data : [];
+      const match = list.find(item => item.storeId === storeId);
+      if (!match) return null;
+      return await fetchApprovalDetail('STORE', match.approvalId);
+    } catch (error) {
+      console.error('Failed to load store approval detail:', error);
+      return null;
+    }
+  };
+
+  const fetchRiderApprovalDetailByRiderId = async (riderId) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/admin/riders/approvals?status=APPROVED&status=PENDING&status=HELD&status=REJECTED`,
+        { headers: { ...authHeader() }, credentials: 'include' }
+      );
+      if (!response.ok) return null;
+      const payload = await response.json();
+      const list = Array.isArray(payload?.data) ? payload.data : [];
+      const match = list.find(item => item.riderId === riderId);
+      if (!match) return null;
+      return await fetchApprovalDetail('RIDER', match.approvalId);
+    } catch (error) {
+      console.error('Failed to load rider approval detail:', error);
+      return null;
+    }
+  };
+
   const handleOpenApproval = async (item, focusSection = null) => {
     try {
       const detail = await fetchApprovalDetail(item.category, item.id);
@@ -555,13 +606,19 @@ const AdminDashboard = () => {
       const formData = item.category === 'STORE'
           ? {
             storeName: detail.store?.storeName,
+            category: detail.store?.categoryName,
+            companyName: detail.store?.businessOwnerName,
             businessNumber: detail.store?.businessNumber,
+            mailOrderNumber: detail.store?.telecomSalesReportNumber,
             repName: detail.store?.representativeName,
             contact: detail.store?.representativePhone,
             martContact: detail.store?.representativePhone,
             martIntro: detail.store?.addressLine1,
             addressLine2: detail.store?.addressLine2,
             postalCode: detail.store?.postalCode,
+            bankName: detail.store?.settlementBankName,
+            accountNumber: detail.store?.settlementBankAccount,
+            accountHolder: detail.store?.settlementAccountHolder,
             reason: detail.reason,
             businessRegistrationFile: extractDocument(documents, 'BUSINESS_LICENSE'),
             mailOrderFile: extractDocument(documents, 'BUSINESS_REPORT'),
@@ -587,6 +644,12 @@ const AdminDashboard = () => {
   useEffect(() => {
     fetchApprovals();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'approvals') {
+      fetchApprovals();
+    }
+  }, [activeTab]);
 
   const handleApprovalAction = async (approval, action, reason = '') => {
     console.log('[approval] action', { id: approval.id, action, reason });
@@ -660,17 +723,17 @@ const AdminDashboard = () => {
         await fetchStores(currentPage, storeSearchTerm);
       } catch (error) {
         console.error('Failed to update store status:', error);
-        alert('?? ?? ??? ??????.');
+        alert('마트 상태 변경에 실패했습니다.');
       } finally {
         setSelectedRecord(null);
       }
       return;
     } else if (record.type === 'USER') {
-      setUsers(prev => prev.map(u => 
-        u.id === record.id ? { ...u, status: u.status === '??' ? '??' : '??' } : u
+      setUsers(prev => prev.map(u =>
+        u.id === record.id ? { ...u, status: u.status === '활성' ? '정지' : '활성' } : u
       ));
       if (reason) {
-        alert(`[${record.name}] ???? ?? ??? ???????. "${reason}"`);
+        alert(`[${record.name}] 사용자 상태가 변경되었습니다. "${reason}"`);
       }
       setSelectedRecord(null);
       return;
@@ -690,7 +753,7 @@ const AdminDashboard = () => {
       await fetchRiders(currentPage, riderSearchTerm);
     } catch (error) {
       console.error('Failed to update rider status:', error);
-      alert('??? ?? ??? ??????.');
+      alert('배달원 상태 변경에 실패했습니다.');
     } finally {
       setSelectedRecord(null);
     }
