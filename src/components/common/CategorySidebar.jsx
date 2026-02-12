@@ -1,6 +1,22 @@
-import { categories } from '../../data/mockData';
-
-const CategorySidebar = ({ selectedCategory, setSelectedCategory }) => {
+const CategorySidebar = ({ selectedCategory, setSelectedCategory, categories = [] }) => {
+  // 카테고리 이름에 따른 아이콘 매핑
+  const getIcon = (name) => {
+    const iconMap = {
+      '전체': '🏠',
+      '마트/슈퍼': '🛒',
+      '슈퍼마켓': '🛒',
+      '청과물': '🍎',
+      '과일가게': '🍎',
+      '정육점': '🥩',
+      '수산시장': '🐟',
+      '반찬가게': '🍱',
+      '베이커리': '🥐',
+      '간식': '🍡',
+      '편의점': '🏪',
+      '철물/생활': '🔧'
+    };
+    return iconMap[name] || '📦';
+  };
 
   return (
     <aside className="category-sidebar">
@@ -8,12 +24,13 @@ const CategorySidebar = ({ selectedCategory, setSelectedCategory }) => {
         {categories.map((cat) => {
           const isActive = selectedCategory === cat.id;
           return (
-            <li 
-              key={cat.id} 
+            <li
+              key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
               className={`category-item ${isActive ? 'active' : ''}`}
             >
-              {cat.icon} {cat.name}
+              <span style={{ marginRight: '8px' }}>{getIcon(cat.categoryName)}</span>
+              {cat.categoryName}
             </li>
           );
         })}
