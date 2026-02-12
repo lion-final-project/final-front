@@ -15,7 +15,7 @@ export const getOrderList = async (page = 0, size = 10, startDate = null, endDat
     if (startDate) params.startDate = startDate;
     if (endDate) params.endDate = endDate;
     if (searchTerm && searchTerm.trim()) params.searchTerm = searchTerm.trim();
-    
+
     const response = await api.get('/api/orders', { params });
     console.log('API 응답 전체:', response);
     console.log('response.data:', response.data);
@@ -61,6 +61,17 @@ export const createOrder = async (payload) => {
     couponId: payload.couponId ?? null,
     usePoints: payload.usePoints ?? 0,
   });
+  const data = response.data?.data ?? response.data;
+  return data;
+};
+
+/**
+ * 스토어 주문 상세 조회 (단건, 마이페이지용)
+ * @param {number} storeOrderId - 스토어 주문 ID
+ * @returns {Promise<{ storeOrder, order, payment, products }>}
+ */
+export const getStoreOrderDetail = async (storeOrderId) => {
+  const response = await api.get(`/api/orders/store/${storeOrderId}`);
   const data = response.data?.data ?? response.data;
   return data;
 };
