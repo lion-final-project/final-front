@@ -294,6 +294,7 @@ const MypageTabContent = (props) => {
                     handleSavePaymentMethod={handleSavePaymentMethod}
                     onCardRegistered={onCardRegistered}
                     onRefreshPaymentMethods={fetchPaymentMethods}
+                    showToast={showToast}
                   />
                 )}
 
