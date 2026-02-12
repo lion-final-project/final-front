@@ -974,7 +974,6 @@ const CustomerView = ({
     }
 
     try {
-      // cartProductId로 아이템 찾기
       const item = cartItems.find(
         (item) => item.id === id || item.cartProductId === id,
       );
@@ -983,8 +982,10 @@ const CustomerView = ({
         return;
       }
 
-      const result = await cartAPI.removeFromCart(item.productId);
-      setCartItems(result.items);
+      await cartAPI.removeFromCart(item.productId);
+      // 삭제 후 서버 장바구니를 다시 조회해 목록/결제창과 항상 동기화
+      const fresh = await cartAPI.getCart();
+      setCartItems(Array.isArray(fresh?.items) ? fresh.items : []);
       showToast("장바구니에서 상품이 삭제되었습니다.");
     } catch (error) {
       console.error("상품 삭제 실패:", error);
@@ -1768,10 +1769,11 @@ const CustomerView = ({
         cartItems={cartItems}
         onUpdateQuantity={onUpdateQuantity}
         onRemoveFromCart={onRemoveFromCart}
-        onCheckout={() => {
-          // 장바구니에서 결제로 넘어갈 때 구독 결제 정보 제거
+        onCheckout={(itemsToCheckout) => {
           sessionStorage.removeItem("pendingSubscriptionCheckout");
           setIsCartOpen(false);
+          // 선택한 상품만 결제창으로 전달 (없으면 전체 장바구니)
+          setCheckoutCartItems(Array.isArray(itemsToCheckout) && itemsToCheckout.length > 0 ? itemsToCheckout : null);
           setActiveTab("checkout");
         }}
         isLoggedIn={isLoggedIn}
