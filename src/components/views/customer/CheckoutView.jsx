@@ -143,6 +143,17 @@ const AddressModal = ({
   );
 };
 
+/** 마트별 배송료 문구: distanceKm·deliveryFee는 백엔드(체크아웃 API)에서 옴 */
+function formatDeliveryFeeLabel(distanceKm, deliveryFee) {
+  const fee = (deliveryFee ?? 0).toLocaleString();
+  if (distanceKm != null && typeof distanceKm === 'number') {
+    return `배송료 약 ${distanceKm}km · ${fee}원`;
+  }
+  return `배송료 ${fee}원`;
+}
+
+const DELIVERY_FEE_CALCULATING = '배송료 계산 중...';
+
 const CheckoutView = ({
   cartItems,
   onComplete,
@@ -916,7 +927,7 @@ const CheckoutView = ({
             currentAddressId={selectedAddress.id}
           />
 
-          {/* Order Summary Section - Grouped by Store or Subscription */}
+          {/* Order Summary Section - 구독 / API storeGroups / 장바구니 fallback */}
           <section
             style={{
               background: "white",
@@ -1008,8 +1019,34 @@ const CheckoutView = ({
                   배송 시간대: {subscriptionCheckout.deliveryTimeSlot}
                 </div>
               </div>
-            ) : // 일반 결제 모드: 장바구니 상품만 표시
-            cartItems.length > 0 ? (
+            ) : checkoutData?.storeGroups && checkoutData.storeGroups.length > 0 ? (
+              // API 체크아웃 응답 기준 (배송지 거리별 배송비·거리 km)
+              <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                {checkoutData.storeGroups.map((sg) => (
+                  <div key={sg.storeId ?? sg.storeName} style={{ borderBottom: "1px solid #f1f5f9", paddingBottom: "16px" }}>
+                    <div style={{ fontSize: "14px", fontWeight: "800", color: "var(--primary)", marginBottom: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
+                      🏪 {sg.storeName}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {(sg.items || []).map((item) => (
+                        <div key={item.cartItemId ?? item.productId} style={{ display: "flex", justifyContent: "space-between", fontSize: "14px" }}>
+                          <span style={{ color: "#475569" }}>{item.productName} x {item.quantity}</span>
+                          <span style={{ fontWeight: "600" }}>{(item.subtotal ?? (item.unitPrice * item.quantity)).toLocaleString()}원</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ marginTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: "12px", color: "#94a3b8" }}>
+                        {formatDeliveryFeeLabel(sg.distanceKm, sg.deliveryFee)}
+                      </span>
+                      <span style={{ fontSize: "14px", fontWeight: "700", color: "#1e293b" }}>
+                        소계: {(sg.storeFinalPrice ?? 0).toLocaleString()}원
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : cartItems.length > 0 ? (
               <div
                 style={{
                   display: "flex",
@@ -1079,7 +1116,7 @@ const CheckoutView = ({
                       }}
                     >
                       <span style={{ fontSize: "12px", color: "#94a3b8" }}>
-                        배송료 3,000원 대기
+                        {DELIVERY_FEE_CALCULATING}
                       </span>
                       <span
                         style={{
@@ -1088,12 +1125,7 @@ const CheckoutView = ({
                           color: "#1e293b",
                         }}
                       >
-                        소계:{" "}
-                        {(
-                          items.reduce((s, i) => s + i.price * i.quantity, 0) +
-                          3000
-                        ).toLocaleString()}
-                        원
+                        소계: {items.reduce((s, i) => s + i.price * i.quantity, 0).toLocaleString()}원
                       </span>
                     </div>
                   </div>
