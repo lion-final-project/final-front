@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getRiderInfo, updateRiderStatus, updateRiderLocation, getRiderLocation, removeRiderLocation } from '../../../api/riderApi';
+import { getRiderInfo, updateRiderStatus, updateRiderLocation, getRiderLocation, removeRiderLocation, getMyDeliveries, acceptDelivery as acceptDeliveryApi, pickUpDelivery, startDelivery, completeDelivery as completeDeliveryApi } from '../../../api/riderApi';
+import { mapToLocalDelivery } from './utils/riderDashboardUtils';
 import MainTab from './tabs/MainTab';
 import EarningsTab from './tabs/EarningsTab';
 import HistoryTab from './tabs/HistoryTab';
@@ -26,9 +27,11 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
     const fetchInfo = async () => {
       try {
         const response = await getRiderInfo();
-        if (response && response.data) {
-          setRiderData(response.data);
-          setIsOnline(response.data['operation-status'] === 'ONLINE');
+        if (response) {
+          setRiderData(response);
+          // ONLINE 또는 DELIVERING 상태일 때 온라인으로 간주
+          const status = response['operation-status'];
+          setIsOnline(status === 'ONLINE' || status === 'DELIVERING');
         }
       } catch (error) {
         console.error('Failed to fetch rider info:', error);
@@ -36,7 +39,31 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
     };
     fetchInfo();
   }, []);
+
+  const [deliveryRequests, setDeliveryRequests] = useState([]);
   const [activeDeliveries, setActiveDeliveries] = useState([]); // Array of { ...req, status }
+
+  // Fetch Active Deliveries
+  const fetchActiveDeliveries = async () => {
+    try {
+      const response = await getMyDeliveries();
+      if (response && response.content) {
+        const ongoing = response.content
+          .filter(d => !['DELIVERED', 'CANCELLED'].includes(d.status))
+          .map(mapToLocalDelivery);
+        setActiveDeliveries(ongoing);
+      }
+    } catch (error) {
+      console.error('Failed to fetch active deliveries:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (isOnline) {
+      fetchActiveDeliveries();
+    }
+  }, [isOnline]);
+
   const [earnings, setEarnings] = useState({ today: 48500, weekly: 342000 });
   const [showMsgModal, setShowMsgModal] = useState(false);
   const [completionNotification, setCompletionNotification] = useState(null); // { fee: 3500 }
@@ -76,10 +103,10 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
 
                   // 2. Read position from server (GET) to ensure sync
                   const response = await getRiderLocation(`rider${riderData.id}`);
-                  if (response && response.data) {
+                  if (response) {
                     setCurrentLocation({
-                      latitude: response.data.latitude,
-                      longitude: response.data.longitude
+                      latitude: response.latitude,
+                      longitude: response.longitude
                     });
                     setLastSyncTime(new Date().toLocaleTimeString('ko-KR', { hour12: false }));
                   }
@@ -154,9 +181,9 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
 
     try {
       const response = await updateRiderStatus(newStatus);
-      if (response && response.data) {
-        setRiderData(response.data);
-        const nextIsOnline = response.data['operation-status'] === 'ONLINE';
+      if (response) {
+        setRiderData(response);
+        const nextIsOnline = response['operation-status'] === 'ONLINE';
         setIsOnline(nextIsOnline);
 
         // 운행 종료(OFFLINE) 시 Redis에서 위치 정보 삭제
@@ -194,48 +221,96 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
     }
   };
 
-  const deliveryRequests = [
-    { id: 'REQ001', store: '무림 정육점', storeAddress: '강남구 삼성동 15-5', destination: '삼성동 빌라 302호', distance: '1.2km', fee: 3500, customerPhone: '010-1234-5678' },
-    { id: 'REQ002', store: '행복 마트 강남점', storeAddress: '역삼동 823-1', destination: '논현동 원룸 201호', distance: '0.8km', fee: 3000, customerPhone: '010-9876-5432' }
+  // Listen for NEW_DELIVERY SSE event
+  useEffect(() => {
+    const handleNearbyDeliveries = (event) => {
+      const deliveryIds = event.detail;
+      console.log('[Rider] 주변 신규 배송건 수신:', deliveryIds);
+      if (Array.isArray(deliveryIds)) {
+        setDeliveryRequests(prev => {
+          // 1. 고유 ID 추출 및 현재 진행 중인 배달 제외
+          const uniqueIds = [...new Set(deliveryIds.map(id => String(id)))];
+          const validIds = uniqueIds.filter(id =>
+            !activeDeliveries.some(d => String(d.id) === id)
+          );
+
+          // 2. 기존 목록 중 서버 목록에 여전히 있는 것들 유지
+          const existing = prev.filter(p => validIds.includes(String(p.id)));
+
+          // 3. 신규 추가된 것들 생성
+          const newlyAdded = validIds
+            .filter(id => !existing.some(e => String(e.id) === id))
+            .map(id => ({
+              id,
+              store: '실시간 신규 마트',
+              storeAddress: '인근 지역',
+              destination: '지정됨',
+              distance: '실시간 측정 중',
+              fee: 3500
+            }));
+
+          return [...newlyAdded, ...existing];
+        });
+      }
+    };
+
+    window.addEventListener('nearby-deliveries', handleNearbyDeliveries);
+    return () => window.removeEventListener('nearby-deliveries', handleNearbyDeliveries);
+  }, [activeDeliveries]);
+
+  const deliveryRequests_old = [
+    { id: 'REQ001', storeName: '무림 정육점', pickupAddress: '강남구 삼성동 15-5', deliveryAddress: '삼성동 빌라 302호', distance: '1.2km', fee: 3500 },
+    { id: 'REQ002', storeName: '행복 마트 강남점', pickupAddress: '역삼동 823-1', deliveryAddress: '논현동 원룸 201호', distance: '0.8km', fee: 3000 }
   ];
 
-  const handleAcceptRequest = (req) => {
-    if (activeDeliveries.some(d => d.id === req.id)) return;
-    setActiveDeliveries(prev => [...prev, { ...req, status: 'accepted' }]);
+  const handleAcceptRequest = async (req) => {
+    if (activeDeliveries.some(d => String(d.id) === String(req.id))) return;
+    try {
+      await acceptDeliveryApi(req.id);
+      fetchActiveDeliveries();
+    } catch (error) {
+      console.error('Failed to accept delivery:', error);
+      alert('배달 수락에 실패했습니다.');
+    }
   };
 
-  const nextStep = (id) => {
-    setActiveDeliveries(prev => {
-      const delivery = prev.find(d => d.id === id);
-      if (!delivery) return prev;
+  const nextStep = async (id) => {
+    const delivery = activeDeliveries.find(d => d.id === id);
+    if (!delivery) return;
 
+    try {
       if (delivery.status === 'accepted') {
-        return prev.map(d => d.id === id ? { ...d, status: 'pickup' } : d);
+        await pickUpDelivery(id);
       } else if (delivery.status === 'pickup') {
-        return prev.map(d => d.id === id ? { ...d, status: 'delivering' } : d);
+        await startDelivery(id);
       } else if (delivery.status === 'delivering') {
-        // Require photo proof before completing
         setUploadingDeliveryId(id);
         setShowPhotoUploadModal(true);
-        return prev;
+        return;
       }
-      return prev;
-    });
+      fetchActiveDeliveries();
+    } catch (error) {
+      console.error('Failed to proceed next step:', error);
+      alert('상태 변경에 실패했습니다.');
+    }
   };
 
-  const handleCompleteDelivery = () => {
+  const handleCompleteDelivery = async () => {
     if (!uploadingDeliveryId) return;
 
-    setActiveDeliveries(prev => {
-      const delivery = prev.find(d => d.id === uploadingDeliveryId);
+    try {
+      await completeDeliveryApi(uploadingDeliveryId);
+      const delivery = activeDeliveries.find(d => d.id === uploadingDeliveryId);
       if (delivery) {
         setEarnings(e => ({ ...e, today: e.today + delivery.fee }));
         setCompletionNotification({ fee: delivery.fee });
         setTimeout(() => setCompletionNotification(null), 4000);
-        return prev.filter(d => d.id !== uploadingDeliveryId);
       }
-      return prev;
-    });
+      fetchActiveDeliveries();
+    } catch (error) {
+      console.error('Failed to complete delivery:', error);
+      alert('배송 완료 처리에 실패했습니다.');
+    }
 
     setUploadingDeliveryId(null);
     setShowPhotoUploadModal(false);

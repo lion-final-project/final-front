@@ -45,8 +45,11 @@ const MainTab = ({ earnings, activeDeliveries, deliveryRequests, setShowMsgModal
           <h3 style={{ fontSize: '18px', fontWeight: '800', margin: 0 }}>진행 중인 배달 ({activeDeliveries.length})</h3>
           {activeDeliveries.map((delivery) => (
             <div key={delivery.id} style={{ backgroundColor: '#1e293b', borderRadius: '20px', padding: '24px', border: '1px solid #38bdf8', boxShadow: '0 10px 25px -5px rgba(56, 189, 248, 0.1)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-                <span style={{ fontSize: '14px', fontWeight: '800', color: '#38bdf8' }}>{delivery.id} 진행 중</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '14px', fontWeight: '800', color: '#38bdf8' }}>{delivery.id} 진행 중</span>
+                  <span style={{ fontSize: '11px', fontWeight: '900', color: '#ef4444' }}>배차완료!</span>
+                </div>
                 <span style={{ fontSize: '14px', fontWeight: '800' }}>{delivery.fee.toLocaleString()}원</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px', position: 'relative', padding: '0 10px' }}>
@@ -63,15 +66,20 @@ const MainTab = ({ earnings, activeDeliveries, deliveryRequests, setShowMsgModal
                   );
                 })}
               </div>
-              <div style={{ backgroundColor: '#0f172a', padding: '16px', borderRadius: '12px', marginBottom: '20px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ backgroundColor: '#0f172a', padding: '16px', borderRadius: '12px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                  <span style={{ fontSize: '18px', marginTop: '2px' }}>🏬</span>
                   <div>
-                    <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>{delivery.status === 'delivering' ? '목적지' : '픽업지'}</div>
-                    <div style={{ fontSize: '15px', fontWeight: '800' }}>{delivery.status === 'delivering' ? delivery.destination : delivery.store}</div>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '2px' }}>픽업지 ({delivery.storeName})</div>
+                    <div style={{ fontSize: '14px', fontWeight: '800', color: '#f8fafc' }}>{delivery.pickupAddress}</div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>고객 연락처</div>
-                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#38bdf8' }}>{delivery.customerPhone}</div>
+                </div>
+                <div style={{ height: '1px', backgroundColor: '#1e293b' }} />
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                  <span style={{ fontSize: '18px', marginTop: '2px' }}>📍</span>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '2px' }}>목적지</div>
+                    <div style={{ fontSize: '14px', fontWeight: '800', color: '#38bdf8' }}>{delivery.deliveryAddress}</div>
                   </div>
                 </div>
               </div>

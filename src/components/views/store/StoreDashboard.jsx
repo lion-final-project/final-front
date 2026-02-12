@@ -14,6 +14,7 @@ import {
   mapStoreOrderToDisplay,
   mapCompletedStoreOrderToDisplay,
 } from './utils/storeDashboardUtils';
+import { subscribeNotifications } from '../../../api/notificationApi';
 import { getNewOrders, getCompletedOrders, getOrderHistory, acceptOrder, completePreparation, rejectOrder } from '../../../api/storeOrderApi';
 import OrdersTab from './tabs/OrdersTab';
 import DashboardTab from './tabs/DashboardTab';
@@ -87,7 +88,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   const [editingSubscription, setEditingSubscription] = useState(null);
   const [subscriptionForm, setSubscriptionForm] = useState({ name: '', price: '', weeklyFreq: 1, monthlyTotal: 4, deliveryDays: [], description: '', selectedProducts: [] });
   const [expandedSubscriptions, setExpandedSubscriptions] = useState(new Set());
-  
+
   const [userSubscriptions, setUserSubscriptions] = useState([
     { id: 1, userName: '김철수', productName: '신선 채소 꾸러미', startDate: '2026-01-10', status: 'APPROVED', deliveryStatus: 'DELIVERED', nextDelivery: '2026-02-01' },
     { id: 2, userName: '이영희', productName: '제철 과일 꾸러미', startDate: '2026-01-15', status: 'PENDING', deliveryStatus: 'PENDING', nextDelivery: '2026-01-28' },
@@ -271,6 +272,35 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     fetchMyProducts();
     fetchCategories();
     fetchCanEditProduct();
+
+    // SSE 연결 및 이벤트 리스너 등록
+    let eventSource = null;
+    const connectSSE = () => {
+      try {
+        eventSource = subscribeNotifications((type, data) => {
+          console.log(`[Store] SSE Event Received: ${type}`, data);
+          if (type === 'NEW_ORDER' || type === 'DELIVERY_MATCHED' || type === 'store-order-created' || type === 'DELIVERY_STATUS_CHANGED') {
+            console.log('Order update required, fetching new orders...');
+            fetchNewOrders();
+            // 배차 완료/픽업 완료 등 상태 변경 시 완료된 주문 목록도 갱신 필요할 수 있음
+            if (type === 'DELIVERY_MATCHED' || type === 'DELIVERY_STATUS_CHANGED') {
+              fetchCompletedOrders();
+            }
+          }
+        });
+        console.log('SSE Connected for Store');
+      } catch (error) {
+        console.error('SSE Connection Failed:', error);
+      }
+    };
+    connectSSE();
+
+    return () => {
+      if (eventSource) {
+        eventSource.close();
+        console.log('SSE Disconnected');
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -283,7 +313,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
           setStoreInfo(prev => ({ ...prev, name: d.storeName, category: d.categoryName || prev.category }));
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -325,7 +355,11 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
       fetchNewOrdersRef.current();
     };
     window.addEventListener('store-order-created', handler);
-    return () => window.removeEventListener('store-order-created', handler);
+    window.addEventListener('delivery-matched', handler);
+    return () => {
+      window.removeEventListener('store-order-created', handler);
+      window.removeEventListener('delivery-matched', handler);
+    };
   }, []);
 
   // SSE 누락 대비: 탭 포커스 시 대시보드면 신규 주문 재조회
@@ -425,7 +459,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     category: '',
     img: null
   });
-  
+
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [orders, setOrders] = useState([]);
   const [completedOrdersLoading, setCompletedOrdersLoading] = useState(false);
@@ -897,7 +931,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   const handleReplyReview = (reviewId) => {
     const reply = replyInput[reviewId];
     if (!reply || !reply.trim()) return;
-    
+
     setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, reply } : r));
     setReplyInput(prev => ({ ...prev, [reviewId]: '' }));
     alert('답변이 등록되었습니다.');
@@ -1056,7 +1090,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
         height: '100vh',
         boxShadow: '4px 0 10px rgba(0,0,0,0.1)'
       }}>
-        <div 
+        <div
           onClick={() => setActiveTab('dashboard')}
           style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '24px', fontWeight: '900', marginBottom: '40px', color: '#38bdf8', cursor: 'pointer', letterSpacing: '-1px' }}>
           <span style={{ fontSize: '32px' }}>🏪</span> 동네마켓 Store
@@ -1071,14 +1105,14 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
           { id: 'reviews', label: '리뷰 관리', icon: '⭐' },
           { id: 'settings', label: '운영 설정', icon: '⚙️' }
         ].map((item) => (
-          <div 
+          <div
             key={item.id}
-            className={`nav-item ${activeTab === item.id ? 'active' : ''}`} 
+            className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
             onClick={() => setActiveTab(item.id)}
-            style={{ 
-              padding: '14px 18px', 
-              borderRadius: '12px', 
-              backgroundColor: activeTab === item.id ? '#334155' : 'transparent', 
+            style={{
+              padding: '14px 18px',
+              borderRadius: '12px',
+              backgroundColor: activeTab === item.id ? '#334155' : 'transparent',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -1091,7 +1125,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
             <span>{item.icon}</span> {item.label}
           </div>
         ))}
-        
+
         <div style={{ marginTop: 'auto', padding: '20px', backgroundColor: '#0f172a', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>고객센터 안내</div>
           <div style={{ fontSize: '18px', fontWeight: '800', color: '#38bdf8' }}>1588-0000</div>
@@ -1110,28 +1144,28 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
               </h1>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-               {/* Toggle Switch */}
-               <div 
-                 onClick={() => setIsStoreOpen(!isStoreOpen)}
-                 style={{ 
-                   display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', 
-                   padding: '4px 6px', borderRadius: '30px', backgroundColor: isStoreOpen ? '#dcfce7' : '#fee2e2', 
-                   transition: 'all 0.3s' 
-                 }}
-               >
-                  <div style={{ 
-                    width: '44px', height: '24px', borderRadius: '20px', backgroundColor: isStoreOpen ? '#10b981' : '#ef4444', 
-                    position: 'relative', transition: 'all 0.3s'
-                  }}>
-                    <div style={{ 
-                      width: '20px', height: '20px', borderRadius: '50%', backgroundColor: 'white', position: 'absolute', top: '2px', 
-                      left: isStoreOpen ? '22px' : '2px', transition: 'all 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                    }}></div>
-                  </div>
-                  <span style={{ fontWeight: '800', fontSize: '14px', color: isStoreOpen ? '#166534' : '#991b1b', paddingRight: '10px' }}>
-                    {isStoreOpen ? '배달 가능' : '배달 불가'}
-                  </span>
-               </div>
+              {/* Toggle Switch */}
+              <div
+                onClick={() => setIsStoreOpen(!isStoreOpen)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
+                  padding: '4px 6px', borderRadius: '30px', backgroundColor: isStoreOpen ? '#dcfce7' : '#fee2e2',
+                  transition: 'all 0.3s'
+                }}
+              >
+                <div style={{
+                  width: '44px', height: '24px', borderRadius: '20px', backgroundColor: isStoreOpen ? '#10b981' : '#ef4444',
+                  position: 'relative', transition: 'all 0.3s'
+                }}>
+                  <div style={{
+                    width: '20px', height: '20px', borderRadius: '50%', backgroundColor: 'white', position: 'absolute', top: '2px',
+                    left: isStoreOpen ? '22px' : '2px', transition: 'all 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                  }}></div>
+                </div>
+                <span style={{ fontWeight: '800', fontSize: '14px', color: isStoreOpen ? '#166534' : '#991b1b', paddingRight: '10px' }}>
+                  {isStoreOpen ? '배달 가능' : '배달 불가'}
+                </span>
+              </div>
             </div>
           </header>
         </div>

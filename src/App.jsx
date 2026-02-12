@@ -145,11 +145,15 @@ function App() {
               console.error('[SSE] 알림 목록 조회 실패:', error);
             });
         }
-      } else if (eventName === 'CONNECTED') {
-        console.log('[SSE] 연결됨:', data);
       } else if (eventName === 'STORE_ORDER_CREATED') {
         // 스토어 신규 주문 알림 → 대시보드 목록 갱신용 커스텀 이벤트 (백엔드는 스토어 오너에게만 전송)
         window.dispatchEvent(new CustomEvent('store-order-created', { detail: data }));
+      } else if (eventName === 'NEARBY_DELIVERIES') {
+        // 주변 배달 알림 → 라이더 대시보드 목록 갱신용 커스텀 이벤트 (백엔드는 인근 온라인 라이더에게만 전송)
+        window.dispatchEvent(new CustomEvent('nearby-deliveries', { detail: data }));
+      } else if (eventName === 'DELIVERY_MATCHED') {
+        // 배송 매칭 완료 (배차 완료) → 상점 대시보드 목록 갱신용 커스텀 이벤트
+        window.dispatchEvent(new CustomEvent('delivery-matched', { detail: data }));
       }
     };
 
@@ -231,26 +235,26 @@ function App() {
       if (res.ok) {
         const json = await res.json();
         const data = json?.data;
-          if (data?.status) {
-            setRiderRegistrationStatus(data.status);
-            setIsResidentRider(data.status === 'APPROVED');
-            setRiderRegistrationApprovalId(data.approvalId ?? null);
-          } else {
-            setRiderRegistrationStatus('NONE');
-            setIsResidentRider(false);
-            setRiderRegistrationApprovalId(null);
-          }
+        if (data?.status) {
+          setRiderRegistrationStatus(data.status);
+          setIsResidentRider(data.status === 'APPROVED');
+          setRiderRegistrationApprovalId(data.approvalId ?? null);
         } else {
           setRiderRegistrationStatus('NONE');
           setIsResidentRider(false);
           setRiderRegistrationApprovalId(null);
         }
-      } catch {
+      } else {
         setRiderRegistrationStatus('NONE');
         setIsResidentRider(false);
         setRiderRegistrationApprovalId(null);
       }
-    };
+    } catch {
+      setRiderRegistrationStatus('NONE');
+      setIsResidentRider(false);
+      setRiderRegistrationApprovalId(null);
+    }
+  };
 
   const refreshRiderRegistration = useCallback(() => {
     fetchRiderRegistration();
@@ -380,13 +384,13 @@ function App() {
         setIsResidentRider={setIsResidentRider}
         storeRegistrationStatus={storeRegistrationStatus}
         setStoreRegistrationStatus={setStoreRegistrationStatus}
-      storeRegistrationStoreName={storeRegistrationStoreName}
-      setStoreRegistrationStoreName={setStoreRegistrationStoreName}
-      riderRegistrationStatus={riderRegistrationStatus}
-      riderRegistrationApprovalId={riderRegistrationApprovalId}
-      refreshRiderRegistration={refreshRiderRegistration}
-      riderInfo={riderInfo}
-      setRiderInfo={setRiderInfo}
+        storeRegistrationStoreName={storeRegistrationStoreName}
+        setStoreRegistrationStoreName={setStoreRegistrationStoreName}
+        riderRegistrationStatus={riderRegistrationStatus}
+        riderRegistrationApprovalId={riderRegistrationApprovalId}
+        refreshRiderRegistration={refreshRiderRegistration}
+        riderInfo={riderInfo}
+        setRiderInfo={setRiderInfo}
         notificationCount={unreadCount}
         userInfo={userInfo}
         isNotificationOpen={isNotificationOpen}

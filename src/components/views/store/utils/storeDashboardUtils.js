@@ -87,6 +87,7 @@ export const mapStoreOrderToDisplay = (d) => {
     acceptedAt: acceptedAt ? acceptedAt.getTime() : null,
     readyAt,
     deliveryAddress: d.deliveryAddress ?? '',
+    deliveryStatus: d.deliveryStatus ?? null,
   };
 };
 
@@ -110,6 +111,7 @@ export const mapCompletedStoreOrderToDisplay = (d) => {
     date: orderedAt ? orderedAt.toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '',
     deliveryAddress: d.deliveryAddress ?? '',
     rejectionReason: d.cancelReason ?? null,
+    deliveryStatus: d.deliveryStatus ?? null,
   };
 };
 
@@ -119,6 +121,7 @@ export const getStatusColor = (status) => {
     '준비중': { bg: '#fff7ed', text: '#9a3412' },
     '준비완료': { bg: '#f0fdf4', text: '#166534' },
     '배차 완료': { bg: '#e0e7ff', text: '#4338ca' },
+    '배차완료': { bg: '#e0e7ff', text: '#4338ca' },
     '픽업 완료': { bg: '#fef3c7', text: '#92400e' },
     '픽업가능': { bg: '#eff6ff', text: '#1e40af' },
     '배달중': { bg: '#fdf4ff', text: '#701a75' },

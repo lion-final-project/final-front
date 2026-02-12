@@ -60,6 +60,42 @@ export const subscribeNotifications = (onMessage, onError) => {
     }
   });
 
+  eventSource.addEventListener('nearby-deliveries', (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      console.log('[SSE] 주변 배달 알림 수신:', data);
+      if (onMessage) {
+        onMessage('NEARBY_DELIVERIES', data);
+      }
+    } catch (e) {
+      console.error('[SSE] nearby-deliveries 처리 오류:', e, '원본 데이터:', event.data);
+    }
+  });
+
+  eventSource.addEventListener('delivery-matched', (event) => {
+    try {
+      const data = event.data;
+      console.log('[SSE] 배차 완료 알림 수신:', data);
+      if (onMessage) {
+        onMessage('DELIVERY_MATCHED', data);
+      }
+    } catch (e) {
+      console.error('[SSE] delivery-matched 처리 오류:', e, '원본 데이터:', event.data);
+    }
+  });
+
+  eventSource.addEventListener('delivery-status-changed', (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      console.log('[SSE] 배달 상태 변경 알림 수신:', data);
+      if (onMessage) {
+        onMessage('DELIVERY_STATUS_CHANGED', data);
+      }
+    } catch (e) {
+      console.error('[SSE] delivery-status-changed 처리 오류:', e, '원본 데이터:', event.data);
+    }
+  });
+
   eventSource.onerror = (error) => {
     console.error('[SSE] 연결 오류:', error);
     console.error('[SSE] EventSource 상태:', eventSource.readyState);

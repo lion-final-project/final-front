@@ -17,8 +17,8 @@ const DashboardTab = ({
   handleOpenRejectModal,
   toggleSoldOut,
 }) => {
-  const activeOrders = orders.filter(o => ['신규', '준비중', '배차 완료', '픽업가능', '픽업 완료', '배달중'].includes(o.status));
-  const pendingOrders = orders.filter(o => ['신규', '준비중', '배차 완료', '픽업가능', '픽업 완료'].includes(o.status));
+  const activeOrders = orders.filter(o => ['신규', '준비중', '배차 완료', '픽업가능', '배달중'].includes(o.status));
+  const pendingOrders = orders.filter(o => ['신규', '준비중', '배차 완료', '픽업가능'].includes(o.status));
   const lowStockProducts = products.filter(p => p.stock < lowStockThreshold);
 
   return (
@@ -58,7 +58,7 @@ const DashboardTab = ({
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <div style={{ fontSize: '15px', fontWeight: '700' }}>{order.orderNumber || order.id}</div>
-                        {order.status === '배차 완료' && <span style={{ fontSize: '11px', fontWeight: '800', backgroundColor: '#e0e7ff', color: '#4338ca', padding: '2px 6px', borderRadius: '4px' }}>배달원 매칭 완료</span>}
+                        {order.deliveryStatus === 'ACCEPTED' && <span style={{ fontSize: '11px', fontWeight: '800', backgroundColor: '#e0e7ff', color: '#4338ca', padding: '2px 6px', borderRadius: '4px' }}>배달원 매칭 완료</span>}
                       </div>
                       <div style={{ fontSize: '14px', color: '#64748b', marginTop: '4px' }}>{order.items}</div>
                       {order.status === '거절됨' && <div style={{ fontSize: '12px', color: '#ef4444', fontWeight: '700', marginTop: '4px' }}>사유: {order.rejectionReason}</div>}
@@ -117,7 +117,13 @@ const DashboardTab = ({
                         {completingOrderId === order.id ? '처리중...' : '준비 완료'}
                       </button>
                     )}
-                    {order.status === '픽업가능' && <button disabled style={{ padding: '14px 28px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', border: '1px solid #38bdf8', fontWeight: '800', cursor: 'wait', fontSize: '15px' }}>배차 진행중...</button>}
+                    {order.status === '픽업가능' && (
+                      order.deliveryStatus === 'ACCEPTED' ? (
+                        <button disabled style={{ padding: '14px 28px', borderRadius: '12px', background: '#e0e7ff', color: '#4338ca', border: 'none', fontWeight: '800', cursor: 'default', fontSize: '15px' }}>배차 완료</button>
+                      ) : (
+                        <button disabled style={{ padding: '14px 28px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', border: '1px solid #38bdf8', fontWeight: '800', cursor: 'wait', fontSize: '15px' }}>배차 진행중...</button>
+                      )
+                    )}
                     {order.status === '배차 완료' && <button disabled style={{ padding: '14px 28px', borderRadius: '12px', background: '#e0e7ff', color: '#4338ca', border: 'none', fontWeight: '800', cursor: 'default', fontSize: '15px' }}>픽업 완료</button>}
                     {order.status === '신규' && <button onClick={() => handleOpenRejectModal(order.id)} style={{ padding: '14px 24px', borderRadius: '12px', background: 'white', border: '1px solid #cbd5e1', color: '#64748b', fontWeight: '800', cursor: 'pointer', fontSize: '15px' }}>거절</button>}
                   </div>
