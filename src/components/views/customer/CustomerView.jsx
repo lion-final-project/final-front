@@ -35,6 +35,7 @@ import {
   setDefaultPaymentMethod,
   deletePaymentMethod,
 } from "../../../api/billingApi";
+import { getOrderList } from "../../../api/orderApi";
 
 // Import Swiper React components
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -100,7 +101,12 @@ const CustomerView = ({
   const [coords, setCoords] = useState({ lat: 37.5665, lon: 126.978 }); // Default: Seoul City Hall
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [isSubscriptionOrder, setIsSubscriptionOrder] = useState(false);
-  const [orderList, setOrderList] = useState(orders);
+  const [orderList, setOrderList] = useState([]);
+  const [orderListLoading, setOrderListLoading] = useState(false);
+  const [orderCurrentPage, setOrderCurrentPage] = useState(0);
+  const [orderTotalPages, setOrderTotalPages] = useState(0);
+  const [orderDateFilter, setOrderDateFilter] = useState(null);
+  const [orderSearchTerm, setOrderSearchTerm] = useState('');
   const [subscriptionList, setSubscriptionList] = useState([]);
   const [subscriptionListLoading, setSubscriptionListLoading] = useState(false);
   const [subscriptionListError, setSubscriptionListError] = useState(null);
@@ -292,6 +298,222 @@ const CustomerView = ({
   useEffect(() => {
     fetchAddresses();
   }, [fetchAddresses]);
+
+  // 주문 상태를 프론트엔드 형식으로 변환
+  const convertOrderStatus = (orderStatus, storeOrderStatus) => {
+    // 주문이 취소된 경우
+    if (orderStatus === 'CANCELLED' || orderStatus === 'PARTIAL_CANCELLED') {
+      return '주문 취소됨';
+    }
+    
+    // StoreOrder 상태에 따라 변환
+    if (storeOrderStatus === 'PENDING') {
+      return '주문 접수 중';
+    } else if (storeOrderStatus === 'ACCEPTED' || storeOrderStatus === 'READY') {
+      return '준비 중';
+    } else if (storeOrderStatus === 'PICKED_UP' || storeOrderStatus === 'DELIVERING') {
+      return '배송 중';
+    } else if (storeOrderStatus === 'DELIVERED') {
+      return '배송 완료';
+    } else if (storeOrderStatus === 'CANCELLED' || storeOrderStatus === 'REJECTED') {
+      return '주문 취소됨';
+    }
+    
+    return '주문 접수 중';
+  };
+
+  // 백엔드 StoreOrder 데이터를 프론트엔드 형식으로 변환
+  const transformStoreOrderData = (storeOrderData) => {
+    console.log('transformStoreOrderData 입력:', storeOrderData);
+    
+    if (!storeOrderData) {
+      console.log('storeOrderData가 null입니다');
+      return null;
+    }
+    
+    if (!storeOrderData.order) {
+      console.log('storeOrderData.order가 없습니다:', storeOrderData);
+      return null;
+    }
+
+    const products = storeOrderData.products || [];
+    console.log('products:', products);
+    
+    // 상품이 없어도 StoreOrder는 표시 (상품 정보는 기본값 사용)
+    const mainProduct = products[0];
+    const productName = mainProduct?.productNameSnapshot || '상품 정보 없음';
+    const productCount = products.length;
+    const itemsText = productCount > 1 
+      ? `${productName} 외 ${productCount - 1}건` 
+      : productCount === 1
+      ? productName
+      : '상품 정보 없음';
+    
+    // 날짜 포맷 변환 (2024-01-23T10:30:00 -> 2024.01.23)
+    const orderedDate = new Date(storeOrderData.order.orderedAt);
+    const dateStr = `${orderedDate.getFullYear()}.${String(orderedDate.getMonth() + 1).padStart(2, '0')}.${String(orderedDate.getDate()).padStart(2, '0')}`;
+    
+    // 주문번호에서 날짜 부분 추출 (ORD-20240123-001 -> 20240123-001)
+    const orderNumber = storeOrderData.order.orderNumber || '';
+    const orderId = orderNumber.replace('ORD-', '') || storeOrderData.order.orderId?.toString() || '';
+    
+    // 가격 포맷 (12500 -> '12,500원')
+    const priceStr = `${storeOrderData.finalPrice?.toLocaleString() || 0}원`;
+    
+    // 이미지 URL (상품 이미지 우선, 없으면 매장 이미지)
+    const imgUrl = mainProduct?.productImageUrl || storeOrderData.storeImageUrl || 'https://images.unsplash.com/photo-1550583724-125581f77833?w=120&q=80';
+    
+    // 상태 변환
+    const status = convertOrderStatus(storeOrderData.order.orderStatus, storeOrderData.status);
+
+    return {
+      id: `${orderId}-${storeOrderData.storeOrderId}`, // StoreOrder ID 포함
+      orderId: storeOrderData.order.orderId, // 실제 주문 ID 저장
+      orderNumber: orderNumber, // 실제 주문번호 저장
+      storeOrderId: storeOrderData.storeOrderId, // StoreOrder ID 저장
+      date: dateStr,
+      store: storeOrderData.storeName,
+      items: itemsText,
+      product: productName,
+      price: priceStr,
+      status: status,
+      img: imgUrl,
+      reviewWritten: false, // TODO: 리뷰 작성 여부는 별도 API로 확인 필요
+      storeOrder: storeOrderData, // 전체 StoreOrder 정보 저장
+    };
+  };
+
+  // 기간 필터에 따른 날짜 계산
+  const getDateRange = (period) => {
+    const now = new Date();
+    const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    let startDate = new Date();
+
+    switch (period) {
+      case 'today':
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+        break;
+      case 'week':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case 'month':
+        startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+        break;
+      case '6months':
+        startDate = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+        break;
+      case 'year':
+        startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+        break;
+      case '2years':
+        startDate = new Date(now.getFullYear() - 2, now.getMonth(), now.getDate());
+        break;
+      case '3years':
+        startDate = new Date(now.getFullYear() - 3, now.getMonth(), now.getDate());
+        break;
+      default:
+        return { startDate: null, endDate: null };
+    }
+
+    return {
+      startDate: startDate.toISOString().slice(0, 19),
+      endDate: endDate.toISOString().slice(0, 19)
+    };
+  };
+
+  // 주문 목록 조회
+  const fetchOrders = useCallback(async (page = 0, period = null, searchTerm = '') => {
+    if (!isLoggedIn) {
+      setOrderList([]);
+      return;
+    }
+    
+    setOrderListLoading(true);
+    try {
+      const dateRange = period ? getDateRange(period) : { startDate: null, endDate: null };
+      
+      // 검색어를 백엔드에 전달 (서버 사이드 검색)
+      // 검색어가 비어있거나 공백만 있으면 null로 전달
+      const trimmedSearchTerm = searchTerm && searchTerm.trim() ? searchTerm.trim() : null;
+      const result = await getOrderList(
+        page, 
+        10, 
+        dateRange.startDate, 
+        dateRange.endDate,
+        trimmedSearchTerm
+      );
+      
+      console.log('=== 주문 목록 조회 결과 ===');
+      console.log('전체 응답:', JSON.stringify(result, null, 2));
+      
+      // StoreOrder 단위로 변환
+      const storeOrders = result?.storeOrders || result?.data?.storeOrders || [];
+      console.log('추출된 storeOrders:', storeOrders);
+      console.log('storeOrders 개수:', storeOrders.length);
+      
+      if (storeOrders.length === 0) {
+        console.warn('⚠️ 주문 내역이 없습니다.');
+        console.warn('result 구조:', Object.keys(result || {}));
+        console.warn('result.data 구조:', result?.data ? Object.keys(result.data) : '없음');
+      }
+      
+      const transformedOrders = storeOrders
+        .map((storeOrder, index) => {
+          try {
+            const transformed = transformStoreOrderData(storeOrder);
+            if (!transformed) {
+              console.warn(`변환 실패 [${index}]:`, storeOrder);
+            }
+            return transformed;
+          } catch (error) {
+            console.error(`변환 중 에러 [${index}]:`, error, storeOrder);
+            return null;
+          }
+        })
+        .filter(order => order !== null);
+      
+      console.log('최종 변환된 주문:', transformedOrders);
+      console.log('변환된 주문 개수:', transformedOrders.length);
+      
+      setOrderList(transformedOrders);
+      setOrderTotalPages(result?.totalPages || 0);
+      setOrderCurrentPage(result?.currentPage || 0);
+    } catch (error) {
+      console.error('주문 목록 조회 실패:', error);
+      setOrderList([]);
+      setOrderTotalPages(0);
+      setOrderCurrentPage(0);
+    } finally {
+      setOrderListLoading(false);
+    }
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchOrders(orderCurrentPage, orderDateFilter, orderSearchTerm);
+    }
+  }, [isLoggedIn, orderCurrentPage, orderDateFilter]);
+
+  // 기간 필터 변경 핸들러
+  const handleOrderDateFilterChange = (period) => {
+    setOrderDateFilter(period);
+    setOrderCurrentPage(0); // 필터 변경 시 첫 페이지로
+    setOrderSearchTerm(''); // 기간 필터 변경 시 검색어 초기화
+  };
+
+  // 페이지 변경 핸들러
+  const handleOrderPageChange = (page) => {
+    setOrderCurrentPage(page);
+  };
+
+  // 검색 핸들러 (검색 버튼 클릭 시에만 실행)
+  const handleOrderSearch = (searchTerm) => {
+    const trimmedSearchTerm = searchTerm ? searchTerm.trim() : '';
+    setOrderSearchTerm(trimmedSearchTerm);
+    setOrderCurrentPage(0); // 검색 시 첫 페이지로
+    // 검색어가 변경되면 즉시 조회
+    fetchOrders(0, orderDateFilter, trimmedSearchTerm);
+  };
 
   // 카드사별 색상 매핑
   const getCardColor = useCallback((cardCompany) => {
@@ -715,11 +937,14 @@ const CustomerView = ({
     setIsCancelModalOpen(true);
   };
 
-  const submitCancelOrder = () => {
+  const submitCancelOrder = async () => {
     if (!cancelReason) {
       alert("취소 사유를 선택해주세요.");
       return;
     }
+    
+    // TODO: 실제 주문 취소 API 호출 필요
+    // 현재는 로컬 상태만 업데이트
     setOrderList((prev) =>
       prev.map((order) =>
         order.id === cancellingOrderId
@@ -730,6 +955,9 @@ const CustomerView = ({
     setIsCancelModalOpen(false);
     alert("취소가 완료되었습니다.");
     showToast("주문이 성공적으로 취소되었습니다.");
+    
+    // 주문 목록 다시 가져오기
+    await fetchOrders();
   };
 
   const handleCancelSubscription = async (subId) => {
@@ -1272,6 +1500,11 @@ const CustomerView = ({
             setActiveTab={setActiveTab}
             onLogout={onLogout}
             orderList={orderList}
+            orderCurrentPage={orderCurrentPage}
+            orderTotalPages={orderTotalPages}
+            onOrderDateFilterChange={handleOrderDateFilterChange}
+            onOrderPageChange={handleOrderPageChange}
+            onOrderSearch={handleOrderSearch}
             reviews={reviews}
             userInfo={userInfo}
             subscriptionList={subscriptionList}
@@ -1745,17 +1978,21 @@ const CustomerView = ({
       />
       <PaymentSuccessModal
         isOpen={isSuccessModalOpen}
-        onClose={() => {
+        onClose={async () => {
           setIsSuccessModalOpen(false);
           setIsSubscriptionOrder(false);
           clearCart();
           setActiveTab("home");
+          // 주문 목록 갱신
+          await fetchOrders();
         }}
-        onViewOrder={() => {
+        onViewOrder={async () => {
           setIsSuccessModalOpen(false);
           clearCart();
           setActiveTab("mypage");
           sessionStorage.setItem("activeTab", "mypage");
+          // 주문 목록 갱신
+          await fetchOrders();
           if (isSubscriptionOrder) {
             setMyPageTab("subscription");
             sessionStorage.setItem("myPageTab", "subscription");

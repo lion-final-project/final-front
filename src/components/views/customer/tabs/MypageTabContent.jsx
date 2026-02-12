@@ -236,6 +236,11 @@ const MypageTabContent = (props) => {
                     setViewingReview={setViewingReview}
                     setSelectedOrderForReview={setSelectedOrderForReview}
                     setIsReviewModalOpen={setIsReviewModalOpen}
+                    onDateFilterChange={props.onOrderDateFilterChange}
+                    currentPage={props.orderCurrentPage}
+                    totalPages={props.orderTotalPages}
+                    onPageChange={props.onOrderPageChange}
+                    onSearch={props.onOrderSearch}
                   />
                 )}
 
