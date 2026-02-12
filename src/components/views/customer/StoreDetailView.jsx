@@ -30,7 +30,7 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
                 name: p.name ?? '',
                 price: p.price ?? 0,
                 desc: p.description ?? '',
-                img: p.imageUrl ?? 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80',
+                img: p.imageUrl ?? p.subscriptionUrl ?? p.subscriptionImageUrl ?? 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80',
                 daysOfWeek: p.daysOfWeek ?? [],
                 totalDeliveryCount: monthlyTotal,
               };
