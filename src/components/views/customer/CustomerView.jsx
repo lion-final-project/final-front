@@ -35,6 +35,7 @@ import {
   setDefaultPaymentMethod,
   deletePaymentMethod,
 } from "../../../api/billingApi";
+import * as storeApi from "../../../api/storeApi";
 import { getOrderList } from "../../../api/orderApi";
 
 // Import Swiper React components
@@ -89,6 +90,7 @@ const CustomerView = ({
     return savedTab || "home";
   });
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [storeCategories, setStoreCategories] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [myStoreId, setMyStoreId] = useState(null);
   const [selectedStore, setSelectedStore] = useState(null); // Local state for full page view
@@ -106,7 +108,7 @@ const CustomerView = ({
   const [orderCurrentPage, setOrderCurrentPage] = useState(0);
   const [orderTotalPages, setOrderTotalPages] = useState(0);
   const [orderDateFilter, setOrderDateFilter] = useState(null);
-  const [orderSearchTerm, setOrderSearchTerm] = useState('');
+  const [orderSearchTerm, setOrderSearchTerm] = useState("");
   const [subscriptionList, setSubscriptionList] = useState([]);
   const [subscriptionListLoading, setSubscriptionListLoading] = useState(false);
   const [subscriptionListError, setSubscriptionListError] = useState(null);
@@ -302,69 +304,88 @@ const CustomerView = ({
   // 주문 상태를 프론트엔드 형식으로 변환
   const convertOrderStatus = (orderStatus, storeOrderStatus) => {
     // 주문이 취소된 경우
-    if (orderStatus === 'CANCELLED' || orderStatus === 'PARTIAL_CANCELLED') {
-      return '주문 취소됨';
+    if (orderStatus === "CANCELLED" || orderStatus === "PARTIAL_CANCELLED") {
+      return "주문 취소됨";
     }
-    
+
     // StoreOrder 상태에 따라 변환
-    if (storeOrderStatus === 'PENDING') {
-      return '주문 접수 중';
-    } else if (storeOrderStatus === 'ACCEPTED' || storeOrderStatus === 'READY') {
-      return '준비 중';
-    } else if (storeOrderStatus === 'PICKED_UP' || storeOrderStatus === 'DELIVERING') {
-      return '배송 중';
-    } else if (storeOrderStatus === 'DELIVERED') {
-      return '배송 완료';
-    } else if (storeOrderStatus === 'CANCELLED' || storeOrderStatus === 'REJECTED') {
-      return '주문 취소됨';
+    if (storeOrderStatus === "PENDING") {
+      return "주문 접수 중";
+    } else if (
+      storeOrderStatus === "ACCEPTED" ||
+      storeOrderStatus === "READY"
+    ) {
+      return "준비 중";
+    } else if (
+      storeOrderStatus === "PICKED_UP" ||
+      storeOrderStatus === "DELIVERING"
+    ) {
+      return "배송 중";
+    } else if (storeOrderStatus === "DELIVERED") {
+      return "배송 완료";
+    } else if (
+      storeOrderStatus === "CANCELLED" ||
+      storeOrderStatus === "REJECTED"
+    ) {
+      return "주문 취소됨";
     }
-    
-    return '주문 접수 중';
+
+    return "주문 접수 중";
   };
 
   // 백엔드 StoreOrder 데이터를 프론트엔드 형식으로 변환
   const transformStoreOrderData = (storeOrderData) => {
-    console.log('transformStoreOrderData 입력:', storeOrderData);
-    
+    console.log("transformStoreOrderData 입력:", storeOrderData);
+
     if (!storeOrderData) {
-      console.log('storeOrderData가 null입니다');
+      console.log("storeOrderData가 null입니다");
       return null;
     }
-    
+
     if (!storeOrderData.order) {
-      console.log('storeOrderData.order가 없습니다:', storeOrderData);
+      console.log("storeOrderData.order가 없습니다:", storeOrderData);
       return null;
     }
 
     const products = storeOrderData.products || [];
-    console.log('products:', products);
-    
+    console.log("products:", products);
+
     // 상품이 없어도 StoreOrder는 표시 (상품 정보는 기본값 사용)
     const mainProduct = products[0];
-    const productName = mainProduct?.productNameSnapshot || '상품 정보 없음';
+    const productName = mainProduct?.productNameSnapshot || "상품 정보 없음";
     const productCount = products.length;
-    const itemsText = productCount > 1 
-      ? `${productName} 외 ${productCount - 1}건` 
-      : productCount === 1
-      ? productName
-      : '상품 정보 없음';
-    
+    const itemsText =
+      productCount > 1
+        ? `${productName} 외 ${productCount - 1}건`
+        : productCount === 1
+          ? productName
+          : "상품 정보 없음";
+
     // 날짜 포맷 변환 (2024-01-23T10:30:00 -> 2024.01.23)
     const orderedDate = new Date(storeOrderData.order.orderedAt);
-    const dateStr = `${orderedDate.getFullYear()}.${String(orderedDate.getMonth() + 1).padStart(2, '0')}.${String(orderedDate.getDate()).padStart(2, '0')}`;
-    
+    const dateStr = `${orderedDate.getFullYear()}.${String(orderedDate.getMonth() + 1).padStart(2, "0")}.${String(orderedDate.getDate()).padStart(2, "0")}`;
+
     // 주문번호에서 날짜 부분 추출 (ORD-20240123-001 -> 20240123-001)
-    const orderNumber = storeOrderData.order.orderNumber || '';
-    const orderId = orderNumber.replace('ORD-', '') || storeOrderData.order.orderId?.toString() || '';
-    
+    const orderNumber = storeOrderData.order.orderNumber || "";
+    const orderId =
+      orderNumber.replace("ORD-", "") ||
+      storeOrderData.order.orderId?.toString() ||
+      "";
+
     // 가격 포맷 (12500 -> '12,500원')
     const priceStr = `${storeOrderData.finalPrice?.toLocaleString() || 0}원`;
-    
+
     // 이미지 URL (상품 이미지 우선, 없으면 매장 이미지)
-    const imgUrl = mainProduct?.productImageUrl || storeOrderData.storeImageUrl || 'https://images.unsplash.com/photo-1550583724-125581f77833?w=120&q=80';
-    
+    const imgUrl =
+      mainProduct?.productImageUrl ||
+      storeOrderData.storeImageUrl ||
+      "https://images.unsplash.com/photo-1550583724-125581f77833?w=120&q=80";
+
     // 상태 변환
-    const status = convertOrderStatus(storeOrderData.order.orderStatus, storeOrderData.status);
+    const status = convertOrderStatus(
+      storeOrderData.order.orderStatus,
+      storeOrderData.status,
+    );
 
     return {
       id: `${orderId}-${storeOrderData.storeOrderId}`, // StoreOrder ID 포함
@@ -386,30 +407,64 @@ const CustomerView = ({
   // 기간 필터에 따른 날짜 계산
   const getDateRange = (period) => {
     const now = new Date();
-    const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    const endDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      23,
+      59,
+      59,
+    );
     let startDate = new Date();
 
     switch (period) {
-      case 'today':
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      case "today":
+        startDate = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          0,
+          0,
+          0,
+        );
         break;
-      case 'week':
+      case "week":
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
-      case 'month':
-        startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      case "month":
+        startDate = new Date(
+          now.getFullYear(),
+          now.getMonth() - 1,
+          now.getDate(),
+        );
         break;
-      case '6months':
-        startDate = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+      case "6months":
+        startDate = new Date(
+          now.getFullYear(),
+          now.getMonth() - 6,
+          now.getDate(),
+        );
         break;
-      case 'year':
-        startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+      case "year":
+        startDate = new Date(
+          now.getFullYear() - 1,
+          now.getMonth(),
+          now.getDate(),
+        );
         break;
-      case '2years':
-        startDate = new Date(now.getFullYear() - 2, now.getMonth(), now.getDate());
+      case "2years":
+        startDate = new Date(
+          now.getFullYear() - 2,
+          now.getMonth(),
+          now.getDate(),
+        );
         break;
-      case '3years':
-        startDate = new Date(now.getFullYear() - 3, now.getMonth(), now.getDate());
+      case "3years":
+        startDate = new Date(
+          now.getFullYear() - 3,
+          now.getMonth(),
+          now.getDate(),
+        );
         break;
       default:
         return { startDate: null, endDate: null };
@@ -417,76 +472,86 @@ const CustomerView = ({
 
     return {
       startDate: startDate.toISOString().slice(0, 19),
-      endDate: endDate.toISOString().slice(0, 19)
+      endDate: endDate.toISOString().slice(0, 19),
     };
   };
 
   // 주문 목록 조회
-  const fetchOrders = useCallback(async (page = 0, period = null, searchTerm = '') => {
-    if (!isLoggedIn) {
-      setOrderList([]);
-      return;
-    }
-    
-    setOrderListLoading(true);
-    try {
-      const dateRange = period ? getDateRange(period) : { startDate: null, endDate: null };
-      
-      // 검색어를 백엔드에 전달 (서버 사이드 검색)
-      // 검색어가 비어있거나 공백만 있으면 null로 전달
-      const trimmedSearchTerm = searchTerm && searchTerm.trim() ? searchTerm.trim() : null;
-      const result = await getOrderList(
-        page, 
-        10, 
-        dateRange.startDate, 
-        dateRange.endDate,
-        trimmedSearchTerm
-      );
-      
-      console.log('=== 주문 목록 조회 결과 ===');
-      console.log('전체 응답:', JSON.stringify(result, null, 2));
-      
-      // StoreOrder 단위로 변환
-      const storeOrders = result?.storeOrders || result?.data?.storeOrders || [];
-      console.log('추출된 storeOrders:', storeOrders);
-      console.log('storeOrders 개수:', storeOrders.length);
-      
-      if (storeOrders.length === 0) {
-        console.warn('⚠️ 주문 내역이 없습니다.');
-        console.warn('result 구조:', Object.keys(result || {}));
-        console.warn('result.data 구조:', result?.data ? Object.keys(result.data) : '없음');
+  const fetchOrders = useCallback(
+    async (page = 0, period = null, searchTerm = "") => {
+      if (!isLoggedIn) {
+        setOrderList([]);
+        return;
       }
-      
-      const transformedOrders = storeOrders
-        .map((storeOrder, index) => {
-          try {
-            const transformed = transformStoreOrderData(storeOrder);
-            if (!transformed) {
-              console.warn(`변환 실패 [${index}]:`, storeOrder);
+
+      setOrderListLoading(true);
+      try {
+        const dateRange = period
+          ? getDateRange(period)
+          : { startDate: null, endDate: null };
+
+        // 검색어를 백엔드에 전달 (서버 사이드 검색)
+        // 검색어가 비어있거나 공백만 있으면 null로 전달
+        const trimmedSearchTerm =
+          searchTerm && searchTerm.trim() ? searchTerm.trim() : null;
+        const result = await getOrderList(
+          page,
+          10,
+          dateRange.startDate,
+          dateRange.endDate,
+          trimmedSearchTerm,
+        );
+
+        console.log("=== 주문 목록 조회 결과 ===");
+        console.log("전체 응답:", JSON.stringify(result, null, 2));
+
+        // StoreOrder 단위로 변환
+        const storeOrders =
+          result?.storeOrders || result?.data?.storeOrders || [];
+        console.log("추출된 storeOrders:", storeOrders);
+        console.log("storeOrders 개수:", storeOrders.length);
+
+        if (storeOrders.length === 0) {
+          console.warn("⚠️ 주문 내역이 없습니다.");
+          console.warn("result 구조:", Object.keys(result || {}));
+          console.warn(
+            "result.data 구조:",
+            result?.data ? Object.keys(result.data) : "없음",
+          );
+        }
+
+        const transformedOrders = storeOrders
+          .map((storeOrder, index) => {
+            try {
+              const transformed = transformStoreOrderData(storeOrder);
+              if (!transformed) {
+                console.warn(`변환 실패 [${index}]:`, storeOrder);
+              }
+              return transformed;
+            } catch (error) {
+              console.error(`변환 중 에러 [${index}]:`, error, storeOrder);
+              return null;
             }
-            return transformed;
-          } catch (error) {
-            console.error(`변환 중 에러 [${index}]:`, error, storeOrder);
-            return null;
-          }
-        })
-        .filter(order => order !== null);
-      
-      console.log('최종 변환된 주문:', transformedOrders);
-      console.log('변환된 주문 개수:', transformedOrders.length);
-      
-      setOrderList(transformedOrders);
-      setOrderTotalPages(result?.totalPages || 0);
-      setOrderCurrentPage(result?.currentPage || 0);
-    } catch (error) {
-      console.error('주문 목록 조회 실패:', error);
-      setOrderList([]);
-      setOrderTotalPages(0);
-      setOrderCurrentPage(0);
-    } finally {
-      setOrderListLoading(false);
-    }
-  }, [isLoggedIn]);
+          })
+          .filter((order) => order !== null);
+
+        console.log("최종 변환된 주문:", transformedOrders);
+        console.log("변환된 주문 개수:", transformedOrders.length);
+
+        setOrderList(transformedOrders);
+        setOrderTotalPages(result?.totalPages || 0);
+        setOrderCurrentPage(result?.currentPage || 0);
+      } catch (error) {
+        console.error("주문 목록 조회 실패:", error);
+        setOrderList([]);
+        setOrderTotalPages(0);
+        setOrderCurrentPage(0);
+      } finally {
+        setOrderListLoading(false);
+      }
+    },
+    [isLoggedIn],
+  );
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -498,7 +563,7 @@ const CustomerView = ({
   const handleOrderDateFilterChange = (period) => {
     setOrderDateFilter(period);
     setOrderCurrentPage(0); // 필터 변경 시 첫 페이지로
-    setOrderSearchTerm(''); // 기간 필터 변경 시 검색어 초기화
+    setOrderSearchTerm(""); // 기간 필터 변경 시 검색어 초기화
   };
 
   // 페이지 변경 핸들러
@@ -508,7 +573,7 @@ const CustomerView = ({
 
   // 검색 핸들러 (검색 버튼 클릭 시에만 실행)
   const handleOrderSearch = (searchTerm) => {
-    const trimmedSearchTerm = searchTerm ? searchTerm.trim() : '';
+    const trimmedSearchTerm = searchTerm ? searchTerm.trim() : "";
     setOrderSearchTerm(trimmedSearchTerm);
     setOrderCurrentPage(0); // 검색 시 첫 페이지로
     // 검색어가 변경되면 즉시 조회
@@ -776,6 +841,22 @@ const CustomerView = ({
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [viewingReview, setViewingReview] = useState(null);
 
+  const fetchStoreCategories = useCallback(async () => {
+    try {
+      const data = await storeApi.getStoreCategories();
+      // "전체" 카테고리 추가
+      setStoreCategories([{ id: "all", categoryName: "전체" }, ...data]);
+    } catch (err) {
+      console.error("카테고리 로직 실패:", err);
+      // 실패 시 기본 카테고리라도 표시 (fallback)
+      setStoreCategories([{ id: "all", categoryName: "전체" }]);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStoreCategories();
+  }, [fetchStoreCategories]);
+
   const handleOpenAddressModal = (addr = null) => {
     if (addr) {
       setEditingAddress(addr);
@@ -942,7 +1023,7 @@ const CustomerView = ({
       alert("취소 사유를 선택해주세요.");
       return;
     }
-    
+
     // TODO: 실제 주문 취소 API 호출 필요
     // 현재는 로컬 상태만 업데이트
     setOrderList((prev) =>
@@ -955,7 +1036,7 @@ const CustomerView = ({
     setIsCancelModalOpen(false);
     alert("취소가 완료되었습니다.");
     showToast("주문이 성공적으로 취소되었습니다.");
-    
+
     // 주문 목록 다시 가져오기
     await fetchOrders();
   };
@@ -1184,7 +1265,6 @@ const CustomerView = ({
     }
 
     try {
-      // cartProductId로 아이템 찾기
       const item = cartItems.find(
         (item) => item.id === id || item.cartProductId === id,
       );
@@ -1193,8 +1273,10 @@ const CustomerView = ({
         return;
       }
 
-      const result = await cartAPI.removeFromCart(item.productId);
-      setCartItems(result.items);
+      await cartAPI.removeFromCart(item.productId);
+      // 삭제 후 서버 장바구니를 다시 조회해 목록/결제창과 항상 동기화
+      const fresh = await cartAPI.getCart();
+      setCartItems(Array.isArray(fresh?.items) ? fresh.items : []);
       showToast("장바구니에서 상품이 삭제되었습니다.");
     } catch (error) {
       console.error("상품 삭제 실패:", error);
@@ -1622,6 +1704,7 @@ const CustomerView = ({
                       style={{
                         padding: "10px 16px",
                         paddingLeft: "38px",
+                        paddingRight: "40px",
                         borderRadius: "24px",
                         border: "2px solid var(--border)",
                         fontSize: "14px",
@@ -1648,6 +1731,40 @@ const CustomerView = ({
                     >
                       🔍
                     </span>
+                    {localSearchTerm && (
+                      <button
+                        onClick={() => {
+                          setLocalSearchTerm("");
+                          setSearchQuery("");
+                          showToast("검색어가 초기화되었습니다.");
+                        }}
+                        style={{
+                          position: "absolute",
+                          right: "12px",
+                          background: "#f1f5f9",
+                          border: "none",
+                          borderRadius: "50%",
+                          width: "20px",
+                          height: "20px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "10px",
+                          color: "#64748b",
+                          cursor: "pointer",
+                          transition: "all 0.2s",
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.target.style.background = "#e2e8f0")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.target.style.background = "#f1f5f9")
+                        }
+                        title="검색어 초기화"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
 
                   <button
@@ -1713,6 +1830,7 @@ const CustomerView = ({
                 <CategorySidebar
                   selectedCategory={selectedCategory}
                   setSelectedCategory={setSelectedCategory}
+                  categories={storeCategories}
                 />
                 <StoreGrid
                   selectedCategory={selectedCategory}
@@ -1951,10 +2069,15 @@ const CustomerView = ({
         cartItems={cartItems}
         onUpdateQuantity={onUpdateQuantity}
         onRemoveFromCart={onRemoveFromCart}
-        onCheckout={() => {
-          // 장바구니에서 결제로 넘어갈 때 구독 결제 정보 제거
+        onCheckout={(itemsToCheckout) => {
           sessionStorage.removeItem("pendingSubscriptionCheckout");
           setIsCartOpen(false);
+          // 선택한 상품만 결제창으로 전달 (없으면 전체 장바구니)
+          setCheckoutCartItems(
+            Array.isArray(itemsToCheckout) && itemsToCheckout.length > 0
+              ? itemsToCheckout
+              : null,
+          );
           setActiveTab("checkout");
         }}
         isLoggedIn={isLoggedIn}
@@ -2000,10 +2123,10 @@ const CustomerView = ({
             fetchSubscriptions();
             // 탭 전환 후 스크롤을 맨 위로 이동 (약간의 지연 필요)
             setTimeout(() => {
-              window.scrollTo({ top: 0, behavior: 'smooth' });
+              window.scrollTo({ top: 0, behavior: "smooth" });
             }, 100);
             setTimeout(() => {
-              window.scrollTo({ top: 0, behavior: 'auto' });
+              window.scrollTo({ top: 0, behavior: "auto" });
             }, 500);
           } else {
             setMyPageTab("profile");

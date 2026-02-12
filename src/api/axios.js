@@ -16,8 +16,8 @@ const api = axios.create({
 api.interceptors.request.use(
     (config) => {
         // 디버깅: 요청 URL 확인
-        const fullUrl = config.baseURL 
-            ? `${config.baseURL}${config.url}` 
+        const fullUrl = config.baseURL
+            ? `${config.baseURL}${config.url}`
             : config.url;
         console.log('API 요청:', {
             method: config.method?.toUpperCase(),
@@ -54,7 +54,7 @@ api.interceptors.response.use(
                 method: error.config?.method?.toUpperCase()
             });
         }
-        
+
         // 공통 에러 처리 로직
         if (error.response && error.response.data) {
             const apiResponse = error.response.data;
