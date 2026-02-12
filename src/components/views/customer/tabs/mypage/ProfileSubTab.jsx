@@ -11,6 +11,11 @@ const ProfileSubTab = ({
   setViewingReview,
   setSelectedOrderForReview,
   setIsReviewModalOpen,
+  onDateFilterChange,
+  currentPage,
+  totalPages,
+  onPageChange,
+  onSearch,
 }) => (
   <OrderManagementView
     orders={orderList}
@@ -31,6 +36,11 @@ const ProfileSubTab = ({
       setIsReviewModalOpen(true);
     }}
     onBack={() => setActiveTab("home")}
+    onDateFilterChange={onDateFilterChange}
+    currentPage={currentPage}
+    totalPages={totalPages}
+    onPageChange={onPageChange}
+    onSearch={onSearch}
   />
 );
 
