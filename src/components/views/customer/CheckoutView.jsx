@@ -92,6 +92,17 @@ const AddressModal = ({ isOpen, onClose, addresses, onSelect, currentAddressId }
   );
 };
 
+/** 마트별 배송료 문구: distanceKm·deliveryFee는 백엔드(체크아웃 API)에서 옴 */
+function formatDeliveryFeeLabel(distanceKm, deliveryFee) {
+  const fee = (deliveryFee ?? 0).toLocaleString();
+  if (distanceKm != null && typeof distanceKm === 'number') {
+    return `배송료 약 ${distanceKm}km · ${fee}원`;
+  }
+  return `배송료 ${fee}원`;
+}
+
+const DELIVERY_FEE_CALCULATING = '배송료 계산 중...';
+
 const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp, paymentMethods: paymentMethodsProp }) => {
   const addresses = addressesProp && addressesProp.length > 0 ? addressesProp : defaultAddresses;
   const paymentMethods = paymentMethodsProp && paymentMethodsProp.length > 0 ? paymentMethodsProp : [];
@@ -526,7 +537,7 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
                       </div>
                       <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ fontSize: '12px', color: '#94a3b8' }}>
-                          배송료 {sg.distanceKm != null ? `약 ${sg.distanceKm}km · ` : ''}{(sg.deliveryFee ?? 0).toLocaleString()}원
+                          {formatDeliveryFeeLabel(sg.distanceKm, sg.deliveryFee)}
                         </span>
                         <span style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>
                           소계: {(sg.storeFinalPrice ?? 0).toLocaleString()}원
@@ -553,7 +564,7 @@ const CheckoutView = ({ cartItems, onComplete, onBack, addresses: addressesProp,
                         ))}
                       </div>
                       <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '12px', color: '#94a3b8' }}>배송료 계산 중...</span>
+                        <span style={{ fontSize: '12px', color: '#94a3b8' }}>{DELIVERY_FEE_CALCULATING}</span>
                         <span style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>
                           소계: {items.reduce((s, i) => s + i.price * i.quantity, 0).toLocaleString()}원
                         </span>
