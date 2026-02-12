@@ -5,7 +5,7 @@ export const authApi = {
   me: () => api.get('/api/auth/me').then(res => res.data),
 
   // 이메일 중복 확인
-  checkEmail: (email) => api.get(`/api/auth/check-email?email=${email}`).then(res => res.data),
+  checkEmail: (email) => api.get(`/api/auth/check-email?email=${encodeURIComponent(email)}`).then(res => res.data),
 
   // 휴대폰 번호 중복 확인
   checkPhone: (phone) => api.get(`/api/auth/check-phone?phone=${phone}`).then(res => res.data),
@@ -76,7 +76,7 @@ export const checkAuth = async () => {
 
 // 추가된 export
 export const checkEmail = async (email) => {
-    const response = await api.get(`/api/auth/check-email?email=${email}`);
+    const response = await api.get(`/api/auth/check-email?email=${encodeURIComponent(email)}`);
     return response.data.data; // DuplicateCheckResponse
 };
 
