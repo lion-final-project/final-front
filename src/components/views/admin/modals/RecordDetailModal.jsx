@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 
 const isImageFile = (url) => {
   if (!url) return false;
@@ -23,7 +23,7 @@ const FilePreview = ({ label, url }) => (
             onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
             style={{ background: 'transparent', border: '1px solid #334155', padding: '8px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', color: '#38bdf8', cursor: 'pointer' }}
           >
-            새 탭 열기
+            새 탭에서 보기
           </button>
         </div>
       ) : (
@@ -41,7 +41,7 @@ const FilePreview = ({ label, url }) => (
   </div>
 );
 
-const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowReports }) => {
+const RecordDetailModal = ({ record, onClose, onToggleStatus, reports }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [showStopInput, setShowStopInput] = useState(false);
   const [reason, setReason] = useState('');
@@ -51,24 +51,26 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
   const isUser = record.type === 'USER';
   const isRider = !isStore && !isUser;
 
-  const relatedReports = reports.filter(r =>
-    (r.reporter && r.reporter.name === record.name) ||
-    (r.reported && r.reported.name === record.name) ||
-    (r.reported && typeof r.reported.name === 'string' && r.reported.name.includes(record.name))
-  );
+  const relatedReports = Array.isArray(record.inquiries) && record.inquiries.length > 0
+    ? record.inquiries
+    : reports.filter(r =>
+      (r.reporter && r.reporter.name === record.name) ||
+      (r.reported && r.reported.name === record.name) ||
+      (r.reported && typeof r.reported.name === 'string' && r.reported.name.includes(record.name))
+    );
 
   const isActiveStatus = record.isActive === true
     || record.status === '정상'
     || record.status === '활성'
     || record.status === '운행중'
-    || record.status === '운영중';
+    || record.status === '영업중';
 
   const statusLabel = record.status
-    || (isRider ? (record.isActive ? '운행중' : '운행불가') : (record.isActive ? '운영중' : '운영중지'));
+    || (isRider ? (record.isActive ? '운행중' : '운행불가') : (record.isActive ? '영업중' : '영업중지'));
 
   const statusColor = isRider
     ? (statusLabel === '운행중' ? '#10b981' : '#ef4444')
-    : ((statusLabel === '정상' || statusLabel === '활성' || statusLabel === '운영중') ? '#10b981' : '#ef4444');
+    : ((statusLabel === '정상' || statusLabel === '활성' || statusLabel === '영업중') ? '#10b981' : '#ef4444');
 
   const handleStatusChange = () => {
     if (isActiveStatus && !showStopInput) {
@@ -83,7 +85,7 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
 
   const toggleButtonLabel = isRider
     ? (isActiveStatus ? '운행 비활성화' : '운행중으로 전환')
-    : (isActiveStatus ? (showStopInput ? '정지 완료' : '운영중지 처리') : '운영중으로 전환');
+    : (isActiveStatus ? (showStopInput ? '정지 완료' : '영업중지 처리') : '영업중으로 전환');
 
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backdropFilter: 'blur(3px)' }}>
@@ -103,7 +105,7 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               <section style={{ backgroundColor: '#0f172a', padding: '24px', borderRadius: '20px', border: '1px solid #334155' }}>
                 <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#38bdf8', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>🏢</span> 사업장 기본 정보
+                  <span>🏪</span> 사업장 기본 정보
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '12px', marginBottom: '16px' }}>
                   <span style={{ color: '#94a3b8', fontSize: '14px' }}>상호명</span>
@@ -137,7 +139,7 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
                   <span>{record.phone}</span>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '12px', marginBottom: '16px' }}>
-                  <span style={{ color: '#94a3b8', fontSize: '14px' }}>지역</span>
+                  <span style={{ color: '#94a3b8', fontSize: '14px' }}>주소</span>
                   <span>{record.loc}</span>
                 </div>
                 <div style={{ marginTop: '12px' }}>
@@ -150,17 +152,17 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
 
               <section style={{ backgroundColor: '#0f172a', padding: '24px', borderRadius: '20px', border: '1px solid #334155' }}>
                 <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#38bdf8', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>⚖️</span> 사업자 및 정산 정보
+                  <span>💳</span> 사업자 및 정산 정보
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '12px', marginBottom: '16px' }}>
                   <span style={{ color: '#94a3b8', fontSize: '14px' }}>사업자번호</span>
-                  <span>{record.bizNum} <span style={{ fontSize: '11px', color: '#10b981', marginLeft: '8px' }}>[본인인증 완료 ✅]</span></span>
+                  <span>{record.bizNum} <span style={{ fontSize: '11px', color: '#10b981', marginLeft: '8px' }}>[본인인증 완료]</span></span>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '12px' }}>
                   <span style={{ color: '#94a3b8', fontSize: '14px' }}>정산 계좌</span>
                   <div style={{ fontWeight: '700' }}>
                     <div>{record.bankDetails?.bank || record.bank?.split(' ')[0]}</div>
-                    <div style={{ color: '#38bdf8', fontSize: '13px', marginTop: '4px' }}>{record.bankDetails?.account || record.bank?.split(' ')[1]} (예금주: {record.bankDetails?.holder || record.rep})</div>
+                    <div style={{ color: '#38bdf8', fontSize: '13px', marginTop: '4px' }}>{record.bankDetails?.account || record.bank?.split(' ')[1]} (예금주 {record.bankDetails?.holder || record.rep})</div>
                   </div>
                 </div>
               </section>
@@ -242,7 +244,10 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onShowRep
 
           <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '12px', borderTop: '1px solid #334155', paddingTop: '12px' }}>
             <span style={{ color: '#94a3b8', fontSize: '14px' }}>현재 상태</span>
-            <span style={{ color: statusColor, fontWeight: '800' }}>{statusLabel} {statusLabel === '정지' && '(사유: 운영 정책 위반)'}</span>
+            <span style={{ color: statusColor, fontWeight: '800' }}>
+              {statusLabel}
+              {statusLabel === '정지' && record.currentStatusReason ? ` (사유: ${record.currentStatusReason})` : ''}
+            </span>
           </div>
         </div>
 
