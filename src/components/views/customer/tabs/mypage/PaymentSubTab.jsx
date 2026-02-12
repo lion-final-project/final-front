@@ -19,6 +19,7 @@ const PaymentSubTab = ({
   setNewPaymentMethod,
   handleSavePaymentMethod,
   onCardRegistered,
+  onRefreshPaymentMethods,
 }) => {
   const [isRegisteringCard, setIsRegisteringCard] = useState(false);
   const billingProcessedRef = useRef(false); // 카드 등록 처리 중복 방지 플래그
@@ -48,58 +49,110 @@ const PaymentSubTab = ({
     if (billingStatus === 'success' && authKey && customerKey) {
       // 카드 등록 성공 - billingKey 발급
       setIsRegisteringCard(true);
+      // 마이페이지에서 카드 등록할 때는 pendingCheckout과 pendingSubscriptionCheckout 제거하여 결제창으로 이동하지 않도록 함
+      sessionStorage.removeItem('pendingCheckout');
+      sessionStorage.removeItem('pendingSubscriptionCheckout');
+      
       issueCardBillingKey({
         authKey: authKey,
         customerKey: customerKey,
       })
-        .then((response) => {
-          console.log('billingKey 발급 응답:', response);
-          // 등록된 카드를 결제 수단 목록에 추가
-          if (onCardRegistered) {
-            // response가 null이어도 카드는 등록되었으므로 기본 정보로 추가
-            const newPaymentMethod = {
-              id: `card_${Date.now()}`,
-              name: response?.cardCompany || '등록된 카드',
-              type: 'card',
-              number: response?.cardNumberMasked || '****',
-              color: '#10b981',
-              isDefault: paymentMethodList.length === 0,
+        .then(async () => {
+          // 결제 수단 목록 새로고침 - 백엔드 처리 지연을 고려하여 여러 번 재시도
+          if (onRefreshPaymentMethods) {
+            // 즉시 첫 번째 호출
+            let currentList = await onRefreshPaymentMethods(true);
+            
+            // 백엔드 처리 지연을 고려하여 재시도 (최대 10번, 점진적 간격)
+            let retryCount = 0;
+            const maxRetries = 10;
+            
+            const retryRefresh = async () => {
+              if (retryCount < maxRetries && onRefreshPaymentMethods) {
+                retryCount++;
+                // 점진적 간격: 500ms, 1000ms, 1500ms, 2000ms...
+                const retryInterval = 500 + (retryCount * 500);
+                await new Promise(resolve => setTimeout(resolve, retryInterval));
+                
+                const newList = await onRefreshPaymentMethods(true);
+                // 카드가 추가되었는지 확인 (리스트 길이가 증가했는지)
+                if (newList && newList.length > (currentList?.length || 0)) {
+                  // 카드가 추가되었으면 재시도 중단
+                  return;
+                }
+                currentList = newList;
+                
+                // 마지막 시도가 아니면 계속 재시도
+                if (retryCount < maxRetries) {
+                  await retryRefresh();
+                }
+              }
             };
-            onCardRegistered(newPaymentMethod);
-            alert('카드가 성공적으로 등록되었습니다.');
-          } else {
-            alert('카드 등록은 완료되었습니다.');
+            
+            // 첫 번째 재시도는 500ms 후 시작
+            setTimeout(() => {
+              retryRefresh();
+            }, 500);
           }
         })
-        .catch((err) => {
+        .catch(async (err) => {
           console.error('billingKey 발급 오류:', err);
-          // 서버 에러가 발생해도 카드는 토스에서 등록되었을 수 있으므로
-          // 기본 정보로 카드 추가 시도
-          if (onCardRegistered && err.response?.status !== 404) {
-            const newPaymentMethod = {
-              id: `card_${Date.now()}`,
-              name: '등록된 카드',
-              type: 'card',
-              number: '****',
-              color: '#10b981',
-              isDefault: paymentMethodList.length === 0,
+          // 결제 수단 목록 새로고침 시도 (에러가 발생해도 카드는 등록되었을 수 있음)
+          if (onRefreshPaymentMethods) {
+            // 즉시 첫 번째 호출
+            let currentList = await onRefreshPaymentMethods(true);
+            
+            // 백엔드 처리 지연을 고려하여 재시도 (최대 10번, 점진적 간격)
+            let retryCount = 0;
+            const maxRetries = 10;
+            
+            const retryRefresh = async () => {
+              if (retryCount < maxRetries && onRefreshPaymentMethods) {
+                retryCount++;
+                // 점진적 간격: 500ms, 1000ms, 1500ms, 2000ms...
+                const retryInterval = 500 + (retryCount * 500);
+                await new Promise(resolve => setTimeout(resolve, retryInterval));
+                
+                const newList = await onRefreshPaymentMethods(true);
+                // 카드가 추가되었는지 확인 (리스트 길이가 증가했는지)
+                if (newList && newList.length > (currentList?.length || 0)) {
+                  // 카드가 추가되었으면 재시도 중단
+                  return;
+                }
+                currentList = newList;
+                
+                // 마지막 시도가 아니면 계속 재시도
+                if (retryCount < maxRetries) {
+                  await retryRefresh();
+                }
+              }
             };
-            onCardRegistered(newPaymentMethod);
-            alert('카드 등록은 완료되었지만 일부 정보를 가져오지 못했습니다.');
-          } else {
-            const message = err.response?.data?.message || err.message || '카드 등록에 실패했습니다.';
-            alert(message);
+            
+            // 첫 번째 재시도는 500ms 후 시작
+            setTimeout(() => {
+              retryRefresh();
+            }, 500);
           }
         })
         .finally(() => {
           setIsRegisteringCard(false);
+          // 카드 등록 완료 후에도 잠시 플래그를 유지하여 탭 이동 방지
+          setTimeout(() => {
+            sessionStorage.removeItem('pendingBilling');
+          }, 1000);
         });
     } else if (billingStatus === 'fail') {
       // 카드 등록 실패
       setIsRegisteringCard(false);
-      alert('카드 등록에 실패했습니다.');
+      // 마이페이지에서 카드 등록할 때는 pendingCheckout과 pendingSubscriptionCheckout 제거하여 결제창으로 이동하지 않도록 함
+      sessionStorage.removeItem('pendingCheckout');
+      sessionStorage.removeItem('pendingSubscriptionCheckout');
+      // 실패 시에도 잠시 플래그를 유지하여 탭 이동 방지
+      setTimeout(() => {
+        sessionStorage.removeItem('pendingBilling');
+      }, 1000);
     }
-  }, [onCardRegistered, paymentMethodList.length]);
+  }, [onRefreshPaymentMethods]);
 
   const handleRegisterCard = async () => {
     setIsRegisteringCard(true);
@@ -126,6 +179,12 @@ const PaymentSubTab = ({
       // 고객 키 생성 (사용자 ID 기반)
       const customerKey = `customer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
+      // 카드 등록 진행 중 플래그 설정
+      sessionStorage.setItem('pendingBilling', 'true');
+      // 마이페이지에서 카드 등록할 때는 pendingCheckout과 pendingSubscriptionCheckout 제거하여 결제창으로 이동하지 않도록 함
+      sessionStorage.removeItem('pendingCheckout');
+      sessionStorage.removeItem('pendingSubscriptionCheckout');
+      
       // 현재 URL을 기반으로 success/fail URL 생성
       const currentUrl = window.location.href.split('?')[0];
       const successUrl = `${currentUrl}?billing=success`;
@@ -144,6 +203,10 @@ const PaymentSubTab = ({
       const message = err.response?.data?.message || err.message || '카드 등록에 실패했습니다.';
       alert(message);
       setIsRegisteringCard(false);
+      // 에러 시에도 잠시 플래그를 유지하여 탭 이동 방지
+      setTimeout(() => {
+        sessionStorage.removeItem('pendingBilling');
+      }, 1000);
     }
   };
 
@@ -151,7 +214,7 @@ const PaymentSubTab = ({
   <>
     <div style={{ background: "white", padding: "24px", borderRadius: "16px", border: "1px solid var(--border)", width: "100%", maxWidth: "100%", boxSizing: "border-box" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
-        <h3 style={{ fontSize: "18px", fontWeight: "700", margin: 0 }}>결제 수단 관리</h3>
+        <h3 style={{ fontSize: "18px", fontWeight: "700", margin: 0 }}>구독 결제 관리</h3>
         <button onClick={handleRegisterCard} disabled={isRegisteringCard} style={{ padding: "8px 16px", borderRadius: "8px", background: isRegisteringCard ? "#cbd5e1" : "#10b981", color: "white", border: "none", fontWeight: "700", fontSize: "13px", cursor: isRegisteringCard ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
           {isRegisteringCard ? "등록 중..." : "💳 카드 등록"}
         </button>
@@ -159,6 +222,7 @@ const PaymentSubTab = ({
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", maxWidth: "100%", overflow: "hidden" }}>
         <div style={{ width: "100%", maxWidth: "100%" }}>
           <Swiper
+            key={`payment-methods-${paymentMethodList.length}-${paymentMethodList.map(pm => pm.id).join('-')}`}
             effect="coverflow"
             grabCursor={true}
             centeredSlides={true}
@@ -173,30 +237,83 @@ const PaymentSubTab = ({
             style={{ width: "100%", maxWidth: "100%" }}
           >
           {paymentMethodList.map((pm) => (
-            <SwiperSlide key={pm.id} style={{ background: pm.color || "var(--primary)", width: "300px", maxWidth: "85vw" }}>
-              <div style={{ width: "100%", height: "100%", padding: "16px", display: "flex", flexDirection: "column", justifyContent: "space-between", boxSizing: "border-box" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    <span style={{ fontSize: "16px", fontWeight: "800", textShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>{pm.name}</span>
-                    <span style={{ fontSize: "10px", opacity: 0.9 }}>{pm.type === "card" ? "Credit Card" : "Payment Method"}</span>
-                  </div>
-                  <span style={{ fontSize: "24px" }}>{pm.type === "card" ? "💳" : "💰"}</span>
-                </div>
-                <div style={{ fontSize: "16px", letterSpacing: "2px", fontWeight: "600", textShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
-                  {pm.number ? pm.number : "**** **** **** ****"}
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <SwiperSlide key={pm.id} style={{ background: pm.color || "var(--primary)", width: "300px", maxWidth: "85vw", minHeight: "180px" }}>
+              <div style={{ width: "100%", height: "100%", padding: "20px", display: "flex", flexDirection: "column", justifyContent: "space-between", boxSizing: "border-box", color: "white", position: "relative" }}>
+                {/* 상단: 카드사 이름과 기본 배지 */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px" }}>
                   <div>
-                    <div style={{ fontSize: "9px", opacity: 0.7, textTransform: "uppercase" }}>Card Holder</div>
-                    <div style={{ fontSize: "12px", fontWeight: "700", letterSpacing: "1px" }}>MEMBER</div>
+                    <div style={{ fontSize: "18px", fontWeight: "800", textShadow: "0 2px 4px rgba(0,0,0,0.2)", marginBottom: "4px" }}>{pm.name}</div>
+                    <div style={{ fontSize: "11px", opacity: 0.85 }}>{pm.type === "card" ? "Credit Card" : "Payment Method"}</div>
                   </div>
-                  <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-                    {pm.isDefault ? (
-                      <div style={{ backgroundColor: "rgba(255,255,255,0.9)", color: pm.color || "black", padding: "4px 8px", borderRadius: "16px", fontSize: "9px", fontWeight: "800", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>기본</div>
-                    ) : (
-                      <button onClick={() => handleSetDefaultPaymentMethod(pm.id)} style={{ backgroundColor: "rgba(0,0,0,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.4)", padding: "4px 8px", borderRadius: "16px", fontSize: "9px", fontWeight: "600", cursor: "pointer" }}>기본</button>
+                  {pm.isDefault && (
+                    <div style={{ backgroundColor: "rgba(255,255,255,0.25)", color: "white", padding: "4px 10px", borderRadius: "12px", fontSize: "10px", fontWeight: "700", backdropFilter: "blur(4px)" }}>
+                      기본
+                    </div>
+                  )}
+                </div>
+
+                {/* 중간: 카드 번호 */}
+                <div style={{ marginBottom: "24px" }}>
+                  <div style={{ fontSize: "20px", letterSpacing: "3px", fontWeight: "600", textShadow: "0 2px 4px rgba(0,0,0,0.2)", fontFamily: "monospace", wordBreak: "break-all" }}>
+                    {pm.number ? pm.number : "**** **** **** ****"}
+                  </div>
+                </div>
+
+                {/* 하단: 버튼 영역 */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <div style={{ fontSize: "9px", opacity: 0.8, textTransform: "uppercase", marginBottom: "2px" }}>Card Holder</div>
+                    <div style={{ fontSize: "13px", fontWeight: "700", letterSpacing: "1px" }}>MEMBER</div>
+                  </div>
+                  <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                    {!pm.isDefault && (
+                      <button 
+                        onClick={() => handleSetDefaultPaymentMethod(pm.id)} 
+                        style={{ 
+                          backgroundColor: "rgba(255,255,255,0.2)", 
+                          color: "white", 
+                          border: "1px solid rgba(255,255,255,0.3)", 
+                          padding: "6px 12px", 
+                          borderRadius: "8px", 
+                          fontSize: "11px", 
+                          fontWeight: "600", 
+                          cursor: "pointer",
+                          backdropFilter: "blur(4px)",
+                          transition: "all 0.2s"
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.backgroundColor = "rgba(255,255,255,0.3)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.backgroundColor = "rgba(255,255,255,0.2)";
+                        }}
+                      >
+                        기본 설정
+                      </button>
                     )}
-                    <button onClick={() => handleDeletePaymentMethod(pm.id)} style={{ backgroundColor: "rgba(239, 68, 68, 0.2)", color: "white", border: "1px solid rgba(255,255,255,0.4)", padding: "4px 8px", borderRadius: "16px", fontSize: "9px", fontWeight: "600", cursor: "pointer" }}>삭제</button>
+                    <button 
+                      onClick={() => handleDeletePaymentMethod(pm.id)} 
+                      style={{ 
+                        backgroundColor: "rgba(239, 68, 68, 0.25)", 
+                        color: "white", 
+                        border: "1px solid rgba(255,255,255,0.3)", 
+                        padding: "6px 12px", 
+                        borderRadius: "8px", 
+                        fontSize: "11px", 
+                        fontWeight: "600", 
+                        cursor: "pointer",
+                        backdropFilter: "blur(4px)",
+                        transition: "all 0.2s"
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = "rgba(239, 68, 68, 0.35)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = "rgba(239, 68, 68, 0.25)";
+                      }}
+                    >
+                      삭제
+                    </button>
                   </div>
                 </div>
               </div>
