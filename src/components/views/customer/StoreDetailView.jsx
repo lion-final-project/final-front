@@ -2,6 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../../config/api';
 import { DELIVERY_TIME_SLOTS } from '../../../constants/deliveryTimeSlots';
 
+/** 구독 상품 이미지 URL 해석: 상대 경로면 API_BASE_URL 붙임, 없으면 기본 이미지 */
+const DEFAULT_SUBSCRIPTION_IMG = 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80';
+const resolveSubscriptionImg = (imageUrl) => {
+  if (!imageUrl || typeof imageUrl !== 'string' || !imageUrl.trim()) return DEFAULT_SUBSCRIPTION_IMG;
+  if (imageUrl.startsWith('/') && !imageUrl.startsWith('//')) {
+    const base = (API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
+    return `${base}${imageUrl}`;
+  }
+  return imageUrl;
+};
+
 const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) => {
   const [activeSubTab, setActiveSubTab] = useState('menu');
   const [reviewSort, setReviewSort] = useState('latest');
@@ -30,7 +41,7 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
                 name: p.name ?? '',
                 price: p.price ?? 0,
                 desc: p.description ?? '',
-                img: p.imageUrl ?? 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80',
+                img: resolveSubscriptionImg(p.imageUrl),
                 daysOfWeek: p.daysOfWeek ?? [],
                 totalDeliveryCount: monthlyTotal,
               };
@@ -156,7 +167,12 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
                   {subscriptionProducts.map(product => (
                     <div key={product.id} style={{ background: 'white', borderRadius: '16px', overflow: 'hidden', border: '1px solid #fce7f3', display: 'flex', flexDirection: 'column' }}>
                        <div style={{ height: '200px', overflow: 'hidden', position: 'relative' }}>
-                         <img src={product.img} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                         <img
+                           src={product.img}
+                           alt={product.name}
+                           onError={(e) => { e.target.src = DEFAULT_SUBSCRIPTION_IMG; }}
+                           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                         />
                          <div style={{ position: 'absolute', top: '12px', left: '12px', background: '#be185d', color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '700' }}>구독전용</div>
                        </div>
                        <div style={{ padding: '24px', flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
@@ -452,7 +468,7 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
                 {subscriptionProducts.map(product => (
                   <div key={product.id} style={{ background: 'white', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 10px 15px -3px rgba(190, 24, 93, 0.05)', border: '1px solid #fce7f3' }}>
                      <div style={{ height: '240px', overflow: 'hidden' }}>
-                       <img src={product.img} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                       <img src={product.img} alt={product.name} onError={(e) => { e.target.src = DEFAULT_SUBSCRIPTION_IMG; }} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                      </div>
                      <div style={{ padding: '30px' }}>
                        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
@@ -754,7 +770,7 @@ const SubscriptionDetailModal = ({ subscription, onClose, onPayment, deliveryTim
         <button onClick={onClose} style={{ position: 'absolute', top: '24px', right: '24px', border: 'none', background: 'transparent', fontSize: '20px', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
         
         <div style={{ width: '100%', height: '240px', borderRadius: '20px', overflow: 'hidden', marginBottom: '24px' }}>
-          <img src={subscription.img} alt={subscription.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={subscription.img} alt={subscription.name} onError={(e) => { e.target.src = DEFAULT_SUBSCRIPTION_IMG; }} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
