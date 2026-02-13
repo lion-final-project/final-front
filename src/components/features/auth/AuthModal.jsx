@@ -208,11 +208,12 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
       return;
     }
     
-    // 2. 소셜 가입 추가 정보
+    // 2. 소셜 가입 추가 정보 (카카오 등)
     if (mode === 'social-extra') {
       if (!name || !phone) return alert('이름과 휴대폰 번호를 모두 입력해주세요.');
       if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.');
       if (!email?.trim()) return alert('이메일을 입력해주세요.');
+      if (!isEmailChecked) return alert('이메일 중복 확인이 필요합니다.');
       if (!agreements.service || !agreements.privacy) return alert('필수 약관에 동의해주세요.');
       
       setApiLoading(true);
@@ -351,7 +352,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
                   <div style={{ display: 'flex', gap: '8px', marginTop: '4px', alignItems: 'center' }}>
                     <div style={{ position: 'relative', flex: 1 }}>
                       <input
-                        type="text" placeholder="인증번호 4자리" value={verifyCode} onChange={(e) => setVerifyCode(e.target.value)}
+                        type="text" placeholder="인증번호 6자리" value={verifyCode} onChange={(e) => setVerifyCode(e.target.value)}
                         style={{ width: '100%', padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px' }}
                       />
                       <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: '#ef4444', fontWeight: '700' }}>
