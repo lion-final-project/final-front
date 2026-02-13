@@ -6,6 +6,16 @@ const SubscriptionModal = ({ editingSubscription, subscriptionForm, setSubscript
   const form = subscriptionForm || {};
   const status = form.status ?? '운영중';
 
+  const handleImageChange = (e) => {
+    const file = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+    if (!file) {
+      setSubscriptionForm({ ...form, imageFile: null, imagePreview: null });
+      return;
+    }
+    const preview = URL.createObjectURL(file);
+    setSubscriptionForm({ ...form, imageFile: file, imagePreview: preview });
+  };
+
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, backdropFilter: 'blur(4px)' }}>
       <div style={{ background: 'white', width: '100%', maxWidth: '500px', borderRadius: '24px', padding: '40px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
@@ -18,6 +28,29 @@ const SubscriptionModal = ({ editingSubscription, subscriptionForm, setSubscript
           <div>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>구독 설명</label>
             <textarea required rows="3" value={form.description || ''} onChange={e => setSubscriptionForm({ ...form, description: e.target.value })} placeholder="구독 상품의 구성과 혜택을 상세히 입력해주세요." style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1', resize: 'none', fontFamily: 'inherit' }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>대표 이미지</label>
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+              <div style={{ width: '96px', height: '96px', borderRadius: '16px', overflow: 'hidden', backgroundColor: '#f1f5f9', border: '1px dashed #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', color: '#94a3b8' }}>
+                {form.imagePreview ? (
+                  <img src={form.imagePreview} alt="구독 대표 이미지" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  '🖼️'
+                )}
+              </div>
+              <div style={{ flex: 1 }}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  style={{ display: 'block', marginBottom: '6px' }}
+                />
+                <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>
+                  1:1 비율 이미지를 권장합니다. (JPG, PNG)
+                </p>
+              </div>
+            </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div>
