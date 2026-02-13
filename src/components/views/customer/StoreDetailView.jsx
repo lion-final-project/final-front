@@ -148,7 +148,7 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
             {/* Subscription Section */}
             <div style={{ marginBottom: '50px', backgroundColor: '#fdf2f8', padding: '30px', borderRadius: '24px', border: '1px solid #fce7f3' }}>
                <h3 style={{ fontSize: '22px', fontWeight: '800', marginBottom: '8px', color: '#be185d', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                 📅 주 1회 정기 배송
+                 📅 정기 배송
                </h3>
                <p style={{ color: '#db2777', marginBottom: '24px', fontSize: '15px' }}>자주 사는 상품은 구독으로 편리하게 받아보세요! (배송비 무료 혜택)</p>
                

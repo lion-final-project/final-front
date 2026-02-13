@@ -18,6 +18,7 @@ export const mapApiToSub = (d) => ({
   deliveryDays: (d.daysOfWeek ?? []).map((n) => NUM_TO_KO[n]).filter(Boolean),
   selectedProducts: (d.items ?? []).map((i) => ({ id: String(i.productId), qty: i.quantity ?? 1, productName: i.productName })),
   description: d.description ?? '',
+  imageUrl: d.imageUrl ?? null,
 });
 
 export const getSubscriptionHeaders = () => ({ 'Content-Type': 'application/json' });
