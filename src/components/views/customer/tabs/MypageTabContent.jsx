@@ -236,6 +236,11 @@ const MypageTabContent = (props) => {
                     setViewingReview={setViewingReview}
                     setSelectedOrderForReview={setSelectedOrderForReview}
                     setIsReviewModalOpen={setIsReviewModalOpen}
+                    onDateFilterChange={props.onOrderDateFilterChange}
+                    currentPage={props.orderCurrentPage}
+                    totalPages={props.orderTotalPages}
+                    onPageChange={props.onOrderPageChange}
+                    onSearch={props.onOrderSearch}
                   />
                 )}
 
@@ -294,6 +299,7 @@ const MypageTabContent = (props) => {
                     handleSavePaymentMethod={handleSavePaymentMethod}
                     onCardRegistered={onCardRegistered}
                     onRefreshPaymentMethods={fetchPaymentMethods}
+                    showToast={showToast}
                   />
                 )}
 
