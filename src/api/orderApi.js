@@ -75,3 +75,12 @@ export const getStoreOrderDetail = async (storeOrderId) => {
   const data = response.data?.data ?? response.data;
   return data;
 };
+/**
+ * 스토어 주문 취소 요청
+ * @param {number} storeOrderId - 스토어 주문 ID
+ * @param {string} reason - 취소 사유
+ * @returns {Promise<void>}
+ */
+export const cancelStoreOrder = async (storeOrderId, reason) => {
+  await api.post(`/api/store-orders/${storeOrderId}/cancel`, { reason });
+};
