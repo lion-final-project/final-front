@@ -3,11 +3,12 @@ import React from 'react';
 const OrderCancelModal = ({
   isOpen,
   onClose,
-  cancelReason,
-  setCancelReason,
-  cancelDetail,
-  setCancelDetail,
-  onSubmit,
+  reason,
+  setReason,
+  detail,
+  setDetail,
+  onConfirm,
+  isProcessing,
 }) => {
   if (!isOpen) return null;
 
@@ -23,7 +24,7 @@ const OrderCancelModal = ({
         zIndex: 1200,
         backdropFilter: "blur(4px)",
       }}
-      onClick={onClose}
+      onClick={!isProcessing ? onClose : undefined}
     >
       <div
         style={{
@@ -71,14 +72,16 @@ const OrderCancelModal = ({
               취소 사유 선택
             </label>
             <select
-              value={cancelReason}
-              onChange={(e) => setCancelReason(e.target.value)}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              disabled={isProcessing}
               style={{
                 width: "100%",
                 padding: "12px",
                 borderRadius: "10px",
                 border: "1px solid #e2e8f0",
                 outline: "none",
+                background: isProcessing ? "#f1f5f9" : "white",
               }}
             >
               <option value="simple_change">단순 변심</option>
@@ -89,7 +92,7 @@ const OrderCancelModal = ({
             </select>
           </div>
 
-          {cancelReason === "other" && (
+          {reason === "other" && (
             <div>
               <label
                 style={{
@@ -103,8 +106,9 @@ const OrderCancelModal = ({
                 사유 직접 입력
               </label>
               <textarea
-                value={cancelDetail}
-                onChange={(e) => setCancelDetail(e.target.value)}
+                value={detail}
+                onChange={(e) => setDetail(e.target.value)}
+                disabled={isProcessing}
                 placeholder="취소 사유를 자세히 입력해주세요. (부적절한 언어 사용 시 제재될 수 있습니다.)"
                 style={{
                   width: "100%",
@@ -114,6 +118,7 @@ const OrderCancelModal = ({
                   border: "1px solid #e2e8f0",
                   outline: "none",
                   resize: "none",
+                  background: isProcessing ? "#f1f5f9" : "white",
                 }}
               />
             </div>
@@ -137,6 +142,7 @@ const OrderCancelModal = ({
           <div style={{ display: "flex", gap: "12px" }}>
             <button
               onClick={onClose}
+              disabled={isProcessing}
               style={{
                 flex: 1,
                 padding: "14px",
@@ -144,28 +150,51 @@ const OrderCancelModal = ({
                 background: "#f1f5f9",
                 border: "none",
                 fontWeight: "700",
-                cursor: "pointer",
+                cursor: isProcessing ? "not-allowed" : "pointer",
+                opacity: isProcessing ? 0.7 : 1,
               }}
             >
               닫기
             </button>
             <button
-              onClick={onSubmit}
+              onClick={onConfirm}
+              disabled={isProcessing}
               style={{
                 flex: 1,
                 padding: "14px",
                 borderRadius: "12px",
-                background: "#ef4444",
+                background: isProcessing ? "#94a3b8" : "#ef4444",
                 color: "white",
                 border: "none",
                 fontWeight: "800",
-                cursor: "pointer",
+                cursor: isProcessing ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
               }}
             >
-              취소 확정
+              {isProcessing && (
+                <div
+                  style={{
+                    width: "16px",
+                    height: "16px",
+                    border: "2px solid white",
+                    borderTopColor: "transparent",
+                    borderRadius: "50%",
+                    animation: "spin 1s linear infinite",
+                  }}
+                />
+              )}
+              {isProcessing ? "처리 중..." : "취소 확정"}
             </button>
           </div>
         </div>
+        <style>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
     </div>
   );

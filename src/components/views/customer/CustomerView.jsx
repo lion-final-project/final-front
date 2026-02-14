@@ -36,7 +36,7 @@ import {
   deletePaymentMethod,
 } from "../../../api/billingApi";
 import * as storeApi from "../../../api/storeApi";
-import { getOrderList } from "../../../api/orderApi";
+import { getOrderList, cancelStoreOrder } from "../../../api/orderApi";
 
 // Import Swiper React components
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -102,6 +102,7 @@ const CustomerView = ({
     useState("서울특별시 중구 세종대로 110");
   const [coords, setCoords] = useState({ lat: 37.5665, lon: 126.978 }); // Default: Seoul City Hall
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [isSubscriptionOrder, setIsSubscriptionOrder] = useState(false);
   const [orderList, setOrderList] = useState([]);
   const [orderListLoading, setOrderListLoading] = useState(false);
@@ -470,9 +471,15 @@ const CustomerView = ({
         return { startDate: null, endDate: null };
     }
 
+    // 로컬 시간대 유지 (UTC 변환 방지)
+    const toLocalISOString = (date) => {
+      const offset = date.getTimezoneOffset() * 60000;
+      return new Date(date.getTime() - offset).toISOString().slice(0, 19);
+    };
+
     return {
-      startDate: startDate.toISOString().slice(0, 19),
-      endDate: endDate.toISOString().slice(0, 19),
+      startDate: toLocalISOString(startDate),
+      endDate: toLocalISOString(endDate),
     };
   };
 
@@ -1024,21 +1031,33 @@ const CustomerView = ({
       return;
     }
 
-    // TODO: 실제 주문 취소 API 호출 필요
-    // 현재는 로컬 상태만 업데이트
-    setOrderList((prev) =>
-      prev.map((order) =>
-        order.id === cancellingOrderId
-          ? { ...order, status: "주문 취소됨" }
-          : order,
-      ),
-    );
-    setIsCancelModalOpen(false);
-    alert("취소가 완료되었습니다.");
-    showToast("주문이 성공적으로 취소되었습니다.");
+    const finalReason =
+      cancelReason === "other" && cancelDetail ? cancelDetail : cancelReason;
 
-    // 주문 목록 다시 가져오기
-    await fetchOrders();
+    setIsCancelling(true);
+    try {
+      await cancelStoreOrder(cancellingOrderId, finalReason);
+
+      // 로컬 상태 업데이트
+      setOrderList((prev) =>
+        prev.map((order) =>
+          order.storeOrderId === cancellingOrderId
+            ? { ...order, status: "주문 취소됨" }
+            : order,
+        ),
+      );
+
+      setIsCancelModalOpen(false);
+      showToast("주문이 성공적으로 취소되었습니다.");
+
+      // 주문 목록 다시 가져오기
+      await fetchOrders(orderCurrentPage, orderDateFilter, orderSearchTerm);
+    } catch (error) {
+      console.error("주문 취소 실패:", error);
+      alert(error.response?.data?.message || "주문 취소에 실패했습니다.");
+    } finally {
+      setIsCancelling(false);
+    }
   };
 
   const handleCancelSubscription = async (subId) => {
@@ -1857,12 +1876,13 @@ const CustomerView = ({
       <Toast message={toast} />
       <OrderCancelModal
         isOpen={isCancelModalOpen}
-        onClose={() => setIsCancelModalOpen(false)}
-        cancelReason={cancelReason}
-        setCancelReason={setCancelReason}
-        cancelDetail={cancelDetail}
-        setCancelDetail={setCancelDetail}
-        onSubmit={submitCancelOrder}
+        onClose={() => !isCancelling && setIsCancelModalOpen(false)}
+        reason={cancelReason}
+        setReason={setCancelReason}
+        detail={cancelDetail}
+        setDetail={setCancelDetail}
+        onConfirm={submitCancelOrder}
+        isProcessing={isCancelling}
       />
       <Header
         activeTab={activeTab}
