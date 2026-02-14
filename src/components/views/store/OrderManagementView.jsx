@@ -179,7 +179,7 @@ const OrderManagementView = ({ orders, onTracking, onWriteReview, onCancelOrder,
               <div className="order-actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                 {order.status === '주문 접수 중' ? (
                   <button
-                    onClick={() => onCancelOrder && onCancelOrder(order.id)}
+                    onClick={() => onCancelOrder && onCancelOrder(order.storeOrderId)}
                     style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ef4444', background: 'white', color: '#ef4444', fontWeight: '800', cursor: 'pointer', fontSize: '14px' }}
                   >
                     주문 취소
