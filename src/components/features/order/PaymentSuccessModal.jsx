@@ -81,7 +81,7 @@ const PaymentSuccessModal = ({ isOpen, onClose, onViewOrder }) => {
               boxShadow: "0 4px 14px rgba(16, 185, 129, 0.3)",
             }}
           >
-            주문서 확인하기
+            주문 내역 확인하기
           </button>
           <button
             onClick={onClose}

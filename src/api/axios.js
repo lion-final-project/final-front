@@ -15,6 +15,16 @@ const api = axios.create({
 // 요청 인터셉터
 api.interceptors.request.use(
     (config) => {
+        // 디버깅: 요청 URL 확인
+        const fullUrl = config.baseURL
+            ? `${config.baseURL}${config.url}`
+            : config.url;
+        console.log('API 요청:', {
+            method: config.method?.toUpperCase(),
+            url: fullUrl,
+            baseURL: config.baseURL || '(상대 경로 - Vite 프록시 사용)',
+            path: config.url
+        });
         // 토큰이 있다면 헤더에 추가하는 로직이 여기에 들어갈 수 있습니다.
         return config;
     },
@@ -29,6 +39,22 @@ api.interceptors.response.use(
         return response;
     },
     (error) => {
+        // 디버깅: 에러 응답 상세 정보
+        if (error.response) {
+            console.error('API 에러 응답:', {
+                status: error.response.status,
+                statusText: error.response.statusText,
+                url: error.config?.url,
+                method: error.config?.method?.toUpperCase(),
+                data: error.response.data
+            });
+        } else if (error.request) {
+            console.error('API 요청 실패 (응답 없음):', {
+                url: error.config?.url,
+                method: error.config?.method?.toUpperCase()
+            });
+        }
+
         // 공통 에러 처리 로직
         if (error.response && error.response.data) {
             const apiResponse = error.response.data;
