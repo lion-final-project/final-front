@@ -1176,7 +1176,7 @@ const CustomerView = ({
     window.scrollTo(0, 0);
   };
 
-  const onAddToCart = async (product, store) => {
+  const onAddToCart = async (product, store, quantity = 1) => {
     if (!isLoggedIn) {
       showToast("로그인이 필요합니다.");
       onOpenAuth();
@@ -1188,7 +1188,8 @@ const CustomerView = ({
       const existingItem = cartItems.find(
         (item) => item.productId === product.id,
       );
-      const newQuantity = existingItem ? existingItem.quantity + 1 : 1;
+      const addQty = Math.max(1, Number(quantity) || 1);
+      const newQuantity = existingItem ? existingItem.quantity + addQty : addQty;
 
       const result = await cartAPI.addToCart(product.id, newQuantity);
       setCartItems(result.items);
@@ -1857,6 +1858,10 @@ const CustomerView = ({
                   coords={coords}
                   onAddToCart={onAddToCart}
                   onStoreClick={(store) => {
+                    if (store.isOpen === false) {
+                      showToast("현재 배달이 불가능한 매장입니다.");
+                      return;
+                    }
                     setSelectedStore(store);
                     window.scrollTo(0, 0);
                   }}
@@ -1909,6 +1914,40 @@ const CustomerView = ({
       />
       <div style={{ minHeight: "calc(100vh - 200px)" }}>
         {selectedStore ? (
+          selectedStore.isOpen === false ? (
+            <div
+              style={{
+                padding: "40px 24px",
+                textAlign: "center",
+                backgroundColor: "var(--bg-card)",
+                borderRadius: "var(--radius)",
+                margin: "24px",
+                boxShadow: "var(--shadow)",
+              }}
+            >
+              <p style={{ fontSize: "18px", fontWeight: "700", color: "#64748b", marginBottom: "24px" }}>
+                현재 배달이 불가능한 매장입니다.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedStore(null);
+                  window.scrollTo(0, 0);
+                }}
+                style={{
+                  padding: "12px 24px",
+                  borderRadius: "12px",
+                  border: "none",
+                  background: "var(--primary)",
+                  color: "white",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                }}
+              >
+                목록으로 돌아가기
+              </button>
+            </div>
+          ) : (
           <div
             style={{
               animation: "fadeInLayer 0.3s ease-out",
@@ -1964,6 +2003,7 @@ const CustomerView = ({
               }}
             />
           </div>
+          )
         ) : (
           renderActiveView()
         )}
@@ -2092,6 +2132,7 @@ const CustomerView = ({
         onCheckout={(itemsToCheckout) => {
           sessionStorage.removeItem("pendingSubscriptionCheckout");
           setIsCartOpen(false);
+          setSelectedStore(null);
           // 선택한 상품만 결제창으로 전달 (없으면 전체 장바구니)
           setCheckoutCartItems(
             Array.isArray(itemsToCheckout) && itemsToCheckout.length > 0

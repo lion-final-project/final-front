@@ -15,6 +15,7 @@ import {
   mapCompletedStoreOrderToDisplay,
 } from './utils/storeDashboardUtils';
 import { getNewOrders, getCompletedOrders, getOrderHistory, acceptOrder, completePreparation, rejectOrder } from '../../../api/storeOrderApi';
+import { getBusinessHours, updateBusinessHours, updateDeliveryAvailable } from '../../../api/storeApi';
 import OrdersTab from './tabs/OrdersTab';
 import DashboardTab from './tabs/DashboardTab';
 import SettlementsTab from './tabs/SettlementsTab';
@@ -28,6 +29,9 @@ import ProductModal from './modals/ProductModal';
 import SubscriptionModal from './modals/SubscriptionModal';
 import RejectModal from './modals/RejectModal';
 import ReportModal from './modals/ReportModal';
+
+const DAY_NAMES = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+const FRONTEND_DAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // 프론트 표시 순서: 월~일 → dayOfWeek
 
 const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   const createEmptyProductForm = () => ({
@@ -292,6 +296,9 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
         if (d?.storeName != null) {
           setStoreInfo(prev => ({ ...prev, name: d.storeName, category: d.categoryName || prev.category }));
         }
+        if (d?.isDeliveryAvailable !== undefined) {
+          setIsStoreOpen(!!d.isDeliveryAvailable);
+        }
       })
       .catch(() => {});
   }, []);
@@ -335,7 +342,11 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
       fetchNewOrdersRef.current();
     };
     window.addEventListener('store-order-created', handler);
-    return () => window.removeEventListener('store-order-created', handler);
+    window.addEventListener('store-order-updated', handler);
+    return () => {
+      window.removeEventListener('store-order-created', handler);
+      window.removeEventListener('store-order-updated', handler);
+    };
   }, []);
 
   // SSE 누락 대비: 탭 포커스 시 대시보드면 신규 주문 재조회
@@ -422,11 +433,62 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     { day: '토요일', open: '09:00', close: '22:00', lastOrder: '21:30', isClosed: false },
     { day: '일요일', open: '09:00', close: '22:00', lastOrder: '21:30', isClosed: true },
   ]);
+  const [businessHoursLoading, setBusinessHoursLoading] = useState(false);
+  const [businessHoursSaving, setBusinessHoursSaving] = useState(false);
+
+  useEffect(() => {
+    if (activeTab !== 'settings') return;
+    let cancelled = false;
+    setBusinessHoursLoading(true);
+    getBusinessHours()
+      .then((list) => {
+        if (cancelled || !Array.isArray(list) || list.length === 0) return;
+        const byDay = list.reduce((acc, bh) => {
+          acc[bh.dayOfWeek] = bh;
+          return acc;
+        }, {});
+        const ordered = FRONTEND_DAY_ORDER.map((dayOfWeek) => {
+          const bh = byDay[dayOfWeek];
+          const dayName = DAY_NAMES[dayOfWeek];
+          if (!bh) return { day: dayName, open: '09:00', close: '22:00', lastOrder: '21:30', isClosed: false };
+          return {
+            day: dayName,
+            open: bh.openTime || '09:00',
+            close: bh.closeTime || '22:00',
+            lastOrder: '21:30',
+            isClosed: bh.isClosed ?? false,
+          };
+        });
+        setBusinessHours(ordered);
+      })
+      .catch(() => { if (!cancelled) setBusinessHours([]); })
+      .finally(() => { if (!cancelled) setBusinessHoursLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeTab]);
 
   const handleBusinessHourChange = (index, field, value) => {
     const updated = [...businessHours];
-    updated[index][field] = value;
+    updated[index] = { ...updated[index], [field]: value };
     setBusinessHours(updated);
+  };
+
+  const handleSaveBusinessHours = async () => {
+    setBusinessHoursSaving(true);
+    try {
+      const payload = businessHours.map((bh, idx) => ({
+        dayOfWeek: FRONTEND_DAY_ORDER[idx],
+        openTime: bh.open || '09:00',
+        closeTime: bh.close || '22:00',
+        isClosed: bh.isClosed ?? false,
+      }));
+      await updateBusinessHours(payload);
+      alert('영업시간이 저장되었습니다.');
+    } catch (e) {
+      const msg = e?.response?.data?.error?.message ?? e?.message ?? '영업시간 저장에 실패했습니다.';
+      alert(msg);
+    } finally {
+      setBusinessHoursSaving(false);
+    }
   };
 
 
@@ -446,47 +508,23 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   const [historyTotalPages, setHistoryTotalPages] = useState(0);
   const [historyTotalElements, setHistoryTotalElements] = useState(0);
 
-  const completedPrepIdsRef = React.useRef(new Set());
-  const autoRejectedIdsRef = React.useRef(new Set());
+  // TTL 기반: 상태 변경은 백엔드에서 처리. 카운트다운 0 되면 목록만 재조회(오차 보정)
+  const countdownZeroFetchedRef = React.useRef(new Set());
   useEffect(() => {
     if (activeTab !== 'dashboard') return;
     const now = Date.now();
-
-    const toComplete = orders.filter(
-      (o) => o.status === '준비중' && o.readyAt != null && o.readyAt <= now && !completedPrepIdsRef.current.has(o.id)
-    );
-    if (toComplete.length > 0) {
-      toComplete.forEach((o) => completedPrepIdsRef.current.add(o.id));
-      (async () => {
-        for (const order of toComplete) {
-          try {
-            await completePreparation(order.id);
-          } catch (e) {
-            completedPrepIdsRef.current.delete(order.id);
-            console.error('준비 완료 처리 실패:', e);
-          }
-        }
-        await fetchNewOrders();
-      })();
-      return;
+    let shouldFetch = false;
+    for (const o of orders) {
+      const alreadyFetched = countdownZeroFetchedRef.current.has(o.id);
+      const rejectDeadline = o.status === '신규' && o.createdAt != null && o.createdAt + 5 * 60 * 1000 <= now;
+      const readyDeadline = o.status === '준비중' && o.readyAt != null && o.readyAt <= now;
+      if ((rejectDeadline || readyDeadline) && !alreadyFetched) {
+        countdownZeroFetchedRef.current.add(o.id);
+        shouldFetch = true;
+      }
     }
-
-    const expiredOrders = orders.filter(
-      (o) => o.status === '신규' && o.createdAt != null && o.createdAt + 5 * 60 * 1000 <= now && !autoRejectedIdsRef.current.has(o.id)
-    );
-    if (expiredOrders.length > 0) {
-      expiredOrders.forEach((o) => autoRejectedIdsRef.current.add(o.id));
-      (async () => {
-        for (const order of expiredOrders) {
-          try {
-            await rejectOrder(order.id, '자동 거절 (미응답)');
-          } catch (e) {
-            autoRejectedIdsRef.current.delete(order.id);
-            console.error('자동 거절 처리 실패:', e);
-          }
-        }
-        await fetchNewOrders();
-      })();
+    if (shouldFetch) {
+      fetchNewOrdersRef.current();
     }
   }, [activeTab, orders, currentTime]);
 
@@ -1045,6 +1083,9 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
             setStoreInfo={setStoreInfo}
             businessHours={businessHours}
             handleBusinessHourChange={handleBusinessHourChange}
+            onSaveBusinessHours={handleSaveBusinessHours}
+            businessHoursSaving={businessHoursSaving}
+            businessHoursLoading={businessHoursLoading}
           />
         );
       case 'reviews':
@@ -1149,9 +1190,18 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
               </h1>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-               {/* Toggle Switch */}
+               {/* Toggle Switch - 배달 가능 on/off (서버 반영) */}
                <div 
-                 onClick={() => setIsStoreOpen(!isStoreOpen)}
+                 onClick={async () => {
+                   const next = !isStoreOpen;
+                   try {
+                     await updateDeliveryAvailable(next);
+                     setIsStoreOpen(next);
+                   } catch (e) {
+                     const msg = e?.response?.data?.error?.message ?? e?.message ?? '배달 가능 여부 변경에 실패했습니다.';
+                     alert(msg);
+                   }
+                 }}
                  style={{ 
                    display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', 
                    padding: '4px 6px', borderRadius: '30px', backgroundColor: isStoreOpen ? '#dcfce7' : '#fee2e2', 
