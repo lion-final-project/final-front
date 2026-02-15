@@ -148,6 +148,9 @@ function App() {
       } else if (eventName === 'STORE_ORDER_CREATED') {
         // 스토어 신규 주문 알림 → 대시보드 목록 갱신용 커스텀 이벤트 (백엔드는 스토어 오너에게만 전송)
         window.dispatchEvent(new CustomEvent('store-order-created', { detail: data }));
+      } else if (eventName === 'STORE_ORDER_UPDATED') {
+        // TTL 기반 상태 변경(자동 거절/준비완료) 후 목록 갱신 요청
+        window.dispatchEvent(new CustomEvent('store-order-updated', { detail: data }));
       }
     };
 

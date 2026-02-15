@@ -8,10 +8,45 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
   const [selectedDeliveryTime, setSelectedDeliveryTime] = useState(DELIVERY_TIME_SLOTS[0]?.value ?? '08:00~11:00');
   const [subscriptionProducts, setSubscriptionProducts] = useState([]);
   const [subscriptionProductsLoading, setSubscriptionProductsLoading] = useState(false);
+  /** 마트 일반 상품 목록 (메뉴 탭) */
+  const [storeProducts, setStoreProducts] = useState([]);
+  const [storeProductsLoading, setStoreProductsLoading] = useState(false);
   /** 현재 로그인한 고객이 이미 구독 중인 구독 상품 ID 목록 (재구독 방지용) */
   const [mySubscriptionProductIds, setMySubscriptionProductIds] = useState([]);
 
   const deliveryTimeSlots = DELIVERY_TIME_SLOTS.map((s) => s.value);
+
+  // 마트 일반 상품 목록 조회 (메뉴 탭)
+  useEffect(() => {
+    const storeId = store?.id;
+    if (storeId == null || typeof storeId !== 'number') {
+      setStoreProducts([]);
+      return;
+    }
+    setStoreProductsLoading(true);
+    fetch(`${API_BASE_URL}/api/stores/${storeId}/products`, { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const list = json?.data ?? json ?? [];
+        const arr = Array.isArray(list) ? list : [];
+        setStoreProducts(
+          arr.map((p) => ({
+            id: p.productId ?? p.id,
+            name: p.productName ?? p.name ?? '',
+            price: p.salePrice ?? p.price ?? 0,
+            img: p.productImageUrl ?? p.product_image_url ?? p.img ?? 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80',
+            category: p.categoryName ?? p.category ?? '기타',
+            stock: p.stock ?? 0,
+            description: p.description ?? '',
+            desc: p.description ?? '',
+            discountRate: p.discountRate ?? 0,
+            origin: p.origin ?? '',
+          }))
+        );
+      })
+      .catch(() => setStoreProducts([]))
+      .finally(() => setStoreProductsLoading(false));
+  }, [store?.id]);
 
   useEffect(() => {
     const storeId = store?.id;
@@ -142,7 +177,7 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
                    </span>
                  ))}
                </div>
-               <div style={{ fontSize: '13px', color: '#64748b' }}>전체 상품 <span style={{ fontWeight: '700' }}>{store.products.length + subscriptionProducts.length}</span>개</div>
+               <div style={{ fontSize: '13px', color: '#64748b' }}>전체 상품 <span style={{ fontWeight: '700' }}>{storeProducts.length + subscriptionProducts.length}</span>개</div>
             </div>
 
             {/* Subscription Section */}
@@ -200,7 +235,7 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
 
             {/* Product Category Tabs */}
             <div style={{ display: 'flex', gap: '12px', marginBottom: '32px', overflowX: 'auto', paddingBottom: '8px', borderBottom: '1px solid #f1f5f9' }}>
-               {['전체', ...new Set(store.products.map(p => p.category))].map(cat => (
+               {['전체', ...new Set(storeProducts.map(p => p.category))].map(cat => (
                  <button 
                   key={cat}
                   onClick={() => setSelectedProductCategory(cat)}
@@ -215,7 +250,9 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '24px', rowGap: '40px' }}>
-              {store.products
+              {storeProductsLoading ? (
+                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: '#64748b' }}>상품 목록을 불러오는 중...</div>
+              ) : storeProducts
                 .filter(p => selectedProductCategory === '전체' || p.category === selectedProductCategory)
                 .map((product, i) => {
                 const isOutOfStock = product.stock <= 0; 
@@ -579,6 +616,7 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
 
       <ProductDetailModal 
         product={selectedProductForDetail}
+        store={store}
         onClose={() => setSelectedProductForDetail(null)}
         onAddToCart={onAddToCart}
       />
@@ -626,7 +664,7 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
   );
 };
 
-const ProductDetailModal = ({ product, onClose, onAddToCart }) => {
+const ProductDetailModal = ({ product, store, onClose, onAddToCart }) => {
   const [quantity, setQuantity] = useState(1);
   if (!product) return null;
 
@@ -699,7 +737,7 @@ const ProductDetailModal = ({ product, onClose, onAddToCart }) => {
             </div>
             <button 
               onClick={() => {
-                onAddToCart(product, store);
+                if (onAddToCart) onAddToCart(product, store, quantity);
                 onClose();
               }}
               style={{ 

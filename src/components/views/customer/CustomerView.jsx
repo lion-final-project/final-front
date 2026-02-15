@@ -583,7 +583,7 @@ const CustomerView = ({
     window.scrollTo(0, 0);
   };
 
-  const onAddToCart = async (product, store) => {
+  const onAddToCart = async (product, store, quantity = 1) => {
     if (!isLoggedIn) {
       showToast("로그인이 필요합니다.");
       onOpenAuth();
@@ -595,7 +595,8 @@ const CustomerView = ({
       const existingItem = cartItems.find(
         (item) => item.productId === product.id,
       );
-      const newQuantity = existingItem ? existingItem.quantity + 1 : 1;
+      const addQty = Math.max(1, Number(quantity) || 1);
+      const newQuantity = existingItem ? existingItem.quantity + addQty : addQty;
 
       const result = await cartAPI.addToCart(product.id, newQuantity);
       setCartItems(result.items);
@@ -1375,6 +1376,7 @@ const CustomerView = ({
         onRemoveFromCart={onRemoveFromCart}
         onCheckout={() => {
           setIsCartOpen(false);
+          setSelectedStore(null);
           setActiveTab("checkout");
         }}
         isLoggedIn={isLoggedIn}
