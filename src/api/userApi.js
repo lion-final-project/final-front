@@ -44,9 +44,10 @@ export const getNearbyStores = async ({
         size
     };
 
-    // 선택적 파라미터 추가 (kebab-case로 변환)
+    // 선택적 파라미터 추가 (호환성을 위해 두 가지 형태 모두 전송)
     if (storeCategoryId != null) {
         params['store-category-id'] = storeCategoryId;
+        params['storeCategoryId'] = storeCategoryId;
     }
     if (keyword != null && keyword.trim().length >= 2) {
         params.keyword = keyword.trim();
@@ -82,3 +83,23 @@ export const getNearbyStores = async ({
  * @property {number} latitude - 위도
  * @property {number} longitude - 경도
  */
+
+/**
+ * 회원 탈퇴 가능 여부 조회 (GET /api/users/me/withdrawal/eligibility)
+ * @returns {Promise<{canWithdraw: boolean, blockedReasons: Array<{code: string, message: string}>}>}
+ */
+export const getWithdrawalEligibility = async () => {
+    const response = await api.get('/api/users/me/withdrawal/eligibility');
+    const data = response.data?.data ?? response.data;
+    return data;
+};
+
+/**
+ * 회원 탈퇴 확정 (DELETE /api/users/me). 제한 사유 있으면 409.
+ * @returns {Promise<{message: string, loggedOut: boolean, nextAction: string}>}
+ */
+export const deleteWithdrawal = async () => {
+    const response = await api.delete('/api/users/me');
+    const data = response.data?.data ?? response.data;
+    return data;
+};

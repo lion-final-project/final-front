@@ -25,7 +25,7 @@ const SubscriptionSubTab = ({
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
       <h3 style={{ fontSize: "18px", fontWeight: "700" }}>나의 구독 관리</h3>
       <div style={{ display: "flex", gap: "8px", backgroundColor: "#f8fafc", padding: "4px", borderRadius: "10px" }}>
-        {["전체", "구독중", "일시정지", "해지 예정"].map((f) => (
+        {["전체", "구독중", "해지 예정"].map((f) => (
           <button
             key={f}
             onClick={() => setSubscriptionFilter(f)}

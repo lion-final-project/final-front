@@ -20,16 +20,20 @@ const MypageTabContent = (props) => {
     orderList, reviews, userInfo,     subscriptionList, subscriptionListLoading,
     subscriptionListError, subscriptionPayments, subscriptionFilter, setSubscriptionFilter,
     expandedSubId, setExpandedSubId, addressList, paymentMethodList,
-    storeRegistrationStatus, storeRegistrationStoreName,
-    setStoreRegistrationStatus, setStoreRegistrationStoreName,
+      storeRegistrationStatus, storeRegistrationStoreName,
+      riderRegistrationStatus,
+      riderRegistrationApprovalId,
+      setStoreRegistrationStatus, setStoreRegistrationStoreName,
+      refreshRiderRegistration,
     setIsResidentRider,
     inquiries, userRole, setUserRole, onOpenAuth,
     setIsTrackingOpen, handleOpenReviewModal, handleCancelOrder,
     setViewingReview, setSelectedOrderForReview, setIsReviewModalOpen,
     handleCancelSubscription, resumeSubscription, fetchSubscriptions, fetchAddresses,
     showToast, handleOpenAddressModal, handleSaveAddress, handleDeleteAddress,
-    handleSetDefaultAddress, handleOpenPaymentModal, handleSavePaymentMethod,
+    handleSetDefaultAddress,     handleOpenPaymentModal, handleSavePaymentMethod,
     handleDeletePaymentMethod, handleSetDefaultPaymentMethod,
+    onCardRegistered, fetchPaymentMethods,
     isAddressModalOpen, setIsAddressModalOpen, isPaymentModalOpen, setIsPaymentModalOpen,
     editingAddress, newAddress, setNewAddress, editingPaymentMethod, newPaymentMethod, setNewPaymentMethod,
   } = props;
@@ -131,7 +135,7 @@ const MypageTabContent = (props) => {
                     { id: "user_profile", label: "내 정보 관리", icon: "👤" },
                     { id: "subscription", label: "구독 관리", icon: "📅" },
                     { id: "address", label: "배송지 관리", icon: "📍" },
-                    { id: "payment", label: "결제 수단 관리", icon: "💳" },
+                    { id: "payment", label: "구독 결제 관리", icon: "💳" },
                     { id: "coupon", label: "쿠폰함", icon: "🎫" },
                     { id: "help", label: "고객지원", icon: "📞" },
                     {
@@ -232,6 +236,11 @@ const MypageTabContent = (props) => {
                     setViewingReview={setViewingReview}
                     setSelectedOrderForReview={setSelectedOrderForReview}
                     setIsReviewModalOpen={setIsReviewModalOpen}
+                    onDateFilterChange={props.onOrderDateFilterChange}
+                    currentPage={props.orderCurrentPage}
+                    totalPages={props.orderTotalPages}
+                    onPageChange={props.onOrderPageChange}
+                    onSearch={props.onOrderSearch}
                   />
                 )}
 
@@ -288,6 +297,9 @@ const MypageTabContent = (props) => {
                     newPaymentMethod={newPaymentMethod}
                     setNewPaymentMethod={setNewPaymentMethod}
                     handleSavePaymentMethod={handleSavePaymentMethod}
+                    onCardRegistered={onCardRegistered}
+                    onRefreshPaymentMethods={fetchPaymentMethods}
+                    showToast={showToast}
                   />
                 )}
 
@@ -312,13 +324,16 @@ const MypageTabContent = (props) => {
 
                 {myPageTab === "application_status" && (
                   <ApplicationStatusSubTab
-                    storeRegistrationStatus={storeRegistrationStatus}
-                    storeRegistrationStoreName={storeRegistrationStoreName}
-                    setStoreRegistrationStatus={setStoreRegistrationStatus}
-                    setStoreRegistrationStoreName={setStoreRegistrationStoreName}
-                    setActiveTab={setActiveTab}
-                    isResidentRider={isResidentRider}
-                    verifyStep={verifyStep}
+                      storeRegistrationStatus={storeRegistrationStatus}
+                      storeRegistrationStoreName={storeRegistrationStoreName}
+                      riderRegistrationStatus={riderRegistrationStatus}
+                      riderRegistrationApprovalId={riderRegistrationApprovalId}
+                      setStoreRegistrationStatus={setStoreRegistrationStatus}
+                      setStoreRegistrationStoreName={setStoreRegistrationStoreName}
+                      refreshRiderRegistration={refreshRiderRegistration}
+                      setActiveTab={setActiveTab}
+                      isResidentRider={isResidentRider}
+                      verifyStep={verifyStep}
                     setVerifyStep={setVerifyStep}
                     showToast={showToast}
                   />

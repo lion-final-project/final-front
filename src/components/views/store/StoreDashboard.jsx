@@ -89,7 +89,17 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   const [deliverySchedule, setDeliverySchedule] = useState(null);
   const [deliveryScheduleLoading, setDeliveryScheduleLoading] = useState(false);
   const [editingSubscription, setEditingSubscription] = useState(null);
-  const [subscriptionForm, setSubscriptionForm] = useState({ name: '', price: '', weeklyFreq: 1, monthlyTotal: 4, deliveryDays: [], description: '', selectedProducts: [] });
+  const [subscriptionForm, setSubscriptionForm] = useState({
+    name: '',
+    price: '',
+    weeklyFreq: 1,
+    monthlyTotal: 4,
+    deliveryDays: [],
+    description: '',
+    selectedProducts: [],
+    imageFile: null,
+    imagePreview: null,
+  });
   const [expandedSubscriptions, setExpandedSubscriptions] = useState(new Set());
   
   const [userSubscriptions, setUserSubscriptions] = useState([
@@ -786,10 +796,24 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   const handleOpenSubscriptionModal = (sub = null) => {
     if (sub) {
       setEditingSubscription(sub);
-      setSubscriptionForm({ ...sub });
+      setSubscriptionForm({
+        ...sub,
+        imageFile: null,
+        imagePreview: sub.imageUrl ?? null,
+      });
     } else {
       setEditingSubscription(null);
-      setSubscriptionForm({ name: '', price: '', weeklyFreq: 1, monthlyTotal: 4, deliveryDays: [], description: '', selectedProducts: [] });
+      setSubscriptionForm({
+        name: '',
+        price: '',
+        weeklyFreq: 1,
+        monthlyTotal: 4,
+        deliveryDays: [],
+        description: '',
+        selectedProducts: [],
+        imageFile: null,
+        imagePreview: null,
+      });
     }
     setIsSubscriptionModalOpen(true);
   };
@@ -807,6 +831,20 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     }
     const deliveryDays = subscriptionForm.deliveryDays || [];
     const daysOfWeek = deliveryDays.map((d) => KO_TO_NUM[d]).filter((n) => n !== undefined);
+
+    // 이미지 업로드 처리
+    let imageUrl = '';
+    if (subscriptionForm.imageFile) {
+      try {
+        imageUrl = await uploadProductImage(subscriptionForm.imageFile);
+      } catch (err) {
+        alert(err.message || '이미지 업로드에 실패했습니다.');
+        return;
+      }
+    } else if (editingSubscription && subscriptionForm.imagePreview && subscriptionForm.imagePreview.startsWith('http')) {
+      imageUrl = subscriptionForm.imagePreview;
+    }
+
     const body = {
       name: subscriptionForm.name,
       description: subscriptionForm.description || '',
@@ -814,6 +852,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
       totalDeliveryCount: (subscriptionForm.weeklyFreq ?? (subscriptionForm.deliveryDays || []).length ?? 0) * 4 || 4,
       items,
       daysOfWeek,
+      imageUrl,
     };
     try {
       const url = editingSubscription

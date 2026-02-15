@@ -10,15 +10,8 @@ const StoreGrid = ({ selectedCategory, searchQuery, coords, onStoreClick }) => {
   const [lastId, setLastId] = useState(null);
 
   const fetchStores = async (isFirstPage = false) => {
-    if (loading || (!hasMore && !isFirstPage)) return;
-
-    // Mapping frontend string IDs to backend numeric IDs
-    const categoryMap = {
-      'mart': 2,    // 슈퍼마켓
-      'fruit': 4,   // 과일가게
-      'butcher': 3, // 정육점
-      'banchan': 5, // 반찬가게
-    };
+    // 첫 페이지를 가져오는 경우(카테고리 변경 등) 기존 로딩 상태를 무시하고 새로 시작
+    if (!isFirstPage && (loading || !hasMore)) return;
 
     const lat = Number(coords?.lat);
     const lon = Number(coords?.lon);
@@ -37,7 +30,7 @@ const StoreGrid = ({ selectedCategory, searchQuery, coords, onStoreClick }) => {
       const result = await userApi.getNearbyStores({
         latitude: lat,
         longitude: lon,
-        storeCategoryId: selectedCategory === 'all' ? null : categoryMap[selectedCategory],
+        storeCategoryId: selectedCategory === 'all' ? null : selectedCategory,
         keyword: searchQuery || null,
         lastDistance: isFirstPage ? null : lastDistance,
         lastId: isFirstPage ? null : lastId,
