@@ -108,6 +108,18 @@ const CartModal = ({
     return stock > 0 && item.quantity > stock;
   });
 
+  // 선택된 상품 중 배달 불가 마트가 있는지
+  const hasDeliveryUnavailableInSelection = selectedItems.some(
+    (item) => item.isDeliveryAvailable === false
+  );
+  const deliveryUnavailableStoreNames = [
+    ...new Set(
+      selectedItems
+        .filter((item) => item.isDeliveryAvailable === false)
+        .map((item) => item.storeName)
+    ),
+  ];
+
   return (
     <div
       style={{
@@ -274,17 +286,32 @@ const CartModal = ({
                     >
                       {selectedStores.has(storeName) && "✓"}
                     </div>
-                    <div style={{ flexGrow: 1, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ flexGrow: 1, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
                       <span
                         style={{
                           fontWeight: "700",
                           fontSize: "17px",
-                          color: "#1e293b",
+                          color: items[0]?.isDeliveryAvailable === false ? "#991b1b" : "#1e293b",
                         }}
                       >
                         {storeName}
+                        {items[0]?.isDeliveryAvailable === false && (
+                          <span
+                            style={{
+                              marginLeft: "8px",
+                              fontSize: "12px",
+                              fontWeight: "800",
+                              color: "#dc2626",
+                              backgroundColor: "#fee2e2",
+                              padding: "2px 8px",
+                              borderRadius: "20px",
+                            }}
+                          >
+                            배달 불가
+                          </span>
+                        )}
                       </span>
-                      {selectedStores.has(storeName) && items.length > 0 && (
+                      {selectedStores.has(storeName) && items.length > 0 && items[0]?.isDeliveryAvailable !== false && (
                         <span
                           style={{
                             fontSize: "14px",
@@ -522,6 +549,28 @@ const CartModal = ({
               background: "white",
             }}
           >
+            {/* 배달 불가 마트 경고 */}
+            {hasDeliveryUnavailableInSelection && deliveryUnavailableStoreNames.length > 0 && (
+              <div
+                style={{
+                  padding: "10px 12px",
+                  marginBottom: "12px",
+                  backgroundColor: "#fef2f2",
+                  border: "1px solid #fecaca",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  color: "#991b1b",
+                  lineHeight: "1.5",
+                }}
+              >
+                <div style={{ fontWeight: "700", marginBottom: "4px" }}>
+                  🚫 배달 불가능한 매장
+                </div>
+                <div>
+                  {deliveryUnavailableStoreNames.join(", ")} — 현재 배달이 불가능합니다. 해당 상품을 제거하거나 나중에 주문해 주세요.
+                </div>
+              </div>
+            )}
             {/* 재고 부족 경고 */}
             {insufficientStockItems.length > 0 && (
               <div
@@ -599,6 +648,10 @@ const CartModal = ({
                   alert("결제할 상품이 포함된 상점을 선택해주세요.");
                   return;
                 }
+                if (hasDeliveryUnavailableInSelection) {
+                  alert("배달 불가능한 매장이 포함되어 있습니다. 해당 상품을 제거하거나 나중에 주문해 주세요.");
+                  return;
+                }
                 if (hasOutOfStockInSelection) {
                   if (insufficientStockItems.length > 0) {
                     alert(
@@ -614,13 +667,13 @@ const CartModal = ({
                 onClose();
                 onCheckout(selectedItems);
               }}
-              disabled={activeSelectedStoreCount === 0 || hasOutOfStockInSelection}
+              disabled={activeSelectedStoreCount === 0 || hasOutOfStockInSelection || hasDeliveryUnavailableInSelection}
               style={{
                 width: "100%",
                 padding: "14px",
                 borderRadius: "10px",
                 background:
-                  activeSelectedStoreCount > 0 && !hasOutOfStockInSelection
+                  activeSelectedStoreCount > 0 && !hasOutOfStockInSelection && !hasDeliveryUnavailableInSelection
                     ? "var(--primary)"
                     : "#cbd5e1",
                 color: "white",
