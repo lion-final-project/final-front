@@ -1,6 +1,24 @@
 import api from './axios';
 
 /**
+ * 내 상점 정보 조회 (상호명, 카테고리, 배달 가능 여부 등)
+ * @returns {Promise<{ storeId, storeName, categoryName, isDeliveryAvailable } | null>}
+ */
+export const getMyStore = async () => {
+  const response = await api.get('/api/stores/my');
+  const data = response.data?.data ?? response.data;
+  return data ?? null;
+};
+
+/**
+ * 내 상점 배달 가능 on/off 수정
+ * @param {boolean} deliveryAvailable
+ */
+export const updateDeliveryAvailable = async (deliveryAvailable) => {
+  await api.patch('/api/stores/my/delivery-available', { deliveryAvailable });
+};
+
+/**
  * 내 상점 요일별 영업시간 조회
  * @returns {Promise<Array>} { dayOfWeek, openTime, closeTime, isClosed }[] (dayOfWeek 0=일 ~ 6=토, 정렬됨)
  */

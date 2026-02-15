@@ -15,7 +15,7 @@ import {
   mapCompletedStoreOrderToDisplay,
 } from './utils/storeDashboardUtils';
 import { getNewOrders, getCompletedOrders, getOrderHistory, acceptOrder, completePreparation, rejectOrder } from '../../../api/storeOrderApi';
-import { getBusinessHours, updateBusinessHours } from '../../../api/storeApi';
+import { getBusinessHours, updateBusinessHours, updateDeliveryAvailable } from '../../../api/storeApi';
 import OrdersTab from './tabs/OrdersTab';
 import DashboardTab from './tabs/DashboardTab';
 import SettlementsTab from './tabs/SettlementsTab';
@@ -295,6 +295,9 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
         const d = json?.data;
         if (d?.storeName != null) {
           setStoreInfo(prev => ({ ...prev, name: d.storeName, category: d.categoryName || prev.category }));
+        }
+        if (d?.isDeliveryAvailable !== undefined) {
+          setIsStoreOpen(!!d.isDeliveryAvailable);
         }
       })
       .catch(() => {});
@@ -1187,9 +1190,18 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
               </h1>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-               {/* Toggle Switch */}
+               {/* Toggle Switch - 배달 가능 on/off (서버 반영) */}
                <div 
-                 onClick={() => setIsStoreOpen(!isStoreOpen)}
+                 onClick={async () => {
+                   const next = !isStoreOpen;
+                   try {
+                     await updateDeliveryAvailable(next);
+                     setIsStoreOpen(next);
+                   } catch (e) {
+                     const msg = e?.response?.data?.error?.message ?? e?.message ?? '배달 가능 여부 변경에 실패했습니다.';
+                     alert(msg);
+                   }
+                 }}
                  style={{ 
                    display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', 
                    padding: '4px 6px', borderRadius: '30px', backgroundColor: isStoreOpen ? '#dcfce7' : '#fee2e2', 

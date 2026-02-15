@@ -44,7 +44,8 @@ const transformCartResponse = (response) => {
         stock: item.stock,
         lowStock: item.lowStock,
         active: item.active,
-        deliveryFee: store.deliveryFee || 3000
+        deliveryFee: store.deliveryFee || 3000,
+        isDeliveryAvailable: store.isDeliveryAvailable !== false,
       });
     });
   });
