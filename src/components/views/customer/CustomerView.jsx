@@ -310,8 +310,13 @@ const CustomerView = ({
 
   // 주문 상태를 프론트엔드 형식으로 변환
   const convertOrderStatus = (orderStatus, storeOrderStatus) => {
-    // 주문이 취소된 경우
-    if (orderStatus === "CANCELLED" || orderStatus === "PARTIAL_CANCELLED") {
+    // StoreOrder 상태가 취소/거절된 경우를 먼저 체크
+    if (storeOrderStatus === "CANCELLED" || storeOrderStatus === "REJECTED") {
+      return "주문 취소됨";
+    }
+
+    // 전체 주문이 취소된 경우 (하지만 이 경우 개별 상태도 CANCELLED여야 함)
+    if (orderStatus === "CANCELLED") {
       return "주문 취소됨";
     }
 
@@ -330,11 +335,6 @@ const CustomerView = ({
       return "배송 중";
     } else if (storeOrderStatus === "DELIVERED") {
       return "배송 완료";
-    } else if (
-      storeOrderStatus === "CANCELLED" ||
-      storeOrderStatus === "REJECTED"
-    ) {
-      return "주문 취소됨";
     }
 
     return "주문 접수 중";
