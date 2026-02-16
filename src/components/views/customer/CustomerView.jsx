@@ -37,6 +37,12 @@ import {
 } from "../../../api/billingApi";
 import * as storeApi from "../../../api/storeApi";
 import { getOrderList, cancelStoreOrder } from "../../../api/orderApi";
+import {
+  createReview,
+  getReviewDetail,
+  updateReview,
+  deleteReview
+} from "../../../api/reviewApi";
 
 // Import Swiper React components
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -400,7 +406,8 @@ const CustomerView = ({
       price: priceStr,
       status: status,
       img: imgUrl,
-      reviewWritten: false, // TODO: 리뷰 작성 여부는 별도 API로 확인 필요
+      reviewWritten: storeOrderData.reviewWritten || false,
+      reviewId: storeOrderData.reviewId || null,
       storeOrder: storeOrderData, // 전체 StoreOrder 정보 저장
     };
   };
@@ -806,7 +813,7 @@ const CustomerView = ({
   }, [activeTab, myPageTab, isLoggedIn, fetchPaymentMethods]);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [selectedOrderForReview, setSelectedOrderForReview] = useState(null);
-  const [reviewForm, setReviewForm] = useState({ rate: 5, content: "" });
+  const [reviewForm, setReviewForm] = useState({ rating: 1, content: "" });
   const [verifyStep, setVerifyStep] = useState(0); // 0: intro, 1: location, 2: id, 3: success
 
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -847,6 +854,7 @@ const CustomerView = ({
   });
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [viewingReview, setViewingReview] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   const fetchStoreCategories = useCallback(async () => {
     try {
@@ -989,34 +997,82 @@ const CustomerView = ({
     }
   };
 
-  const handleOpenReviewModal = (order) => {
+  const handleOpenReviewModal = async (order) => {
     setSelectedOrderForReview(order);
-    setReviewForm({ rate: 5, content: "" });
+    if (order.reviewWritten) {
+      try {
+        const reviewData = await getReviewDetail(order.reviewId);
+        setViewingReview(reviewData);
+        setIsEditing(false); // 보기 모드로 열기
+      } catch (error) {
+        console.error("리뷰 조회 실패:", error);
+        alert("리뷰 정보를 불러오는데 실패했습니다.");
+        return;
+      }
+    } else {
+      setViewingReview(null);
+      setReviewForm({ rating: 1, content: "" });
+      setIsEditing(false); // 작성 모드는 isEditing과 무관하지만 초기화
+    }
     setIsReviewModalOpen(true);
   };
-  const handleSaveReview = (e) => {
+
+  const handleSaveReview = async (e) => {
     e.preventDefault();
-    if (viewingReview) {
-      alert("리뷰가 수정되었습니다.");
-    } else {
-      alert("리뷰가 등록되었습니다! 소중한 의견 감사합니다.");
+
+    try {
+      if (viewingReview) {
+        // 수정 모드
+        await updateReview(
+          viewingReview.reviewId,
+          reviewForm.content,
+          reviewForm.rating,
+        );
+        showToast("리뷰가 수정되었습니다.");
+        setViewingReview({
+          ...viewingReview,
+          content: reviewForm.content,
+          rating: reviewForm.rating,
+        });
+        setIsEditing(false);
+      } else {
+        // 생성 모드
+        await createReview(selectedOrderForReview.storeOrderId, {
+          rating: reviewForm.rating,
+          content: reviewForm.content,
+        });
+        showToast("리뷰가 등록되었습니다!");
+      }
+      setIsReviewModalOpen(false);
+      // 목록 갱신
+      fetchOrders(orderCurrentPage, orderDateFilter, orderSearchTerm);
+    } catch (error) {
+      console.error("리뷰 저장 실패:", error);
+      alert("리뷰 저장에 실패했습니다.");
     }
-    setIsReviewModalOpen(false);
-    setViewingReview(null);
+  };
+
+  const handleDeleteReview = async () => {
+    if (!window.confirm("정말 리뷰를 삭제하시겠습니까?")) return;
+    try {
+      await deleteReview(viewingReview.reviewId);
+      showToast("리뷰가 삭제되었습니다.");
+      setIsReviewModalOpen(false);
+      setViewingReview(null);
+      // 목록 갱신 - await를 사용하여 완료될 때까지 대기
+      await fetchOrders(orderCurrentPage, orderDateFilter, orderSearchTerm);
+    } catch (error) {
+      console.error("리뷰 삭제 실패:", error);
+      alert("리뷰 삭제에 실패했습니다.");
+    }
   };
 
   const handleEditReview = () => {
-    setReviewForm({ rate: viewingReview.rate, content: viewingReview.content });
+    setReviewForm({ rating: viewingReview.rating, content: viewingReview.content });
     setViewingReview(null); // Switch to edit mode in the same modal
   };
 
-  const handleDeleteReview = () => {
-    if (window.confirm("작성하신 리뷰를 삭제하시겠습니까?")) {
-      alert("리뷰가 삭제되었습니다.");
-      setIsReviewModalOpen(false);
-      setViewingReview(null);
-    }
-  };
+
 
   const handleCancelOrder = (orderId) => {
     setCancellingOrderId(orderId);
@@ -1948,61 +2004,61 @@ const CustomerView = ({
               </button>
             </div>
           ) : (
-          <div
-            style={{
-              animation: "fadeInLayer 0.3s ease-out",
-            }}
-          >
-            <StoreDetailView
-              store={selectedStore}
-              onBack={() => {
-                setSelectedStore(null);
-                window.scrollTo(0, 0);
+            <div
+              style={{
+                animation: "fadeInLayer 0.3s ease-out",
               }}
-              onAddToCart={onAddToCart}
-              onSubscribeCheckout={async (subProduct) => {
-                const deliveryTimeSlot =
-                  subProduct.deliveryTimeSlot ?? subProduct.deliveryTime;
-                const subscriptionProductId =
-                  subProduct.id != null ? Number(subProduct.id) : null;
-                const isNumericId =
-                  subscriptionProductId != null &&
-                  !Number.isNaN(subscriptionProductId);
+            >
+              <StoreDetailView
+                store={selectedStore}
+                onBack={() => {
+                  setSelectedStore(null);
+                  window.scrollTo(0, 0);
+                }}
+                onAddToCart={onAddToCart}
+                onSubscribeCheckout={async (subProduct) => {
+                  const deliveryTimeSlot =
+                    subProduct.deliveryTimeSlot ?? subProduct.deliveryTime;
+                  const subscriptionProductId =
+                    subProduct.id != null ? Number(subProduct.id) : null;
+                  const isNumericId =
+                    subscriptionProductId != null &&
+                    !Number.isNaN(subscriptionProductId);
 
-                if (!deliveryTimeSlot || !isNumericId) {
-                  showToast(
-                    "배송 시간대를 선택해 주세요. (실제 구독 상품이 있는 마트에서만 구독 신청이 가능합니다.)",
+                  if (!deliveryTimeSlot || !isNumericId) {
+                    showToast(
+                      "배송 시간대를 선택해 주세요. (실제 구독 상품이 있는 마트에서만 구독 신청이 가능합니다.)",
+                    );
+                    return;
+                  }
+                  if (addressList.length === 0) {
+                    showToast("배송지를 먼저 등록해 주세요.");
+                    return;
+                  }
+
+                  // 구독 상품 정보를 sessionStorage에 저장하고 결제창으로 이동
+                  const subscriptionData = {
+                    subscriptionProductId,
+                    deliveryTimeSlot,
+                    daysOfWeek: subProduct.daysOfWeek || [],
+                    price: subProduct.price,
+                    name: subProduct.name,
+                    desc: subProduct.desc,
+                    img: subProduct.img,
+                    totalDeliveryCount: subProduct.totalDeliveryCount,
+                  };
+                  sessionStorage.setItem(
+                    "pendingSubscriptionCheckout",
+                    JSON.stringify(subscriptionData),
                   );
-                  return;
-                }
-                if (addressList.length === 0) {
-                  showToast("배송지를 먼저 등록해 주세요.");
-                  return;
-                }
 
-                // 구독 상품 정보를 sessionStorage에 저장하고 결제창으로 이동
-                const subscriptionData = {
-                  subscriptionProductId,
-                  deliveryTimeSlot,
-                  daysOfWeek: subProduct.daysOfWeek || [],
-                  price: subProduct.price,
-                  name: subProduct.name,
-                  desc: subProduct.desc,
-                  img: subProduct.img,
-                  totalDeliveryCount: subProduct.totalDeliveryCount,
-                };
-                sessionStorage.setItem(
-                  "pendingSubscriptionCheckout",
-                  JSON.stringify(subscriptionData),
-                );
-
-                // 결제창으로 이동
-                setSelectedStore(null);
-                setActiveTab("checkout");
-                window.scrollTo(0, 0);
-              }}
-            />
-          </div>
+                  // 결제창으로 이동
+                  setSelectedStore(null);
+                  setActiveTab("checkout");
+                  window.scrollTo(0, 0);
+                }}
+              />
+            </div>
           )
         ) : (
           renderActiveView()
@@ -2022,17 +2078,19 @@ const CustomerView = ({
       <Footer onTabChange={handleTabChange} />
       {isReviewModalOpen && (
         <ReviewModal
-          viewingReview={viewingReview}
-          selectedOrderForReview={selectedOrderForReview}
-          reviewForm={reviewForm}
-          setReviewForm={setReviewForm}
-          onSave={handleSaveReview}
-          onEdit={handleEditReview}
-          onDelete={handleDeleteReview}
+          isOpen={isReviewModalOpen}
           onClose={() => {
             setIsReviewModalOpen(false);
             setViewingReview(null);
           }}
+          viewingReview={viewingReview}
+          isEditing={isEditing}
+          setIsEditing={setIsEditing}
+          selectedOrderForReview={selectedOrderForReview}
+          reviewForm={reviewForm}
+          setReviewForm={setReviewForm}
+          onSave={handleSaveReview}
+          onDelete={handleDeleteReview}
         />
       )}
       <style>{`
