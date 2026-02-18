@@ -72,3 +72,17 @@ export const getOrderHistory = async (page = 0, size = 20) => {
 export const rejectOrder = async (storeOrderId, reason) => {
   await api.patch(`/api/store/orders/${storeOrderId}/reject`, { reason });
 };
+
+/**
+ * 월별 매출 현황 조회 (사장님용)
+ * @param {number} year - 연도 (2000~2100)
+ * @param {number} month - 월 (1~12)
+ * @returns {Promise<{ year, month, regularOrderCount, subscriptionOrderCount, totalSales, monthOverMonthRate, platformFee, refundAmount, refundCount, totalOrderCount, averageOrderAmount, dayOverDayRate }>}
+ */
+export const getMonthlySales = async (year, month) => {
+  const response = await api.get('/api/store/orders/sales', {
+    params: { year, month },
+  });
+  const data = response.data?.data ?? response.data;
+  return data;
+};
