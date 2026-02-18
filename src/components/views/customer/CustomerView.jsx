@@ -796,7 +796,7 @@ const CustomerView = ({
     setToast(message);
     setTimeout(() => setToast(null), 2000);
   };
-  const [trackingOrderId] = useState("202601210001"); // trackingOrderId is read, setTrackingOrderId is not.
+  const [trackingTarget, setTrackingTarget] = useState(null);
 
   // sessionStorage에서 마이페이지 탭 정보 복원 (새로고침 시 현재 탭 유지)
   const [myPageTab, setMyPageTab] = useState(() => {
@@ -855,6 +855,11 @@ const CustomerView = ({
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [viewingReview, setViewingReview] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+
+  const openTrackingModal = (order = null) => {
+    setTrackingTarget(order || null);
+    setIsTrackingOpen(true);
+  };
 
   const fetchStoreCategories = useCallback(async () => {
     try {
@@ -1572,7 +1577,7 @@ const CustomerView = ({
         // Redirect to modal if tracking tab is somehow active
         setTimeout(() => {
           setActiveTab("home");
-          setIsTrackingOpen(true);
+          openTrackingModal();
         }, 0);
         return null;
 
@@ -1687,7 +1692,7 @@ const CustomerView = ({
             userRole={userRole}
             setUserRole={setUserRole}
             onOpenAuth={onOpenAuth}
-            setIsTrackingOpen={setIsTrackingOpen}
+            openTrackingModal={openTrackingModal}
             handleOpenReviewModal={handleOpenReviewModal}
             handleCancelOrder={handleCancelOrder}
             setViewingReview={setViewingReview}
@@ -2114,7 +2119,7 @@ const CustomerView = ({
         }}
       >
         <button
-          onClick={() => setIsTrackingOpen(true)}
+          onClick={() => openTrackingModal()}
           style={{
             width: "60px",
             height: "60px",
@@ -2205,7 +2210,7 @@ const CustomerView = ({
       <TrackingModal
         isOpen={isTrackingOpen}
         onClose={() => setIsTrackingOpen(false)}
-        orderId={trackingOrderId}
+        trackingTarget={trackingTarget}
       />
       <LocationModal
         isOpen={isLocationModalOpen}
