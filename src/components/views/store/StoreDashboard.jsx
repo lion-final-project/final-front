@@ -14,7 +14,7 @@ import {
   mapStoreOrderToDisplay,
   mapCompletedStoreOrderToDisplay,
 } from './utils/storeDashboardUtils';
-import { getNewOrders, getCompletedOrders, getOrderHistory, acceptOrder, completePreparation, rejectOrder } from '../../../api/storeOrderApi';
+import { getNewOrders, getCompletedOrders, getOrderHistory, acceptOrder, completePreparation, rejectOrder, getMonthlySales } from '../../../api/storeOrderApi';
 import { getBusinessHours, updateBusinessHours, updateDeliveryAvailable } from '../../../api/storeApi';
 import OrdersTab from './tabs/OrdersTab';
 import DashboardTab from './tabs/DashboardTab';
@@ -65,8 +65,24 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   const [selectedSettlement, setSelectedSettlement] = useState(null);
   const [popularProductTab, setPopularProductTab] = useState('ordered'); // 'ordered' or 'subscription'
   const [currentTime, setCurrentTime] = useState(Date.now());
-  const [selectedSettlementPeriod, setSelectedSettlementPeriod] = useState('2026년 1월');
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const settlementPeriodLabel = (y, m) => `${y}년 ${m}월`;
+  const defaultPeriod = settlementPeriodLabel(currentYear, currentMonth);
+  const [selectedSettlementPeriod, setSelectedSettlementPeriod] = useState(defaultPeriod);
   const [isPeriodSelectorOpen, setIsPeriodSelectorOpen] = useState(false);
+  const [salesData, setSalesData] = useState(null);
+  const [salesLoading, setSalesLoading] = useState(false);
+  const [salesError, setSalesError] = useState(null);
+  const settlementPeriodOptions = (() => {
+    const list = [];
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(currentYear, currentMonth - 1 - i, 1);
+      list.push(settlementPeriodLabel(d.getFullYear(), d.getMonth() + 1));
+    }
+    return list;
+  })();
   const [stockAdjustValues, setStockAdjustValues] = useState({});
 
   // --- Restored Missing States ---
@@ -327,6 +343,31 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
       fetchHistoryOrders(0);
     }
   }, [activeTab, orderSubTab]);
+
+  const fetchMonthlySales = React.useCallback(async () => {
+    const match = selectedSettlementPeriod && selectedSettlementPeriod.match(/(\d+)\s*년\s*(\d+)\s*월/);
+    if (!match) return;
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    setSalesLoading(true);
+    setSalesError(null);
+    try {
+      const data = await getMonthlySales(year, month);
+      setSalesData(data);
+    } catch (err) {
+      console.error('월별 매출 조회 실패:', err);
+      setSalesError(err?.response?.data?.error?.message || err?.message || '매출 정보를 불러오지 못했습니다.');
+      setSalesData(null);
+    } finally {
+      setSalesLoading(false);
+    }
+  }, [selectedSettlementPeriod]);
+
+  useEffect(() => {
+    if (activeTab === 'settlements') {
+      fetchMonthlySales();
+    }
+  }, [activeTab, fetchMonthlySales]);
 
   // currentTime만 갱신 (자동 거절 / 준비시간 카운트다운 표시용). 실제 자동 거절은 백엔드 스케줄러에서 처리.
   useEffect(() => {
@@ -1024,6 +1065,10 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
             setSelectedSettlementPeriod={setSelectedSettlementPeriod}
             isPeriodSelectorOpen={isPeriodSelectorOpen}
             setIsPeriodSelectorOpen={setIsPeriodSelectorOpen}
+            periodOptions={settlementPeriodOptions}
+            sales={salesData}
+            salesLoading={salesLoading}
+            salesError={salesError}
           />
         );
       case 'products':
