@@ -5,7 +5,7 @@ const ProfileSubTab = ({
   orderList,
   reviews,
   setActiveTab,
-  setIsTrackingOpen,
+  openTrackingModal,
   handleOpenReviewModal,
   handleCancelOrder,
   setViewingReview,
@@ -19,7 +19,7 @@ const ProfileSubTab = ({
 }) => (
   <OrderManagementView
     orders={orderList}
-    onTracking={() => setIsTrackingOpen(true)}
+    onTracking={(order) => openTrackingModal(order)}
     onWriteReview={(order) => {
       setViewingReview(null);
       handleOpenReviewModal(order);

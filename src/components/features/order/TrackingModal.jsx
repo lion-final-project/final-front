@@ -1,7 +1,7 @@
 import React from 'react';
 import OrderTrackingView from '../../views/rider/OrderTrackingView';
 
-const TrackingModal = ({ isOpen, onClose, orderId }) => {
+const TrackingModal = ({ isOpen, onClose, trackingTarget }) => {
   if (!isOpen) return null;
 
   return (
@@ -56,7 +56,7 @@ const TrackingModal = ({ isOpen, onClose, orderId }) => {
         </div>
         <div style={{ flexGrow: 1, overflowY: "auto" }}>
           <OrderTrackingView
-            orderId={orderId}
+            trackingTarget={trackingTarget}
             onBack={onClose}
             isModal={true}
           />
