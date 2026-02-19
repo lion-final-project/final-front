@@ -1,34 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  authApi, 
-  login, 
-  signup, 
-  checkEmail, 
-  checkPhone, 
-  sendVerification, 
-  verifyPhone, 
-  socialSignupComplete 
+import {
+  authApi,
+  login,
+  signup,
+  checkEmail,
+  checkPhone,
+  sendVerification,
+  verifyPhone,
+  socialSignupComplete,
+  requestPasswordReset
 } from '../../../api/authApi';
 
-// 카카오 인증 URL (백엔드 프록시 또는 직접 호출)
+// 소셜 로그인 인증 URL (백엔드 OAuth2 authorization endpoint)
 const KAKAO_OAUTH_AUTHORIZE_URL = 'http://localhost:8080/oauth2/authorization/kakao';
+const NAVER_OAUTH_AUTHORIZE_URL = 'http://localhost:8080/oauth2/authorization/naver';
 
 const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
   /** onLoginSuccess(userData): userData = { userId, email, name, roles } (로그인/회원가입 성공 시 백엔드 data) */
-  const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'social-extra'
+  const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'social-extra' | 'forgot-password'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [apiLoading, setApiLoading] = useState(false);
-  
+
   // Validation States for Signup
   const [isEmailChecked, setIsEmailChecked] = useState(false);
   const [isPhoneSent, setIsPhoneSent] = useState(false);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [verifyCode, setVerifyCode] = useState('');
   const [phoneVerificationToken, setPhoneVerificationToken] = useState('');
-  
+
   // Agreements State
   const [agreements, setAgreements] = useState({
     all: false,
@@ -130,10 +132,10 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
         alert('이미 가입된 휴대폰 번호입니다.');
         return;
       }
-      
+
       // 2. 인증번호 발송
       const res = await sendVerification(phone);
-      
+
       setIsPhoneSent(true);
       setTimeLeft(res.expiresIn || 180);
       setResendCount((prev) => prev + 1);
@@ -153,7 +155,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
     setApiLoading(true);
     try {
       const res = await verifyPhone(phone, verifyCode.trim());
-      
+
       if (res.verified) {
         setPhoneVerificationToken(res.phoneVerificationToken);
         setIsPhoneVerified(true);
@@ -170,7 +172,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // 1. 회원가입
     if (mode === 'signup') {
       if (!isEmailChecked) return alert('이메일 중복 확인이 필요합니다.');
@@ -178,7 +180,11 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
       // 주소 검증은 필수 아님 (미수집)
       if (!agreements.service || !agreements.privacy) return alert('필수 약관에 동의해주세요.');
       if (!password || password.length < 8) return alert('비밀번호는 8자 이상이어야 합니다.');
-      
+      const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/;
+      if (!passwordRegex.test(password)) {
+        return alert('비밀번호는 영문, 숫자, 특수문자를 포함해야 합니다.');
+      }
+
       setApiLoading(true);
       try {
         const signupData = {
@@ -192,10 +198,10 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
           privacyAgreed: agreements.privacy,
           // 주소 필드가 API 스펙에 있다면 추가
         };
-        
+
         const res = await signup(signupData);
         alert('회원가입이 완료되었습니다! 반갑습니다.');
-        
+
         // 자동 로그인
         const user = await login(email, password);
         onLoginSuccess(user);
@@ -207,7 +213,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
       }
       return;
     }
-    
+
     // 2. 소셜 가입 추가 정보 (카카오 등)
     if (mode === 'social-extra') {
       if (!name || !phone) return alert('이름과 휴대폰 번호를 모두 입력해주세요.');
@@ -215,7 +221,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
       if (!email?.trim()) return alert('이메일을 입력해주세요.');
       if (!isEmailChecked) return alert('이메일 중복 확인이 필요합니다.');
       if (!agreements.service || !agreements.privacy) return alert('필수 약관에 동의해주세요.');
-      
+
       setApiLoading(true);
       try {
         const data = {
@@ -236,7 +242,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
       }
       return;
     }
-    
+
     // 3. 로그인
     if (mode === 'login') {
       if (!email || !password) return alert('이메일과 비밀번호를 입력해주세요.');
@@ -254,11 +260,30 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
       }
       return;
     }
+
+    // 4. 비밀번호 찾기
+    if (mode === 'forgot-password') {
+      if (!email) return alert('이메일을 입력해주세요.');
+      setApiLoading(true);
+      try {
+        await requestPasswordReset(email);
+        alert('비밀번호 재설정 안내 메일을 발송했습니다. 이메일을 확인해주세요.');
+        setMode('login');
+      } catch (err) {
+        alert(getErrorMessage(err, '메일 발송에 실패했습니다.'));
+      } finally {
+        setApiLoading(false);
+      }
+      return;
+    }
   };
 
   const handleSocialLogin = (platform) => {
-    if (platform === '카카오') {
-      window.location.href = KAKAO_OAUTH_AUTHORIZE_URL;
+    const url = platform === '카카오' ? KAKAO_OAUTH_AUTHORIZE_URL : platform === '네이버' ? NAVER_OAUTH_AUTHORIZE_URL : null;
+    if (url) {
+      // 팝업으로 열어서 메인 창(5173)은 그대로 두고, 로그인 완료 후 팝업만 닫고 부모에서 상태 반영
+      const w = window.open(url, 'oauth2_social', 'width=500,height=600,scrollbars=yes,resizable=yes');
+      if (!w) alert('팝업이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요.');
       return;
     }
     alert(`${platform} 로그인은 준비 중입니다.`);
@@ -288,10 +313,10 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
 
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <h2 style={{ fontSize: (mode === 'signup' || mode === 'social-extra') ? '24px' : '28px', fontWeight: '800', marginBottom: '8px', color: '#1e293b' }}>
-            {mode === 'login' ? '다시 만나서 반가워요!' : '새로운 시작, 동네마켓'}
+            {mode === 'login' ? '다시 만나서 반가워요!' : mode === 'forgot-password' ? '비밀번호 찾기' : '새로운 시작, 동네마켓'}
           </h2>
           <p style={{ color: '#64748b', fontSize: '15px' }}>
-            {mode === 'login' ? '로그인하고 우리 동네 소식을 확인하세요' : '단 1분만에 가입하고 신선함을 배달받으세요'}
+            {mode === 'login' ? '로그인하고 우리 동네 소식을 확인하세요' : mode === 'forgot-password' ? '가입하신 이메일 주소를 입력해주세요' : '단 1분만에 가입하고 신선함을 배달받으세요'}
           </p>
         </div>
 
@@ -311,9 +336,9 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
               {mode === 'signup' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <label style={{ fontSize: '14px', fontWeight: '700', color: '#475569' }}>비밀번호</label>
-                  <input 
+                  <input
                     type="password" placeholder="8자 이상, 영문·숫자·특수문자 포함" required value={password} onChange={(e) => setPassword(e.target.value)}
-                    style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }} 
+                    style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }}
                   />
                 </div>
               )}
@@ -399,7 +424,10 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
                 />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#475569' }}>비밀번호</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ fontSize: '14px', fontWeight: '600', color: '#475569' }}>비밀번호</label>
+                  <button type="button" onClick={() => setMode('forgot-password')} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '12px', cursor: 'pointer', padding: 0 }}>비밀번호를 잊으셨나요?</button>
+                </div>
                 <input
                   type="password" placeholder="••••••••" required value={password} onChange={(e) => setPassword(e.target.value)}
                   style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }}
@@ -408,17 +436,27 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
             </>
           )}
 
+          {mode === 'forgot-password' && (
+            <div>
+              <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#475569' }}>이메일</label>
+              <input
+                type="email" placeholder="가입하신 이메일을 입력하세요" required value={email} onChange={(e) => setEmail(e.target.value)}
+                style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }}
+              />
+            </div>
+          )}
+
           <button type="submit" disabled={apiLoading} style={{
             marginTop: '10px', padding: '16px', backgroundColor: apiLoading ? '#94a3b8' : '#10b981', color: 'white', border: 'none', borderRadius: '16px',
             fontWeight: '800', fontSize: '16px', cursor: apiLoading ? 'wait' : 'pointer', boxShadow: '0 8px 16px rgba(16, 185, 129, 0.25)', transition: 'all 0.2s'
           }}>
-            {apiLoading ? '처리 중...' : mode === 'login' ? '로그인하기' : '동네마켓 가입 완료'}
+            {apiLoading ? '처리 중...' : mode === 'login' ? '로그인하기' : mode === 'forgot-password' ? '재설정 메일 보내기' : '동네마켓 가입 완료'}
           </button>
         </form>
 
         <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '14px' }}>
           <span style={{ color: '#64748b' }}>
-            {mode === 'login' ? '아직 회원이 아니신가요?' : '이미 계정이 있으신가요?'}
+            {mode === 'login' ? '아직 회원이 아니신가요?' : mode === 'forgot-password' ? '이미 계정이 기억나셨나요?' : '이미 계정이 있으신가요?'}
           </span>
           <button onClick={toggleMode} style={{ marginLeft: '8px', background: 'none', border: 'none', color: '#10b981', fontWeight: '800', cursor: 'pointer', padding: 0 }}>
             {mode === 'login' ? '지금 가입하기' : '로그인으로 돌아가기'}
@@ -434,14 +472,18 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
             </div>
             <div style={{ display: 'flex', gap: '12px' }}>
               {/* 카카오 버튼: onClick에서 URL 이동 처리 */}
-              <button 
-                type="button" 
-                onClick={() => handleSocialLogin('카카오')} 
+              <button
+                type="button"
+                onClick={() => handleSocialLogin('카카오')}
                 style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: '600', fontSize: '13px', color: '#1e293b' }}
               >
                 <span style={{ fontSize: '18px' }}>💬</span> 카카오
               </button>
-              <button type="button" onClick={() => handleSocialLogin('네이버')} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: '600', fontSize: '13px' }}>
+              <button
+                type="button"
+                onClick={() => handleSocialLogin('네이버')}
+                style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: '600', fontSize: '13px', color: '#1e293b' }}
+              >
                 <span style={{ fontSize: '18px' }}>🟢</span> 네이버
               </button>
             </div>

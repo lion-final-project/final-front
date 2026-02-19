@@ -84,3 +84,21 @@ export const getStoreOrderDetail = async (storeOrderId) => {
 export const cancelStoreOrder = async (storeOrderId, reason) => {
   await api.post(`/api/store-orders/${storeOrderId}/cancel`, { reason });
 };
+
+/**
+ * 고객 배달 추적 목록 조회 (진행중 주문)
+ */
+export const getDeliveryTrackingList = async (page = 0, size = 10) => {
+  const response = await api.get('/api/deliveries/tracking', {
+    params: { page, size, sort: 'id,desc' },
+  });
+  return response.data?.data ?? response.data;
+};
+
+/**
+ * 고객 배달 추적 상세 조회
+ */
+export const getDeliveryTrackingDetail = async (deliveryId) => {
+  const response = await api.get(`/api/deliveries/tracking/${deliveryId}`);
+  return response.data?.data ?? response.data;
+};

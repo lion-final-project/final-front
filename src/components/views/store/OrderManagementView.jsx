@@ -203,7 +203,7 @@ const OrderManagementView = ({ orders, onTracking, onWriteReview, onCancelOrder,
                     onClick={() => onViewReview && onViewReview(order)}
                     style={{ padding: '10px', borderRadius: '4px', border: '1px solid #cbd5e1', background: 'white', color: '#334155', fontWeight: '600', cursor: 'pointer', fontSize: '14px' }}
                   >
-                    내가 쓴 리뷰 보기
+                    내 리뷰 보기
                   </button>
                 ) : order.status === '배송 완료' ? (
                   <button
