@@ -273,6 +273,16 @@ const Header = ({
 // 말풍선 형태 알림 드롭다운 컴포넌트 (네이버 스타일)
 const NotificationDropdown = ({ buttonRef, notifications, onMarkAsRead, onClearAll, onClose }) => {
   const [position, setPosition] = useState({ top: 0, right: 0 });
+  const [selectedNotification, setSelectedNotification] = useState(null);
+  const getTypeLabel = (type) => {
+    if (type === 'customer') return '고객';
+    if (type === 'store') return '마트';
+    if (type === 'rider') return '라이더';
+    if (type === 'order') return '주문';
+    if (type === 'delivery') return '배달';
+    if (type === 'promotion') return '공지';
+    return '기타';
+  };
 
   useEffect(() => {
     const updatePosition = () => {
@@ -404,7 +414,12 @@ const NotificationDropdown = ({ buttonRef, notifications, onMarkAsRead, onClearA
             notifications.map(notif => (
               <div 
                 key={notif.id} 
-                onClick={() => onMarkAsRead && onMarkAsRead(notif.id)}
+                onClick={() => {
+                  setSelectedNotification(notif);
+                  if (onMarkAsRead) {
+                    onMarkAsRead(notif.id);
+                  }
+                }}
                 style={{ 
                   padding: '14px 16px', 
                   borderRadius: '8px', 
@@ -511,6 +526,83 @@ const NotificationDropdown = ({ buttonRef, notifications, onMarkAsRead, onClearA
           </div>
         )}
       </div>
+
+      {selectedNotification && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            top: `${position.top + 6}px`,
+            right: `${position.right + 8}px`,
+            width: '340px',
+            maxWidth: 'calc(100vw - 24px)',
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+            border: '1px solid #e2e8f0',
+            zIndex: 2101,
+            overflow: 'hidden',
+            animation: 'fadeInDown 0.18s ease-out'
+          }}
+        >
+          <div style={{ padding: '12px 14px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a' }}>알림 상세</div>
+            <button
+              onClick={() => setSelectedNotification(null)}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                fontSize: '16px',
+                lineHeight: 1,
+                color: '#64748b',
+                cursor: 'pointer',
+                padding: '2px 4px'
+              }}
+            >
+              X
+            </button>
+          </div>
+          <div style={{ padding: '14px' }}>
+            <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b', marginBottom: '8px' }}>
+              {selectedNotification.title}
+            </div>
+            <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '10px' }}>
+              {selectedNotification.time}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
+              <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px' }}>
+                <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>알림 번호</div>
+                <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>#{selectedNotification.id}</div>
+              </div>
+              <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px' }}>
+                <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>분류</div>
+                <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>{getTypeLabel(selectedNotification.type)}</div>
+              </div>
+              <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px', gridColumn: '1 / span 2' }}>
+                <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>읽음 상태</div>
+                <div style={{ fontSize: '12px', fontWeight: '700', color: selectedNotification.read ? '#10b981' : '#ef4444' }}>
+                  {selectedNotification.read ? '읽음' : '읽지 않음'}
+                </div>
+              </div>
+            </div>
+            <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '6px', fontWeight: '700' }}>상세 내용</div>
+            <div
+              style={{
+                fontSize: '13px',
+                color: '#334155',
+                lineHeight: '1.6',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                overflowWrap: 'break-word',
+                maxHeight: '220px',
+                overflowY: 'auto'
+              }}
+            >
+              {selectedNotification.body}
+            </div>
+          </div>
+        </div>
+      )}
       
       <style>{`
         @keyframes fadeInDown {
