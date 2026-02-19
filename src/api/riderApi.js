@@ -81,6 +81,17 @@ export const removeRiderLocation = async (riderId) => {
     }
 };
 
+// 내 배달 목록 조회 (status 필터 선택적)
+export const getMyDeliveries = async (status) => {
+    try {
+        const params = status ? { status } : {};
+        const response = await api.get('/api/riders/deliveries', { params });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};
+
 // 배달 상세 조회
 export const getDeliveryDetail = async (deliveryId) => {
     try {

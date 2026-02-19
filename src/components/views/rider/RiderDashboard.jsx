@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { getRiderInfo, updateRiderStatus, updateRiderLocation, getRiderLocation, removeRiderLocation, completeDelivery, getDeliveryDetail, acceptDeliveryRequest, pickUpDelivery as pickUpDeliveryApi, startDelivery as startDeliveryApi } from '../../../api/riderApi';
+import { getRiderInfo, updateRiderStatus, updateRiderLocation, getRiderLocation, removeRiderLocation, completeDelivery, getMyDeliveries, acceptDeliveryRequest, pickUpDelivery as pickUpDeliveryApi, startDelivery as startDeliveryApi } from '../../../api/riderApi';
 import { uploadDeliveryPhoto } from '../../../api/storageApi';
 import MainTab from './tabs/MainTab';
 import EarningsTab from './tabs/EarningsTab';
@@ -55,64 +55,84 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
     deliveryRequestsRef.current = deliveryRequests;
   }, [deliveryRequests]);
 
-  // 배달 ID로 상세 조회 → UI용 객체로 변환
-  const fetchDeliveryAsRequest = useCallback(async (deliveryId) => {
-    try {
-      const res = await getDeliveryDetail(deliveryId);
-      const detail = res?.data || res;
-      return {
-        id: detail.id,
-        store: detail['store-name'] || detail.storeName || '알 수 없음',
-        storeAddress: detail['pickup-address'] || detail.pickupAddress || '',
-        destination: detail['delivery-address'] || detail.deliveryAddress || '',
-        distance: detail['distance-km'] ? `${detail['distance-km']}km` : '',
-        fee: detail['delivery-fee'] || detail.deliveryFee || 0,
-        orderNumber: detail['store-order-id'] || detail.storeOrderId,
-      };
-    } catch (error) {
-      console.error(`배달 ${deliveryId} 상세 조회 실패:`, error);
-      return null;
-    }
-  }, []);
-
-  // SSE 이벤트 처리: nearby-deliveries (전체 목록 갱신)
+  // 마운트 시 기존 배달 목록 불러오기 (배정된 배달 중 진행 중인 것)
   useEffect(() => {
-    const handleNearbyDeliveries = async (e) => {
-      const deliveryIds = e.detail; // 배달 ID 배열
-      if (!Array.isArray(deliveryIds)) return;
-
-      setIsLoadingRequests(true);
+    const fetchExistingDeliveries = async () => {
       try {
-        const results = await Promise.all(
-          deliveryIds.map(id => fetchDeliveryAsRequest(id))
-        );
-        const valid = results.filter(Boolean);
-        setDeliveryRequests(valid);
-      } catch (err) {
-        console.error('주변 배달 목록 갱신 실패:', err);
-      } finally {
-        setIsLoadingRequests(false);
+        // ACCEPTED 상태 배달 → 진행 중 배달로 표시
+        const res = await getMyDeliveries('ACCEPTED');
+        const deliveries = res?.data?.content || res?.data || [];
+        const items = Array.isArray(deliveries) ? deliveries : [];
+        if (items.length > 0) {
+          const mapped = items.map(d => ({
+            id: d.id,
+            store: d['store-name'] || d.storeName || '알 수 없음',
+            storeAddress: d['pickup-address'] || d.pickupAddress || '',
+            destination: d['delivery-address'] || d.deliveryAddress || '',
+            distance: '',
+            fee: d['delivery-fee'] || d.deliveryFee || 0,
+            status: 'accepted',
+          }));
+          setActiveDeliveries(mapped);
+        }
+      } catch (error) {
+        console.error('기존 배달 목록 불러오기 실패:', error);
       }
     };
+    fetchExistingDeliveries();
+  }, []);
 
-    // SSE 이벤트: new-delivery (단건 추가)
-    const handleNewDelivery = async (e) => {
-      const rawData = e.detail; // "새로운 배달 요청: {id}" 형태 또는 숫자
-      let deliveryId;
-      if (typeof rawData === 'string' && rawData.includes(':')) {
-        deliveryId = rawData.split(':').pop().trim();
-      } else {
-        deliveryId = rawData;
-      }
+  // SSE에서 받은 배달 페이로드로 UI 객체 생성
+  const createRequestFromPayload = useCallback((payload) => {
+    // payload가 객체인 경우 enriched data 사용, 아닌 경우 fallback
+    if (typeof payload === 'object' && payload !== null) {
+      return {
+        id: payload.deliveryId || payload.id || payload,
+        store: payload.storeName || '새 배달 요청',
+        storeAddress: '',
+        destination: payload.deliveryAddress || '',
+        distance: payload.distanceKm ? `${payload.distanceKm}km` : '',
+        fee: payload.deliveryFee || 0,
+        orderSummary: payload.orderSummary || '',
+        orderNumber: null,
+      };
+    }
+    // fallback: ID만 있는 경우
+    return {
+      id: payload,
+      store: '새 배달 요청',
+      storeAddress: '',
+      destination: '',
+      distance: '',
+      fee: 0,
+      orderNumber: null,
+    };
+  }, []);
+
+  // SSE 이벤트 처리: nearby-deliveries (전체 목록 갱신 — 배달 상세 정보 배열)
+  useEffect(() => {
+    const handleNearbyDeliveries = (e) => {
+      const deliveryList = e.detail; // 배달 상세 정보 배열
+      if (!Array.isArray(deliveryList)) return;
+
+      const requests = deliveryList.map(d => createRequestFromPayload(d));
+      setDeliveryRequests(requests);
+      setIsLoadingRequests(false);
+    };
+
+    // SSE 이벤트: new-delivery (단건 추가 — 배달 상세 정보 객체)
+    const handleNewDelivery = (e) => {
+      const payload = e.detail;
+      if (!payload) return;
+
+      const deliveryId = typeof payload === 'object' ? (payload.deliveryId || payload.id) : payload;
       if (!deliveryId) return;
 
       // 이미 목록에 있으면 무시
       if (deliveryRequestsRef.current.some(r => String(r.id) === String(deliveryId))) return;
 
-      const req = await fetchDeliveryAsRequest(deliveryId);
-      if (req) {
-        setDeliveryRequests(prev => [...prev, req]);
-      }
+      const req = createRequestFromPayload(payload);
+      setDeliveryRequests(prev => [...prev, req]);
     };
 
     // SSE 이벤트: delivery-matched (해당 건 제거)
@@ -130,7 +150,7 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
       window.removeEventListener('new-delivery', handleNewDelivery);
       window.removeEventListener('delivery-matched', handleDeliveryMatched);
     };
-  }, [fetchDeliveryAsRequest]);
+  }, [createRequestFromPayload]);
 
   const [verificationStatus /* , setVerificationStatus */] = useState('verified'); // unverified, pending, verified
   const [vehicleInfo, setVehicleInfo] = useState({

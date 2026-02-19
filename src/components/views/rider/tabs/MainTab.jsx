@@ -111,6 +111,7 @@ const MainTab = ({ earnings, activeDeliveries, deliveryRequests, isLoadingReques
                         <div style={{ fontWeight: '800', fontSize: '16px', marginBottom: '4px' }}>{req.store}</div>
                         <div style={{ fontSize: '13px', color: '#38bdf8', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ fontSize: '14px' }}>🏬</span> {req.storeAddress}</div>
                         <div style={{ fontSize: '13px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ fontSize: '14px' }}>📍</span> {req.destination}</div>
+                        {req.orderSummary && <div style={{ fontSize: '13px', color: '#e2e8f0', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ fontSize: '14px' }}>📦</span> {req.orderSummary}</div>}
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ color: '#38bdf8', fontWeight: '900', fontSize: '18px' }}>{req.fee?.toLocaleString()}원</div>
