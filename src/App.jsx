@@ -8,6 +8,7 @@ import RiderDashboard from './components/views/rider/RiderDashboard';
 import AdminDashboard from './components/views/admin/AdminDashboard';
 import NotificationPanel from './components/common/NotificationPanel';
 import AuthModal from './components/features/auth/AuthModal';
+import PasswordResetView from './components/features/auth/PasswordResetView';
 import { Agentation } from "agentation";
 
 import { checkAuth, logout } from './api/authApi';
@@ -428,6 +429,21 @@ function App() {
   }, [handleOAuthCallback]);
 
   const renderContent = () => {
+    // 비밀번호 재설정 페이지 확인
+    if (window.location.pathname === '/reset-password') {
+      return (
+        <PasswordResetView
+          onResetSuccess={() => {
+            window.history.pushState({}, '', '/');
+            setIsLoggedIn(false);
+            setUserInfo(null);
+            setUserRole('CUSTOMER');
+            setIsAuthModalOpen(true);
+          }}
+        />
+      );
+    }
+
     if (userRole === 'CUSTOMER' || userRole === 'USER') return (
       <CustomerView
         userRole={userRole}

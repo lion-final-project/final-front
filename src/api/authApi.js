@@ -1,38 +1,44 @@
 import api from './axios';
 
 export const authApi = {
-  // 현재 로그인한 사용자 정보 조회
-  me: () => api.get('/api/auth/me').then(res => res.data),
+    // 현재 로그인한 사용자 정보 조회
+    me: () => api.get('/api/auth/me').then(res => res.data),
 
-  // 이메일 중복 확인
-  checkEmail: (email) => api.get(`/api/auth/check-email?email=${encodeURIComponent(email)}`).then(res => res.data),
+    // 이메일 중복 확인
+    checkEmail: (email) => api.get(`/api/auth/check-email?email=${encodeURIComponent(email)}`).then(res => res.data),
 
-  // 휴대폰 번호 중복 확인
-  checkPhone: (phone) => api.get(`/api/auth/check-phone?phone=${phone}`).then(res => res.data),
+    // 휴대폰 번호 중복 확인
+    checkPhone: (phone) => api.get(`/api/auth/check-phone?phone=${phone}`).then(res => res.data),
 
-  // 회원가입
-  register: (data) => api.post('/api/auth/register', data).then(res => res.data),
+    // 회원가입
+    register: (data) => api.post('/api/auth/register', data).then(res => res.data),
 
-  // 로그인
-  login: (data) => api.post('/api/auth/login', data).then(res => res.data),
+    // 로그인
+    login: (data) => api.post('/api/auth/login', data).then(res => res.data),
 
-  // 휴대폰 인증번호 발송
-  sendVerification: (phone) => api.post('/api/auth/send-verification', { phone }).then(res => res.data),
+    // 휴대폰 인증번호 발송
+    sendVerification: (phone) => api.post('/api/auth/send-verification', { phone }).then(res => res.data),
 
-  // 휴대폰 인증번호 확인
-  verifyPhone: (phone, verificationCode) => api.post('/api/auth/verify-phone', { phone, verificationCode }).then(res => res.data),
+    // 휴대폰 인증번호 확인
+    verifyPhone: (phone, verificationCode) => api.post('/api/auth/verify-phone', { phone, verificationCode }).then(res => res.data),
 
-  // 소셜 로그인 추가 정보 입력 및 가입 완료
-  socialSignupComplete: (data) => api.post('/api/auth/social-signup/complete', data).then(res => res.data),
+    // 소셜 로그인 추가 정보 입력 및 가입 완료
+    socialSignupComplete: (data) => api.post('/api/auth/social-signup/complete', data).then(res => res.data),
 
-  // 토큰 갱신
-  refresh: () => api.post('/api/auth/refresh').then(res => res.data),
+    // 토큰 갱신
+    refresh: () => api.post('/api/auth/refresh').then(res => res.data),
 
-  // 로그아웃
-  logout: () => api.post('/api/auth/logout').then(res => res.data),
-  
-  // 카카오 로그인 URL (프론트에서 리다이렉트용)
-  kakaoAuthorize: () => 'http://localhost:8080/oauth2/authorization/kakao'
+    // 로그아웃
+    logout: () => api.post('/api/auth/logout').then(res => res.data),
+
+    // 카카오 로그인 URL (프론트에서 리다이렉트용)
+    kakaoAuthorize: () => 'http://localhost:8080/oauth2/authorization/kakao',
+
+    // 비밀번호 재설정 요청
+    requestPasswordReset: (email) => api.post('/api/auth/password-reset/request', { email }).then(res => res.data),
+
+    // 비밀번호 재설정 확인
+    confirmPasswordReset: (token, newPassword) => api.post('/api/auth/password-reset/confirm', { token, newPassword }).then(res => res.data)
 };
 
 // 기존 코드와의 호환성을 위한 개별 export (점진적 전환)
@@ -42,7 +48,7 @@ export const login = async (email, password) => {
     try {
         const response = await api.post('/api/auth/login', { email, password });
         // ApiResponse: { success: true, data: { ...loginResponse }, ... }
-        return response.data.data; 
+        return response.data.data;
     } catch (error) {
         throw error;
     }
@@ -68,7 +74,7 @@ export const logout = async () => {
 export const checkAuth = async () => {
     try {
         const response = await api.get('/api/auth/me');
-        return response.data.data; 
+        return response.data.data;
     } catch (error) {
         throw error;
     }
@@ -98,4 +104,14 @@ export const verifyPhone = async (phone, verificationCode) => {
 export const socialSignupComplete = async (data) => {
     const response = await api.post('/api/auth/social-signup/complete', data);
     return response.data.data; // MeResponse
+};
+
+export const requestPasswordReset = async (email) => {
+    const response = await api.post('/api/auth/password-reset/request', { email });
+    return response.data; // ApiResponse
+};
+
+export const confirmPasswordReset = async (token, newPassword) => {
+    const response = await api.post('/api/auth/password-reset/confirm', { token, newPassword });
+    return response.data; // ApiResponse
 };

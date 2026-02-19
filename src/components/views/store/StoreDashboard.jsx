@@ -14,9 +14,8 @@ import {
   mapStoreOrderToDisplay,
   mapCompletedStoreOrderToDisplay,
 } from './utils/storeDashboardUtils';
-import { getNewOrders, getCompletedOrders, getOrderHistory, acceptOrder, completePreparation, rejectOrder } from '../../../api/storeOrderApi';
-import { getBusinessHours, updateBusinessHours, updateDeliveryAvailable } from '../../../api/storeApi';
-import * as reviewApi from '../../../api/reviewApi';
+import { getNewOrders, getCompletedOrders, getOrderHistory, acceptOrder, completePreparation, rejectOrder, getMonthlySales } from '../../../api/storeOrderApi';
+import { getBusinessHours, updateBusinessHours, updateDeliveryAvailable, updateStoreImage } from '../../../api/storeApi';
 import OrdersTab from './tabs/OrdersTab';
 import DashboardTab from './tabs/DashboardTab';
 import SettlementsTab from './tabs/SettlementsTab';
@@ -72,8 +71,26 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   const [selectedSettlement, setSelectedSettlement] = useState(null);
   const [popularProductTab, setPopularProductTab] = useState('ordered'); // 'ordered' or 'subscription'
   const [currentTime, setCurrentTime] = useState(Date.now());
-  const [selectedSettlementPeriod, setSelectedSettlementPeriod] = useState('2026년 1월');
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const settlementPeriodLabel = (y, m) => `${y}년 ${m}월`;
+  const defaultPeriod = settlementPeriodLabel(currentYear, currentMonth);
+  const [selectedSettlementPeriod, setSelectedSettlementPeriod] = useState(defaultPeriod);
   const [isPeriodSelectorOpen, setIsPeriodSelectorOpen] = useState(false);
+  const [salesData, setSalesData] = useState(null);
+  const [salesLoading, setSalesLoading] = useState(false);
+  const [salesError, setSalesError] = useState(null);
+  const [dashboardTodaySales, setDashboardTodaySales] = useState(null);
+  const [dashboardDayOverDayRate, setDashboardDayOverDayRate] = useState(null);
+  const settlementPeriodOptions = (() => {
+    const list = [];
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(currentYear, currentMonth - 1 - i, 1);
+      list.push(settlementPeriodLabel(d.getFullYear(), d.getMonth() + 1));
+    }
+    return list;
+  })();
   const [stockAdjustValues, setStockAdjustValues] = useState({});
 
   // --- Restored Missing States ---
@@ -298,12 +315,13 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
       .then(json => {
         const d = json?.data;
         if (d?.storeName != null) {
-          setStoreInfo(prev => ({
-            ...prev,
-            id: d.storeId,
-            name: d.storeName,
-            category: d.categoryName || prev.category
-          }));
+            setStoreInfo(prev => ({
+                ...prev,
+                id: d.storeId,
+                name: d.storeName,
+                category: d.categoryName || prev.category,
+                img: d.storeImage ?? prev.img,
+            }));
         }
         if (d?.isDeliveryAvailable !== undefined) {
           setIsStoreOpen(!!d.isDeliveryAvailable);
@@ -336,6 +354,46 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
       fetchHistoryOrders(0);
     }
   }, [activeTab, orderSubTab]);
+
+  const fetchMonthlySales = React.useCallback(async () => {
+    const match = selectedSettlementPeriod && selectedSettlementPeriod.match(/(\d+)\s*년\s*(\d+)\s*월/);
+    if (!match) return;
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    setSalesLoading(true);
+    setSalesError(null);
+    try {
+      const data = await getMonthlySales(year, month);
+      setSalesData(data);
+    } catch (err) {
+      console.error('월별 매출 조회 실패:', err);
+      setSalesError(err?.response?.data?.error?.message || err?.message || '매출 정보를 불러오지 못했습니다.');
+      setSalesData(null);
+    } finally {
+      setSalesLoading(false);
+    }
+  }, [selectedSettlementPeriod]);
+
+  useEffect(() => {
+    if (activeTab === 'settlements') {
+      fetchMonthlySales();
+    }
+  }, [activeTab, fetchMonthlySales]);
+
+  useEffect(() => {
+    if (activeTab !== 'dashboard') return;
+    let cancelled = false;
+    getMonthlySales(currentYear, currentMonth)
+      .then((data) => {
+        if (!cancelled && data) {
+          setDashboardTodaySales(data.todaySales ?? 0);
+          setDashboardDayOverDayRate(data.dayOverDayRate ?? 0);
+        }
+      })
+      .catch(() => { if (!cancelled) setDashboardTodaySales(0); setDashboardDayOverDayRate(0); })
+      .finally(() => {});
+    return () => { cancelled = true; };
+  }, [activeTab, currentYear, currentMonth]);
 
   const fetchReviews = async () => {
     if (!storeInfo.id) return;
@@ -547,6 +605,31 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     }
   };
 
+  /** data URL을 File로 변환 */
+  const dataUrlToFile = (dataUrl, filename = 'store.png') => {
+    return fetch(dataUrl).then((r) => r.blob()).then((blob) => new File([blob], filename));
+  };
+
+  /** 운영설정 완료: 대표 이미지 저장 후 영업시간 저장 */
+  const handleSaveSettings = async () => {
+    setBusinessHoursSaving(true);
+    try {
+      let urlToSave = storeInfo.img;
+      if (storeInfo.img?.startsWith?.('data:')) {
+        const file = await dataUrlToFile(storeInfo.img);
+        urlToSave = await uploadStoreImage(file);
+      }
+      await updateStoreImage(urlToSave ?? '');
+      setStoreInfo((prev) => ({ ...prev, img: urlToSave || null }));
+      await handleSaveBusinessHours();
+    } catch (e) {
+      const msg = e?.response?.data?.error?.message ?? e?.message ?? '저장에 실패했습니다.';
+      alert(msg);
+    } finally {
+      setBusinessHoursSaving(false);
+    }
+  };
+
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [orders, setOrders] = useState([]);
   const [completedOrdersLoading, setCompletedOrdersLoading] = useState(false);
@@ -708,6 +791,24 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     return json.data;
   };
 
+  /** 스토어 대표 이미지 업로드 (운영설정용, type=PROFILE) */
+  const uploadStoreImage = async (file) => {
+    const base = getApiBase();
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${base}/api/storage/store/image?type=PROFILE`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      const message = json?.error?.message || json?.message || json?.data?.message || '이미지 업로드 실패';
+      throw new Error(message);
+    }
+    return json.data;
+  };
+
   const handleSaveProduct = async (e) => {
     e.preventDefault();
     if (editingProduct && !canEditProduct) {
@@ -747,7 +848,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
           credentials: 'include',
         });
         const json = await res.json();
-        if (!res.ok) throw new Error(json.message || json.code || '상품 수정 실패');
+        if (!res.ok) throw new Error(json.error?.message || json.message || json.error?.code || '상품 수정 실패');
         await fetchMyProducts();
         setIsProductModalOpen(false);
       } catch (err) {
@@ -1079,6 +1180,10 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
             setSelectedSettlementPeriod={setSelectedSettlementPeriod}
             isPeriodSelectorOpen={isPeriodSelectorOpen}
             setIsPeriodSelectorOpen={setIsPeriodSelectorOpen}
+            periodOptions={settlementPeriodOptions}
+            sales={salesData}
+            salesLoading={salesLoading}
+            salesError={salesError}
           />
         );
       case 'products':
@@ -1138,7 +1243,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
             setStoreInfo={setStoreInfo}
             businessHours={businessHours}
             handleBusinessHourChange={handleBusinessHourChange}
-            onSaveBusinessHours={handleSaveBusinessHours}
+            onSaveSettings={handleSaveSettings}
             businessHoursSaving={businessHoursSaving}
             businessHoursLoading={businessHoursLoading}
           />
@@ -1171,6 +1276,8 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
             completingOrderId={completingOrderId}
             handleOpenRejectModal={handleOpenRejectModal}
             toggleSoldOut={toggleSoldOut}
+            todaySales={dashboardTodaySales ?? 0}
+            dayOverDayRate={dashboardDayOverDayRate ?? 0}
           />
         );
     }
