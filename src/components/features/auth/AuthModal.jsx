@@ -10,8 +10,9 @@ import {
   socialSignupComplete 
 } from '../../../api/authApi';
 
-// 카카오 인증 URL (백엔드 프록시 또는 직접 호출)
+// 소셜 로그인 인증 URL (백엔드 OAuth2 authorization endpoint)
 const KAKAO_OAUTH_AUTHORIZE_URL = 'http://localhost:8080/oauth2/authorization/kakao';
+const NAVER_OAUTH_AUTHORIZE_URL = 'http://localhost:8080/oauth2/authorization/naver';
 
 const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
   /** onLoginSuccess(userData): userData = { userId, email, name, roles } (로그인/회원가입 성공 시 백엔드 data) */
@@ -257,8 +258,11 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
   };
 
   const handleSocialLogin = (platform) => {
-    if (platform === '카카오') {
-      window.location.href = KAKAO_OAUTH_AUTHORIZE_URL;
+    const url = platform === '카카오' ? KAKAO_OAUTH_AUTHORIZE_URL : platform === '네이버' ? NAVER_OAUTH_AUTHORIZE_URL : null;
+    if (url) {
+      // 팝업으로 열어서 메인 창(5173)은 그대로 두고, 로그인 완료 후 팝업만 닫고 부모에서 상태 반영
+      const w = window.open(url, 'oauth2_social', 'width=500,height=600,scrollbars=yes,resizable=yes');
+      if (!w) alert('팝업이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요.');
       return;
     }
     alert(`${platform} 로그인은 준비 중입니다.`);
@@ -441,7 +445,11 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
               >
                 <span style={{ fontSize: '18px' }}>💬</span> 카카오
               </button>
-              <button type="button" onClick={() => handleSocialLogin('네이버')} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: '600', fontSize: '13px' }}>
+              <button
+                type="button"
+                onClick={() => handleSocialLogin('네이버')}
+                style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: '600', fontSize: '13px', color: '#1e293b' }}
+              >
                 <span style={{ fontSize: '18px' }}>🟢</span> 네이버
               </button>
             </div>
