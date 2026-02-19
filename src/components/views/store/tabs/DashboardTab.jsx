@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatCurrency } from '../utils/storeDashboardUtils';
 
 const DashboardTab = ({
   orders,
@@ -16,18 +17,26 @@ const DashboardTab = ({
   completingOrderId = null,
   handleOpenRejectModal,
   toggleSoldOut,
+  todaySales = 0,
+  dayOverDayRate = 0,
 }) => {
   const activeOrders = orders.filter(o => ['신규', '준비중', '배차 완료', '픽업가능', '픽업 완료', '배달중'].includes(o.status));
   const pendingOrders = orders.filter(o => ['신규', '준비중', '배차 완료', '픽업가능', '픽업 완료'].includes(o.status));
   const lowStockProducts = products.filter(p => p.stock < lowStockThreshold);
+
+  const dayOverDaySub = dayOverDayRate > 0
+    ? `↑ 어제보다 ${dayOverDayRate}% 상승`
+    : dayOverDayRate < 0
+      ? `↓ 어제보다 ${Math.abs(dayOverDayRate)}% 하락`
+      : '어제와 동일';
 
   return (
     <>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', marginBottom: '40px' }}>
         <div className="stat-card" style={{ padding: '24px', background: 'white', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', borderLeft: '4px solid #38bdf8' }}>
           <div style={{ color: '#64748b', fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>오늘의 총 매출</div>
-          <div style={{ fontSize: '28px', fontWeight: '800' }}>1,245,000원</div>
-          <div style={{ color: '#10b981', fontSize: '12px', marginTop: '8px', fontWeight: '700' }}>↑ 어제보다 12.4% 상승</div>
+          <div style={{ fontSize: '28px', fontWeight: '800' }}>{formatCurrency(todaySales)}</div>
+          <div style={{ color: dayOverDayRate >= 0 ? '#10b981' : '#ef4444', fontSize: '12px', marginTop: '8px', fontWeight: '700' }}>{dayOverDaySub}</div>
         </div>
         <div className="stat-card" style={{ padding: '24px', background: 'white', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', borderLeft: '4px solid #10b981' }}>
           <div style={{ color: '#64748b', fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>대응 필요 주문</div>
@@ -41,7 +50,7 @@ const DashboardTab = ({
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}
         <div style={{ background: 'white', padding: '24px', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
             <h2 style={{ fontSize: '18px', fontWeight: '800', margin: 0 }}>신규 주문 현황</h2>
