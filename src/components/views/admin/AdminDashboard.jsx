@@ -4,6 +4,7 @@ import { getBanners, createBanner, updateBanner, deleteBanner, updateBannerOrder
 import { getFaqsForAdmin, createFaq, updateFaq, deleteFaq } from '../../../api/faqApi';
 import { getAdminInquiries, getAdminInquiryDetail, answerInquiry } from '../../../api/inquiryApi';
 import { getAdminUsers, getAdminUserDetail, updateAdminUserStatus } from '../../../api/adminUserApi';
+import { getAdminReports, getAdminReportDetail, resolveAdminReport, getAdminBroadcastHistory, createAdminBroadcast } from '../../../api/adminModerationApi';
 import { formatDate, formatDateLocale, mapStoreApprovalItem, mapRiderApprovalItem, extractDocument } from './utils/adminDashboardUtils';
 import RecordDetailModal from './modals/RecordDetailModal';
 import ApprovalDetailModal from './modals/ApprovalDetailModal';
@@ -159,6 +160,7 @@ const AdminDashboard = () => {
     }
   }, [activeTab, inquiryFilter, inquiryPage, fetchInquiries]);
 
+
   const [noticeList, setNoticeList] = useState([]);
 
   const fetchNotices = useCallback(async () => {
@@ -225,6 +227,9 @@ const AdminDashboard = () => {
   const [selectedPromotion, setSelectedPromotion] = useState(null);
 
   const [notificationHistory, setNotificationHistory] = useState([]);
+  const [broadcastTarget, setBroadcastTarget] = useState('ALL');
+  const [broadcastTitle, setBroadcastTitle] = useState('');
+  const [broadcastContent, setBroadcastContent] = useState('');
 
   
   const fetchApprovals = async () => {
@@ -771,21 +776,137 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleResolveReport = (id, message) => {
-    if (!message) {
+  const mapReportTypeLabel = (type) => {
+    if (type === 'RIDER') return '라이더 신고';
+    if (type === 'STORE') return '마트 신고';
+    return '사용자 신고';
+  };
+
+  const mapReportStatusLabel = (status) => (status === 'RESOLVED' ? '처리완료' : '확인 중');
+
+  const toUiReport = (item) => ({
+    id: item.reportId,
+    type: mapReportTypeLabel(item.target?.type),
+    orderNo: item.orderNumber || '-',
+    time: formatDateLocale(item.createdAt),
+    content: item.reasonDetail || '',
+    status: mapReportStatusLabel(item.status),
+    resolution: item.reportResult || '',
+    reporter: {
+      name: item.reporter?.name || '-',
+      contact: item.reporter?.phone || '-',
+      type: item.reporter?.type || 'CUSTOMER'
+    },
+    reported: {
+      name: item.target?.name || '-',
+      contact: item.target?.phone || '-',
+      type: item.target?.type || 'CUSTOMER'
+    }
+  });
+
+  const mapBroadcastTargetLabel = (targetType) => {
+    if (targetType === 'CUSTOMER') return '전체 고객';
+    if (targetType === 'STORE') return '전체 마트 사장님';
+    if (targetType === 'RIDER') return '전체 배달원';
+    return '전체 사용자';
+  };
+
+  const fetchReports = useCallback(async () => {
+    try {
+      const status = reportsFilter === 'ALL' ? null : (reportsFilter === 'RESOLVED' ? 'RESOLVED' : 'PENDING');
+      const data = await getAdminReports({
+        page: Math.max(currentPage - 1, 0),
+        size: itemsPerPage,
+        keyword: reportsSearch,
+        status
+      });
+      setReports((data.content || []).map(toUiReport));
+    } catch (error) {
+      console.error('신고 목록 조회 실패:', error);
+    }
+  }, [currentPage, itemsPerPage, reportsFilter, reportsSearch]);
+
+  const fetchReportDetail = useCallback(async (reportId) => {
+    try {
+      const data = await getAdminReportDetail(reportId);
+      setSelectedReport(toUiReport(data));
+    } catch (error) {
+      console.error('신고 상세 조회 실패:', error);
+      alert('신고 상세 정보를 불러오지 못했습니다.');
+    }
+  }, []);
+
+  const fetchBroadcastHistory = useCallback(async () => {
+    try {
+      const data = await getAdminBroadcastHistory({
+        page: Math.max(currentPage - 1, 0),
+        size: itemsPerPage
+      });
+      setNotificationHistory((data.content || []).map((item) => ({
+        id: item.broadcastId,
+        title: item.title,
+        target: mapBroadcastTargetLabel(item.targetType),
+        date: formatDateLocale(item.createdAt),
+        status: '발송완료'
+      })));
+    } catch (error) {
+      console.error('알림 발송 이력 조회 실패:', error);
+    }
+  }, [currentPage, itemsPerPage]);
+
+  const handleResolveReport = async (id, message) => {
+    if (!message || !message.trim()) {
       alert('처리 결과 메시지를 입력해주세요.');
       return;
     }
-    
-    setReports(prev => prev.map(r => r.id === id ? { ...r, status: '처리완료', resolution: message } : r));
-    
-    // SSE Alert Simulation
-    const report = reports.find(r => r.id === id);
-    alert(`[SSE 알림 전송 완료]\n내용: 신고 #${id} 처리 결과가 발송되었습니다.\n\n대상: ${report.reporter.name}\n메시지: ${message}`);
-    
-    setSelectedReport(null);
-    setResolutionMessage('');
+
+    try {
+      await resolveAdminReport(id, message.trim());
+      await fetchReports();
+      await fetchReportDetail(id);
+      alert('신고 처리가 완료되었습니다.');
+    } catch (error) {
+      console.error('신고 처리 실패:', error);
+      alert(error?.message || '신고 처리에 실패했습니다.');
+    }
   };
+
+  const handleSendBroadcast = async () => {
+    if (!broadcastTitle.trim()) {
+      alert('알림 제목을 입력해주세요.');
+      return;
+    }
+    if (!broadcastContent.trim()) {
+      alert('알림 내용을 입력해주세요.');
+      return;
+    }
+    try {
+      const result = await createAdminBroadcast({
+        targetType: broadcastTarget,
+        title: broadcastTitle.trim(),
+        content: broadcastContent.trim()
+      });
+      alert(`알림 발송이 완료되었습니다. 수신자: ${result.recipientCount}명`);
+      setBroadcastTitle('');
+      setBroadcastContent('');
+      await fetchBroadcastHistory();
+    } catch (error) {
+      console.error('알림 발송 실패:', error);
+      alert(error?.message || '알림 발송에 실패했습니다.');
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'reports' || activeTab === 'reports_view') {
+      fetchReports();
+    }
+  }, [activeTab, fetchReports]);
+
+  useEffect(() => {
+    if (activeTab === 'notifications') {
+      fetchBroadcastHistory();
+    }
+  }, [activeTab, fetchBroadcastHistory]);
 
   const handleExecuteSettlement = (type) => {
     const list = type === 'STORE' ? detailedSettlements : riderSettlements;
@@ -965,10 +1086,37 @@ const AdminDashboard = () => {
       case 'approvals':
         return <ApprovalsTab approvalItems={approvalItems} approvalFilter={approvalFilter} approvalStatusFilter={approvalStatusFilter} setApprovalFilter={setApprovalFilter} setApprovalStatusFilter={setApprovalStatusFilter} handleOpenApproval={handleOpenApproval} currentPage={currentPage} itemsPerPage={itemsPerPage} setCurrentPage={setCurrentPage} />;
       case 'notifications':
-        return <NotificationsTab notificationHistory={notificationHistory} currentPage={currentPage} itemsPerPage={itemsPerPage} setCurrentPage={setCurrentPage} />;
+        return (
+          <NotificationsTab
+            notificationHistory={notificationHistory}
+            currentPage={currentPage}
+            itemsPerPage={itemsPerPage}
+            setCurrentPage={setCurrentPage}
+            broadcastTarget={broadcastTarget}
+            setBroadcastTarget={setBroadcastTarget}
+            broadcastTitle={broadcastTitle}
+            setBroadcastTitle={setBroadcastTitle}
+            broadcastContent={broadcastContent}
+            setBroadcastContent={setBroadcastContent}
+            onSendBroadcast={handleSendBroadcast}
+          />
+        );
       case 'reports':
       case 'reports_view':
-        return <ReportsTab reports={reports} reportsFilter={reportsFilter} reportsSearch={reportsSearch} setReportsFilter={setReportsFilter} setReportsSearch={setReportsSearch} setSelectedReport={setSelectedReport} currentPage={currentPage} itemsPerPage={itemsPerPage} setCurrentPage={setCurrentPage} />;
+        return (
+          <ReportsTab
+            reports={reports}
+            reportsFilter={reportsFilter}
+            reportsSearch={reportsSearch}
+            setReportsFilter={setReportsFilter}
+            setReportsSearch={setReportsSearch}
+            setSelectedReport={setSelectedReport}
+            currentPage={currentPage}
+            itemsPerPage={itemsPerPage}
+            setCurrentPage={setCurrentPage}
+            onOpenReport={fetchReportDetail}
+          />
+        );
       default:
         return <OverviewTab chartPeriod={chartPeriod} setChartPeriod={setChartPeriod} setActiveTab={setActiveTab} detailedSettlements={detailedSettlements} riderSettlements={riderSettlements} reports={reports} approvalItems={approvalItems} inquiryList={inquiryList} />;
     }
