@@ -19,6 +19,16 @@ export const updateDeliveryAvailable = async (deliveryAvailable) => {
 };
 
 /**
+ * 내 상점 대표 이미지 URL 수정 (업로드 후 받은 URL 전달)
+ * @param {string} storeImageUrl
+ */
+export const updateStoreImage = async (storeImageUrl) => {
+  await api.patch('/api/stores/my/store-image', {
+    storeImageUrl: storeImageUrl ?? '',
+  });
+};
+
+/**
  * 내 상점 요일별 영업시간 조회
  * @returns {Promise<Array>} { dayOfWeek, openTime, closeTime, isClosed }[] (dayOfWeek 0=일 ~ 6=토, 정렬됨)
  */
