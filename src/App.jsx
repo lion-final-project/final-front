@@ -8,6 +8,7 @@ import RiderDashboard from './components/views/rider/RiderDashboard';
 import AdminDashboard from './components/views/admin/AdminDashboard';
 import NotificationPanel from './components/common/NotificationPanel';
 import AuthModal from './components/features/auth/AuthModal';
+import PasswordResetView from './components/features/auth/PasswordResetView';
 import { Agentation } from "agentation";
 
 import { checkAuth, logout } from './api/authApi';
@@ -234,26 +235,26 @@ function App() {
       if (res.ok) {
         const json = await res.json();
         const data = json?.data;
-          if (data?.status) {
-            setRiderRegistrationStatus(data.status);
-            setIsResidentRider(data.status === 'APPROVED');
-            setRiderRegistrationApprovalId(data.approvalId ?? null);
-          } else {
-            setRiderRegistrationStatus('NONE');
-            setIsResidentRider(false);
-            setRiderRegistrationApprovalId(null);
-          }
+        if (data?.status) {
+          setRiderRegistrationStatus(data.status);
+          setIsResidentRider(data.status === 'APPROVED');
+          setRiderRegistrationApprovalId(data.approvalId ?? null);
         } else {
           setRiderRegistrationStatus('NONE');
           setIsResidentRider(false);
           setRiderRegistrationApprovalId(null);
         }
-      } catch {
+      } else {
         setRiderRegistrationStatus('NONE');
         setIsResidentRider(false);
         setRiderRegistrationApprovalId(null);
       }
-    };
+    } catch {
+      setRiderRegistrationStatus('NONE');
+      setIsResidentRider(false);
+      setRiderRegistrationApprovalId(null);
+    }
+  };
 
   const refreshRiderRegistration = useCallback(() => {
     fetchRiderRegistration();
@@ -335,17 +336,14 @@ function App() {
     fetchRiderRegistration();
   };
 
-  // 카카오 로그인 콜백 후 5173으로 리다이렉트된 경우: URL 쿼리 처리 후 /me로 로그인 상태 반영
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const kakao = params.get('kakao');
-    const message = params.get('message');
-    if (kakao === 'error') {
-      if (message) alert(message);
+  // 소셜 로그인(카카오/네이버) 콜백 후 5173으로 리다이렉트된 경우: URL 쿼리 처리 후 /me로 로그인 상태 반영
+  const handleOAuthCallback = useCallback((status, errorMessage) => {
+    if (status === 'error') {
+      if (errorMessage) alert(errorMessage);
       window.history.replaceState({}, '', window.location.pathname || '/');
       return;
     }
-    if (kakao === 'success') {
+    if (status === 'success') {
       checkAuth()
         .then(async (user) => {
           if (user) {
@@ -360,14 +358,80 @@ function App() {
         });
       return;
     }
-    if (kakao === 'signup_required') {
+    if (status === 'signup_required') {
       setIsAuthModalOpen(true);
       setAuthModalInitialMode('social-extra');
       window.history.replaceState({}, '', window.location.pathname || '/');
     }
+  }, [handleLoginSuccess, fetchStoreRegistration, fetchRiderRegistration]);
+
+  const handleOAuthCallbackRef = useRef(handleOAuthCallback);
+  handleOAuthCallbackRef.current = handleOAuthCallback;
+
+  // 팝업에서 소셜 로그인 완료 시 postMessage로 부모 창에 알림 → 부모(5173)에서 로그인 상태 반영
+  useEffect(() => {
+    const onMessage = (event) => {
+      if (event.origin !== window.location.origin) return;
+      const d = event.data;
+      if (d?.type === 'oauth_callback') {
+        handleOAuthCallbackRef.current(d.status, d.message);
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const kakao = params.get('kakao');
+    const naver = params.get('naver');
+    const message = params.get('message');
+    const isPopup = !!window.opener;
+
+    if (kakao === 'error' || naver === 'error') {
+      if (isPopup) {
+        window.opener.postMessage({ type: 'oauth_callback', status: 'error', message: message || undefined }, window.location.origin);
+        window.close();
+      } else {
+        handleOAuthCallback('error', message || undefined);
+      }
+      return;
+    }
+    if (kakao === 'success' || naver === 'success') {
+      if (isPopup) {
+        window.opener.postMessage({ type: 'oauth_callback', status: 'success' }, window.location.origin);
+        window.close();
+      } else {
+        handleOAuthCallback('success');
+      }
+      return;
+    }
+    if (kakao === 'signup_required' || naver === 'signup_required') {
+      if (isPopup) {
+        window.opener.postMessage({ type: 'oauth_callback', status: 'signup_required' }, window.location.origin);
+        window.close();
+      } else {
+        handleOAuthCallback('signup_required');
+      }
+    }
+  }, [handleOAuthCallback]);
+
   const renderContent = () => {
+    // 비밀번호 재설정 페이지 확인
+    if (window.location.pathname === '/reset-password') {
+      return (
+        <PasswordResetView
+          onResetSuccess={() => {
+            window.history.pushState({}, '', '/');
+            setIsLoggedIn(false);
+            setUserInfo(null);
+            setUserRole('CUSTOMER');
+            setIsAuthModalOpen(true);
+          }}
+        />
+      );
+    }
+
     if (userRole === 'CUSTOMER' || userRole === 'USER') return (
       <CustomerView
         userRole={userRole}
@@ -383,13 +447,13 @@ function App() {
         setIsResidentRider={setIsResidentRider}
         storeRegistrationStatus={storeRegistrationStatus}
         setStoreRegistrationStatus={setStoreRegistrationStatus}
-      storeRegistrationStoreName={storeRegistrationStoreName}
-      setStoreRegistrationStoreName={setStoreRegistrationStoreName}
-      riderRegistrationStatus={riderRegistrationStatus}
-      riderRegistrationApprovalId={riderRegistrationApprovalId}
-      refreshRiderRegistration={refreshRiderRegistration}
-      riderInfo={riderInfo}
-      setRiderInfo={setRiderInfo}
+        storeRegistrationStoreName={storeRegistrationStoreName}
+        setStoreRegistrationStoreName={setStoreRegistrationStoreName}
+        riderRegistrationStatus={riderRegistrationStatus}
+        riderRegistrationApprovalId={riderRegistrationApprovalId}
+        refreshRiderRegistration={refreshRiderRegistration}
+        riderInfo={riderInfo}
+        setRiderInfo={setRiderInfo}
         notificationCount={unreadCount}
         userInfo={userInfo}
         isNotificationOpen={isNotificationOpen}

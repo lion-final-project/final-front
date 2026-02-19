@@ -4,6 +4,7 @@ import { getBanners, createBanner, updateBanner, deleteBanner, updateBannerOrder
 import { getFaqsForAdmin, createFaq, updateFaq, deleteFaq } from '../../../api/faqApi';
 import { getAdminInquiries, getAdminInquiryDetail, answerInquiry } from '../../../api/inquiryApi';
 import { getAdminUsers, getAdminUserDetail, updateAdminUserStatus } from '../../../api/adminUserApi';
+import { getAdminReports, getAdminReportDetail, resolveAdminReport, getAdminBroadcastHistory, createAdminBroadcast } from '../../../api/adminModerationApi';
 import { formatDate, formatDateLocale, mapStoreApprovalItem, mapRiderApprovalItem, extractDocument } from './utils/adminDashboardUtils';
 import RecordDetailModal from './modals/RecordDetailModal';
 import ApprovalDetailModal from './modals/ApprovalDetailModal';
@@ -34,7 +35,7 @@ const AdminDashboard = () => {
   const [settlementMonthFilter, setSettlementMonthFilter] = useState('2026-01');
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [selectedApproval, setSelectedApproval] = useState(null);
-  const [approvalFilter, setApprovalFilter] = useState('ALL'); // ALL, STORE, RIDER
+  const [approvalFilter, setApprovalFilter] = useState('ALL'); // 전체, 마트, 라이더
   const [approvalItems, setApprovalItems] = useState([]);
   const approvalFetchErrorShownRef = useRef(false);
 
@@ -59,10 +60,10 @@ const AdminDashboard = () => {
   const [riderSearchInput, setRiderSearchInput] = useState('');
   const [riderSearchTerm, setRiderSearchTerm] = useState('');
 
-  const [approvalStatusFilter, setApprovalStatusFilter] = useState('ALL'); // ALL, PENDING, HOLD
+  const [approvalStatusFilter, setApprovalStatusFilter] = useState('ALL'); // 전체, 심사대기, 보류
 
-  const [chartPeriod, setChartPeriod] = useState('weekly'); // weekly, monthly, yearly
-  const [reportsFilter, setReportsFilter] = useState('ALL'); // ALL, RESOLVED, UNRESOLVED
+  const [chartPeriod, setChartPeriod] = useState('weekly'); // 주간, 월간, 연간
+  const [reportsFilter, setReportsFilter] = useState('ALL'); // 전체, 처리완료, 미처리
   const [reportsSearch, setReportsSearch] = useState('');
   const [userSearch, setUserSearch] = useState('');
   const [expandedUserId, setExpandedUserId] = useState(null);
@@ -71,11 +72,11 @@ const AdminDashboard = () => {
   const [paymentRegionFilter, setPaymentRegionFilter] = useState('ALL');
   const [settlementSearch, setSettlementSearch] = useState('');
   const [settlementStatusFilter, setSettlementStatusFilter] = useState('ALL');
-  const [inquiryFilter, setInquiryFilter] = useState('ALL'); // ALL, PENDING, COMPLETED
+  const [inquiryFilter, setInquiryFilter] = useState('ALL'); // 전체, 대기, 완료
 
   const [faqs, setFaqs] = useState([]);
 
-  const [settlementFilter, setSettlementFilter] = useState('STORE'); // STORE, RIDER
+  const [settlementFilter, setSettlementFilter] = useState('STORE'); // 마트, 라이더
   const [settlements, setSettlements] = useState([]);
 
   const [detailedSettlements, setDetailedSettlements] = useState([]);
@@ -159,6 +160,7 @@ const AdminDashboard = () => {
     }
   }, [activeTab, inquiryFilter, inquiryPage, fetchInquiries]);
 
+
   const [noticeList, setNoticeList] = useState([]);
 
   const fetchNotices = useCallback(async () => {
@@ -225,6 +227,9 @@ const AdminDashboard = () => {
   const [selectedPromotion, setSelectedPromotion] = useState(null);
 
   const [notificationHistory, setNotificationHistory] = useState([]);
+  const [broadcastTarget, setBroadcastTarget] = useState('ALL');
+  const [broadcastTitle, setBroadcastTitle] = useState('');
+  const [broadcastContent, setBroadcastContent] = useState('');
 
   
   const fetchApprovals = async () => {
@@ -771,21 +776,137 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleResolveReport = (id, message) => {
-    if (!message) {
+  const mapReportTypeLabel = (type) => {
+    if (type === 'RIDER') return '라이더 신고';
+    if (type === 'STORE') return '마트 신고';
+    return '사용자 신고';
+  };
+
+  const mapReportStatusLabel = (status) => (status === 'RESOLVED' ? '처리완료' : '확인 중');
+
+  const toUiReport = (item) => ({
+    id: item.reportId,
+    type: mapReportTypeLabel(item.target?.type),
+    orderNo: item.orderNumber || '-',
+    time: formatDateLocale(item.createdAt),
+    content: item.reasonDetail || '',
+    status: mapReportStatusLabel(item.status),
+    resolution: item.reportResult || '',
+    reporter: {
+      name: item.reporter?.name || '-',
+      contact: item.reporter?.phone || '-',
+      type: item.reporter?.type || 'CUSTOMER'
+    },
+    reported: {
+      name: item.target?.name || '-',
+      contact: item.target?.phone || '-',
+      type: item.target?.type || 'CUSTOMER'
+    }
+  });
+
+  const mapBroadcastTargetLabel = (targetType) => {
+    if (targetType === 'CUSTOMER') return '전체 고객';
+    if (targetType === 'STORE') return '전체 마트 사장님';
+    if (targetType === 'RIDER') return '전체 배달원';
+    return '전체 사용자';
+  };
+
+  const fetchReports = useCallback(async () => {
+    try {
+      const status = reportsFilter === 'ALL' ? null : (reportsFilter === 'RESOLVED' ? 'RESOLVED' : 'PENDING');
+      const data = await getAdminReports({
+        page: Math.max(currentPage - 1, 0),
+        size: itemsPerPage,
+        keyword: reportsSearch,
+        status
+      });
+      setReports((data.content || []).map(toUiReport));
+    } catch (error) {
+      console.error('신고 목록 조회 실패:', error);
+    }
+  }, [currentPage, itemsPerPage, reportsFilter, reportsSearch]);
+
+  const fetchReportDetail = useCallback(async (reportId) => {
+    try {
+      const data = await getAdminReportDetail(reportId);
+      setSelectedReport(toUiReport(data));
+    } catch (error) {
+      console.error('신고 상세 조회 실패:', error);
+      alert('신고 상세 정보를 불러오지 못했습니다.');
+    }
+  }, []);
+
+  const fetchBroadcastHistory = useCallback(async () => {
+    try {
+      const data = await getAdminBroadcastHistory({
+        page: Math.max(currentPage - 1, 0),
+        size: itemsPerPage
+      });
+      setNotificationHistory((data.content || []).map((item) => ({
+        id: item.broadcastId,
+        title: item.title,
+        target: mapBroadcastTargetLabel(item.targetType),
+        date: formatDateLocale(item.createdAt),
+        status: '발송완료'
+      })));
+    } catch (error) {
+      console.error('알림 발송 이력 조회 실패:', error);
+    }
+  }, [currentPage, itemsPerPage]);
+
+  const handleResolveReport = async (id, message) => {
+    if (!message || !message.trim()) {
       alert('처리 결과 메시지를 입력해주세요.');
       return;
     }
-    
-    setReports(prev => prev.map(r => r.id === id ? { ...r, status: '처리완료', resolution: message } : r));
-    
-    // SSE Alert Simulation
-    const report = reports.find(r => r.id === id);
-    alert(`[SSE 알림 전송 완료]\n내용: 신고 #${id} 처리 결과가 발송되었습니다.\n\n대상: ${report.reporter.name}\n메시지: ${message}`);
-    
-    setSelectedReport(null);
-    setResolutionMessage('');
+
+    try {
+      await resolveAdminReport(id, message.trim());
+      await fetchReports();
+      await fetchReportDetail(id);
+      alert('신고 처리가 완료되었습니다.');
+    } catch (error) {
+      console.error('신고 처리 실패:', error);
+      alert(error?.message || '신고 처리에 실패했습니다.');
+    }
   };
+
+  const handleSendBroadcast = async () => {
+    if (!broadcastTitle.trim()) {
+      alert('알림 제목을 입력해주세요.');
+      return;
+    }
+    if (!broadcastContent.trim()) {
+      alert('알림 내용을 입력해주세요.');
+      return;
+    }
+    try {
+      const result = await createAdminBroadcast({
+        targetType: broadcastTarget,
+        title: broadcastTitle.trim(),
+        content: broadcastContent.trim()
+      });
+      alert(`알림 발송이 완료되었습니다. 수신자: ${result.recipientCount}명`);
+      setBroadcastTitle('');
+      setBroadcastContent('');
+      await fetchBroadcastHistory();
+    } catch (error) {
+      console.error('알림 발송 실패:', error);
+      alert(error?.message || '알림 발송에 실패했습니다.');
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'reports' || activeTab === 'reports_view') {
+      fetchReports();
+    }
+  }, [activeTab, fetchReports]);
+
+  useEffect(() => {
+    if (activeTab === 'notifications') {
+      fetchBroadcastHistory();
+    }
+  }, [activeTab, fetchBroadcastHistory]);
 
   const handleExecuteSettlement = (type) => {
     const list = type === 'STORE' ? detailedSettlements : riderSettlements;
@@ -801,21 +922,21 @@ const AdminDashboard = () => {
 
     if (!confirm(`${type === 'STORE' ? '마트' : '배달원'} 정산 업무를 실행하시겠습니까?\n대상: ${targetItems.length}건`)) return;
 
-    // Simulation of retry logic and partial settlement
+    // 정산 재시도 및 부분 성공 시나리오 모의 처리
     let successCount = 0;
     let retryCount = 0;
     
-    // In a real app, this would be an async API call
+    // 실제 서비스에서는 비동기 API 호출로 처리
     targetItems.forEach(item => {
-      // Simulate that some might fail initially but pass on retry
+      // 일부 건은 최초 실패 후 재시도에서 성공하도록 모의 처리
       const random = Math.random();
-      if (random > 0.1) { // 90% success rate
+      if (random > 0.1) { // 성공 확률 90%
         successCount++;
       } else {
-        // Retry logic: try 3 times
+        // 재시도 로직: 최대 3회
         for(let i=1; i<=3; i++) {
           retryCount++;
-          if (Math.random() > 0.2) { // 80% success on retry
+          if (Math.random() > 0.2) { // 재시도 시 성공 확률 80%
             successCount++;
             break;
           }
@@ -825,7 +946,7 @@ const AdminDashboard = () => {
 
     setter(prev => prev.map(item => {
       if (item.status === '확인 대기' || item.status === '지급 처리중' || item.status === '지급 실패') {
-        // For simplicity in mock, we mark them as completed if they "passed" the simulation
+        // 모의 처리 단순화를 위해 성공 건은 지급 완료로 반영
         return { ...item, status: '지급 완료', color: '#10b981' };
       }
       return item;
@@ -965,10 +1086,37 @@ const AdminDashboard = () => {
       case 'approvals':
         return <ApprovalsTab approvalItems={approvalItems} approvalFilter={approvalFilter} approvalStatusFilter={approvalStatusFilter} setApprovalFilter={setApprovalFilter} setApprovalStatusFilter={setApprovalStatusFilter} handleOpenApproval={handleOpenApproval} currentPage={currentPage} itemsPerPage={itemsPerPage} setCurrentPage={setCurrentPage} />;
       case 'notifications':
-        return <NotificationsTab notificationHistory={notificationHistory} currentPage={currentPage} itemsPerPage={itemsPerPage} setCurrentPage={setCurrentPage} />;
+        return (
+          <NotificationsTab
+            notificationHistory={notificationHistory}
+            currentPage={currentPage}
+            itemsPerPage={itemsPerPage}
+            setCurrentPage={setCurrentPage}
+            broadcastTarget={broadcastTarget}
+            setBroadcastTarget={setBroadcastTarget}
+            broadcastTitle={broadcastTitle}
+            setBroadcastTitle={setBroadcastTitle}
+            broadcastContent={broadcastContent}
+            setBroadcastContent={setBroadcastContent}
+            onSendBroadcast={handleSendBroadcast}
+          />
+        );
       case 'reports':
       case 'reports_view':
-        return <ReportsTab reports={reports} reportsFilter={reportsFilter} reportsSearch={reportsSearch} setReportsFilter={setReportsFilter} setReportsSearch={setReportsSearch} setSelectedReport={setSelectedReport} currentPage={currentPage} itemsPerPage={itemsPerPage} setCurrentPage={setCurrentPage} />;
+        return (
+          <ReportsTab
+            reports={reports}
+            reportsFilter={reportsFilter}
+            reportsSearch={reportsSearch}
+            setReportsFilter={setReportsFilter}
+            setReportsSearch={setReportsSearch}
+            setSelectedReport={setSelectedReport}
+            currentPage={currentPage}
+            itemsPerPage={itemsPerPage}
+            setCurrentPage={setCurrentPage}
+            onOpenReport={fetchReportDetail}
+          />
+        );
       default:
         return <OverviewTab chartPeriod={chartPeriod} setChartPeriod={setChartPeriod} setActiveTab={setActiveTab} detailedSettlements={detailedSettlements} riderSettlements={riderSettlements} reports={reports} approvalItems={approvalItems} inquiryList={inquiryList} />;
     }
@@ -1107,7 +1255,7 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
-      {/* Sidebar */}
+      {/* 사이드바 */}
       <div className="sidebar" style={{
         width: '260px',
         backgroundColor: '#1e293b',
@@ -1158,7 +1306,7 @@ const AdminDashboard = () => {
           style={{ padding: '12px', borderRadius: '8px', backgroundColor: activeTab === 'inquiry' ? '#334155' : 'transparent', color: activeTab === 'inquiry' ? '#38bdf8' : 'inherit', cursor: 'pointer' }}>💬 1:1 문의</div>
       </div>
 
-      {/* Main Content */}
+      {/* 메인 콘텐츠 */}
       <div className="main-content" style={{ flexGrow: 1, padding: '40px' }}>
         <header style={{ marginBottom: '40px' }}>
           <h1 style={{ fontSize: '32px', fontWeight: '700' }}>

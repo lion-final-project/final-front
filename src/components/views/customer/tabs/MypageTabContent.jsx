@@ -27,7 +27,7 @@ const MypageTabContent = (props) => {
       refreshRiderRegistration,
     setIsResidentRider,
     inquiries, userRole, setUserRole, onOpenAuth,
-    setIsTrackingOpen, handleOpenReviewModal, handleCancelOrder,
+    openTrackingModal, handleOpenReviewModal, handleCancelOrder,
     setViewingReview, setSelectedOrderForReview, setIsReviewModalOpen,
     handleCancelSubscription, resumeSubscription, fetchSubscriptions, fetchAddresses,
     showToast, handleOpenAddressModal, handleSaveAddress, handleDeleteAddress,
@@ -230,7 +230,7 @@ const MypageTabContent = (props) => {
                     orderList={orderList}
                     reviews={reviews}
                     setActiveTab={setActiveTab}
-                    setIsTrackingOpen={setIsTrackingOpen}
+                    openTrackingModal={openTrackingModal}
                     handleOpenReviewModal={handleOpenReviewModal}
                     handleCancelOrder={handleCancelOrder}
                     setViewingReview={setViewingReview}

@@ -48,6 +48,12 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   });
   const [activeTab, setActiveTab] = useState('dashboard');
   const [productsLoading, setProductsLoading] = useState(false);
+  const [storeInfo, setStoreInfo] = useState({
+    id: null,
+    name: '상점',
+    category: '',
+    img: null
+  });
   const [inventoryStats, setInventoryStats] = useState(null);
   const [inventoryHistory, setInventoryHistory] = useState([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
@@ -119,7 +125,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     imagePreview: null,
   });
   const [expandedSubscriptions, setExpandedSubscriptions] = useState(new Set());
-  
+
   const [userSubscriptions, setUserSubscriptions] = useState([
     { id: 1, userName: '김철수', productName: '신선 채소 꾸러미', startDate: '2026-01-10', status: 'APPROVED', deliveryStatus: 'DELIVERED', nextDelivery: '2026-02-01' },
     { id: 2, userName: '이영희', productName: '제철 과일 꾸러미', startDate: '2026-01-15', status: 'PENDING', deliveryStatus: 'PENDING', nextDelivery: '2026-01-28' },
@@ -127,11 +133,8 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     { id: 4, userName: '최지우', productName: '다이어트 샐러드 팩', startDate: '2026-01-25', status: 'REJECTED', deliveryStatus: '-', nextDelivery: '-' },
   ]);
 
-  const [reviews, setReviews] = useState([
-    { id: 1, userName: '김철수', rating: 5, content: '배송이 정말 빨라요! 우유도 아주 신선합니다.', date: '2026-01-20', productName: '유기농 우유 1L', reply: null },
-    { id: 2, userName: '이영희', rating: 4, content: '채소들이 싱싱해서 좋아요. 다음에도 이용할게요.', date: '2026-01-18', productName: '대추토마토 500g', reply: '구매해주셔서 감사합니다! 항상 신선한 상품으로 보답하겠습니다.' },
-    { id: 3, userName: '박민수', rating: 3, content: '달걀 하나가 살짝 금이 가 있었어요. 주의 부탁드려요.', date: '2026-01-15', productName: '신선란 10구', reply: null },
-  ]);
+  const [reviews, setReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
   const [replyInput, setReplyInput] = useState({});
 
   const mapProductFromApi = (p) => {
@@ -312,18 +315,19 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
       .then(json => {
         const d = json?.data;
         if (d?.storeName != null) {
-          setStoreInfo(prev => ({
-            ...prev,
-            name: d.storeName,
-            category: d.categoryName || prev.category,
-            img: d.storeImage ?? prev.img,
-          }));
+            setStoreInfo(prev => ({
+                ...prev,
+                id: d.storeId,
+                name: d.storeName,
+                category: d.categoryName || prev.category,
+                img: d.storeImage ?? prev.img,
+            }));
         }
         if (d?.isDeliveryAvailable !== undefined) {
           setIsStoreOpen(!!d.isDeliveryAvailable);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -390,6 +394,34 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
       .finally(() => {});
     return () => { cancelled = true; };
   }, [activeTab, currentYear, currentMonth]);
+
+  const fetchReviews = async () => {
+    if (!storeInfo.id) return;
+    setReviewsLoading(true);
+    try {
+      const data = await reviewApi.getStoreReviews(storeInfo.id, { page: 0, size: 50 });
+      const mapped = (data.reviews?.content || []).map(r => ({
+        id: r.reviewId,
+        userName: r.writerNickname,
+        rating: r.rating,
+        content: r.content,
+        date: r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '',
+        reply: r.ownerReply,
+        productName: (r.products || []).map(p => p.productName).join(', ')
+      }));
+      setReviews(mapped);
+    } catch (e) {
+      console.error('리뷰 조회 실패:', e);
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'reviews' && storeInfo.id) {
+      fetchReviews();
+    }
+  }, [activeTab, storeInfo.id]);
 
   // currentTime만 갱신 (자동 거절 / 준비시간 카운트다운 표시용). 실제 자동 거절은 백엔드 스케줄러에서 처리.
   useEffect(() => {
@@ -579,13 +611,6 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     }
   };
 
-
-  const [storeInfo, setStoreInfo] = useState({
-    name: '상점',
-    category: '',
-    img: null
-  });
-  
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [orders, setOrders] = useState([]);
   const [completedOrdersLoading, setCompletedOrdersLoading] = useState(false);
@@ -1077,13 +1102,19 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     }
   };
 
-  const handleReplyReview = (reviewId) => {
+  const handleReplyReview = async (reviewId) => {
     const reply = replyInput[reviewId];
     if (!reply || !reply.trim()) return;
-    
-    setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, reply } : r));
-    setReplyInput(prev => ({ ...prev, [reviewId]: '' }));
-    alert('답변이 등록되었습니다.');
+
+    try {
+      await reviewApi.addOwnerReply(reviewId, reply);
+      alert('답변이 등록되었습니다.');
+      setReplyInput(prev => ({ ...prev, [reviewId]: '' }));
+      fetchReviews();
+    } catch (e) {
+      const msg = e?.response?.data?.error?.message ?? e?.message ?? '답변 등록에 실패했습니다.';
+      alert(msg);
+    }
   };
 
   // Delivery Completion Simulation: '배달중' -> '배달완료'
@@ -1202,6 +1233,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
         return (
           <ReviewsTab
             reviews={reviews}
+            isLoading={reviewsLoading}
             replyInput={replyInput}
             setReplyInput={setReplyInput}
             handleReplyReview={handleReplyReview}
@@ -1248,7 +1280,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
         height: '100vh',
         boxShadow: '4px 0 10px rgba(0,0,0,0.1)'
       }}>
-        <div 
+        <div
           onClick={() => setActiveTab('dashboard')}
           style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '24px', fontWeight: '900', marginBottom: '40px', color: '#38bdf8', cursor: 'pointer', letterSpacing: '-1px' }}>
           <span style={{ fontSize: '32px' }}>🏪</span> 동네마켓 Store
@@ -1263,14 +1295,14 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
           { id: 'reviews', label: '리뷰 관리', icon: '⭐' },
           { id: 'settings', label: '운영 설정', icon: '⚙️' }
         ].map((item) => (
-          <div 
+          <div
             key={item.id}
-            className={`nav-item ${activeTab === item.id ? 'active' : ''}`} 
+            className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
             onClick={() => setActiveTab(item.id)}
-            style={{ 
-              padding: '14px 18px', 
-              borderRadius: '12px', 
-              backgroundColor: activeTab === item.id ? '#334155' : 'transparent', 
+            style={{
+              padding: '14px 18px',
+              borderRadius: '12px',
+              backgroundColor: activeTab === item.id ? '#334155' : 'transparent',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -1283,7 +1315,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
             <span>{item.icon}</span> {item.label}
           </div>
         ))}
-        
+
         <div style={{ marginTop: 'auto', padding: '20px', backgroundColor: '#0f172a', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>고객센터 안내</div>
           <div style={{ fontSize: '18px', fontWeight: '800', color: '#38bdf8' }}>1588-0000</div>
@@ -1302,37 +1334,37 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
               </h1>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-               {/* Toggle Switch - 배달 가능 on/off (서버 반영) */}
-               <div 
-                 onClick={async () => {
-                   const next = !isStoreOpen;
-                   try {
-                     await updateDeliveryAvailable(next);
-                     setIsStoreOpen(next);
-                   } catch (e) {
-                     const msg = e?.response?.data?.error?.message ?? e?.message ?? '배달 가능 여부 변경에 실패했습니다.';
-                     alert(msg);
-                   }
-                 }}
-                 style={{ 
-                   display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', 
-                   padding: '4px 6px', borderRadius: '30px', backgroundColor: isStoreOpen ? '#dcfce7' : '#fee2e2', 
-                   transition: 'all 0.3s' 
-                 }}
-               >
-                  <div style={{ 
-                    width: '44px', height: '24px', borderRadius: '20px', backgroundColor: isStoreOpen ? '#10b981' : '#ef4444', 
-                    position: 'relative', transition: 'all 0.3s'
-                  }}>
-                    <div style={{ 
-                      width: '20px', height: '20px', borderRadius: '50%', backgroundColor: 'white', position: 'absolute', top: '2px', 
-                      left: isStoreOpen ? '22px' : '2px', transition: 'all 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                    }}></div>
-                  </div>
-                  <span style={{ fontWeight: '800', fontSize: '14px', color: isStoreOpen ? '#166534' : '#991b1b', paddingRight: '10px' }}>
-                    {isStoreOpen ? '배달 가능' : '배달 불가'}
-                  </span>
-               </div>
+              {/* Toggle Switch - 배달 가능 on/off (서버 반영) */}
+              <div
+                onClick={async () => {
+                  const next = !isStoreOpen;
+                  try {
+                    await updateDeliveryAvailable(next);
+                    setIsStoreOpen(next);
+                  } catch (e) {
+                    const msg = e?.response?.data?.error?.message ?? e?.message ?? '배달 가능 여부 변경에 실패했습니다.';
+                    alert(msg);
+                  }
+                }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
+                  padding: '4px 6px', borderRadius: '30px', backgroundColor: isStoreOpen ? '#dcfce7' : '#fee2e2',
+                  transition: 'all 0.3s'
+                }}
+              >
+                <div style={{
+                  width: '44px', height: '24px', borderRadius: '20px', backgroundColor: isStoreOpen ? '#10b981' : '#ef4444',
+                  position: 'relative', transition: 'all 0.3s'
+                }}>
+                  <div style={{
+                    width: '20px', height: '20px', borderRadius: '50%', backgroundColor: 'white', position: 'absolute', top: '2px',
+                    left: isStoreOpen ? '22px' : '2px', transition: 'all 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                  }}></div>
+                </div>
+                <span style={{ fontWeight: '800', fontSize: '14px', color: isStoreOpen ? '#166534' : '#991b1b', paddingRight: '10px' }}>
+                  {isStoreOpen ? '배달 가능' : '배달 불가'}
+                </span>
+              </div>
             </div>
           </header>
         </div>

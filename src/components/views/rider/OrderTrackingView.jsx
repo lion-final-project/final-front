@@ -1,58 +1,220 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
+import { getDeliveryTrackingDetail, getDeliveryTrackingList } from '../../../api/orderApi';
 
-const OrderTrackingView = ({ orderId, onBack, isModal = false }) => {
-  // Simulate multiple shops in one order
-  const [shops, setShops] = useState([
-    { id: 1, name: '성수동 햇살 청과', status: 'PREPARING', eta: 25, rider: '김대리 라이더', icon: '🍎' },
-    { id: 2, name: '망원시장 싱싱 정육', status: 'ACCEPTED', eta: 40, rider: '이주임 라이더', icon: '🥩' }
-  ]);
+const OrderTrackingView = ({ trackingTarget, onBack, isModal = false }) => {
+  const [shops, setShops] = useState([]);
   const [activeShopIdx, setActiveShopIdx] = useState(0);
-  
-  // In a real app, this would be an import. Using relative path for mock.
+  const [detailsByDeliveryId, setDetailsByDeliveryId] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const deliveryMap = '/src/assets/delivery_map.png';
   const deliveryProof = '/src/assets/delivery_proof.png';
 
-  const currentShop = shops[activeShopIdx];
+  const currentShop = shops[activeShopIdx] || null;
+  const currentDetail = currentShop ? detailsByDeliveryId[currentShop.id] : null;
 
-  const getStatusText = (status) => {
-    switch(status) {
-      case 'ACCEPTED': return '주문이 접수되었습니다';
-      case 'PREPARING': return '상품을 준비하고 있습니다';
-      case 'READY': return '픽업을 기다리고 있습니다';
-      case 'PICKED_UP': return '라이더가 상품을 픽업했습니다';
-      case 'DELIVERING': return '현재 배송 중입니다';
-      case 'DELIVERED': return '배송이 완료되었습니다';
-      default: return '확인 중...';
-    }
+  const getStatusText = (trackingStepLabel) => {
+    if (!trackingStepLabel) return '상태 확인 중입니다';
+    return trackingStepLabel;
   };
 
   const statusIcon = (status) => {
-    switch(status) {
-      case 'ACCEPTED': return '📑';
-      case 'PREPARING': return '🥬';
-      case 'READY': return '🥡';
-      case 'PICKED_UP': return '🛵';
+    switch (status) {
+      case 'REQUESTED': return '📦';
+      case 'ACCEPTED': return '👨‍🍳';
+      case 'PICKED_UP': return '🛍️';
       case 'DELIVERING': return '🚀';
       case 'DELIVERED': return '✨';
       default: return '📍';
     }
   };
 
-  const getStepIndex = (status) => {
-    const steps = ['ACCEPTED', 'PREPARING', 'READY', 'PICKED_UP', 'DELIVERING', 'DELIVERED'];
-    return steps.indexOf(status);
+  const getStepIndex = (trackingStep) => {
+    const steps = ['ORDER_RECEIVED', 'PREPARING', 'PICKUP_WAITING', 'DELIVERING', 'DELIVERED'];
+    return steps.indexOf(trackingStep);
   };
 
+  const formatTime = (value) => {
+    if (!value) return '진행 중';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '진행 중';
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  };
+
+  const getStepTimeLabel = (timeValue, isActive) => {
+    if (!isActive) return '진행 예정';
+    return formatTime(timeValue);
+  };
+
+  const openTarget = useMemo(() => {
+    if (!trackingTarget) return {};
+    return {
+      deliveryId: trackingTarget.deliveryId,
+      storeOrderId: trackingTarget.storeOrderId,
+      orderId: trackingTarget.orderId,
+      orderNumber: trackingTarget.orderNumber,
+    };
+  }, [trackingTarget]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchTrackingList = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const result = await getDeliveryTrackingList(0, 20);
+        const rows = Array.isArray(result?.content) ? result.content : [];
+
+        const mapped = rows.map((item) => ({
+          id: item.deliveryId,
+          orderId: item.orderId,
+          storeOrderId: item.storeOrderId,
+          orderNumber: item.orderNumber,
+          name: item.storeName || '상점',
+          status: item.deliveryStatus,
+          trackingStep: item.trackingStep,
+          trackingStepLabel: item.trackingStepLabel,
+          eta: item.estimatedMinutes ?? 0,
+          etaAt: item.estimatedArrivalAt,
+          updatedAt: item.updatedAt,
+          rider: '-',
+          icon: '🏪',
+        }));
+
+        if (!isMounted) return;
+
+        setShops(mapped);
+
+        if (mapped.length === 0) {
+          setActiveShopIdx(0);
+          return;
+        }
+
+        let nextIndex = 0;
+        if (openTarget.deliveryId) {
+          const idx = mapped.findIndex((m) => m.id === openTarget.deliveryId);
+          if (idx >= 0) nextIndex = idx;
+        } else if (openTarget.storeOrderId) {
+          const idx = mapped.findIndex((m) => m.storeOrderId === openTarget.storeOrderId);
+          if (idx >= 0) nextIndex = idx;
+        } else if (openTarget.orderId) {
+          const idx = mapped.findIndex((m) => m.orderId === openTarget.orderId);
+          if (idx >= 0) nextIndex = idx;
+        }
+
+        setActiveShopIdx(nextIndex);
+      } catch (e) {
+        if (!isMounted) return;
+        setError('배송 추적 정보를 불러오지 못했습니다.');
+        setShops([]);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchTrackingList();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [openTarget.deliveryId, openTarget.orderId, openTarget.storeOrderId]);
+
+  useEffect(() => {
+    if (!currentShop?.id) return;
+
+    let isMounted = true;
+
+    const fetchDetail = async () => {
+      try {
+        const detail = await getDeliveryTrackingDetail(currentShop.id);
+        if (!isMounted) return;
+
+        setDetailsByDeliveryId((prev) => ({
+          ...prev,
+          [currentShop.id]: detail,
+        }));
+
+        setShops((prev) => prev.map((shop) => (
+          shop.id === currentShop.id
+            ? {
+              ...shop,
+              status: detail.deliveryStatus || shop.status,
+              trackingStep: detail.trackingStep || shop.trackingStep,
+              trackingStepLabel: detail.trackingStepLabel || shop.trackingStepLabel,
+              eta: detail.estimatedMinutes ?? shop.eta,
+              etaAt: detail.estimatedArrivalAt ?? shop.etaAt,
+              rider: detail.riderName || '-',
+            }
+            : shop
+        )));
+      } catch (_) {
+        // 상세 실패 시 기존 리스트 데이터로 표시 유지
+      }
+    };
+
+    fetchDetail();
+    const intervalId = setInterval(fetchDetail, 1000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  }, [currentShop?.id]);
+
+  if (loading) {
+    return (
+      <div style={{
+        padding: isModal ? '24px' : '20px',
+        textAlign: 'center',
+        color: '#64748b',
+      }}>
+        배송 정보를 불러오는 중입니다.
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{
+        padding: isModal ? '24px' : '20px',
+        textAlign: 'center',
+        color: '#ef4444',
+      }}>
+        {error}
+      </div>
+    );
+  }
+
+  if (!currentShop) {
+    return (
+      <div style={{
+        padding: isModal ? '24px' : '20px',
+        textAlign: 'center',
+        color: '#64748b',
+      }}>
+        진행 중인 배달 주문이 없습니다.
+      </div>
+    );
+  }
+
+  const currentTrackingStep = currentDetail?.trackingStep || currentShop.trackingStep;
+  const currentStatus = currentDetail?.deliveryStatus || currentShop.status;
+  const currentStepIndex = getStepIndex(currentTrackingStep);
+  const deliveryPhotoUrl = currentDetail?.deliveryPhotoUrls?.[0] || deliveryProof;
+
   return (
-    <div style={{ 
-      padding: isModal ? '0' : '20px', 
-      maxWidth: isModal ? '100%' : '600px', 
+    <div style={{
+      padding: isModal ? '0' : '20px',
+      maxWidth: isModal ? '100%' : '600px',
       margin: '0 auto',
       height: '100%',
       overflowY: 'auto'
     }}>
       {!isModal && (
-        <button 
+        <button
           onClick={onBack}
           style={{ marginBottom: '20px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '600', color: '#64748b' }}
         >
@@ -60,7 +222,6 @@ const OrderTrackingView = ({ orderId, onBack, isModal = false }) => {
         </button>
       )}
 
-      {/* Multi-store Tabs */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', overflowX: 'auto', paddingBottom: '4px' }}>
         {shops.map((shop, idx) => (
           <button
@@ -89,31 +250,49 @@ const OrderTrackingView = ({ orderId, onBack, isModal = false }) => {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '40px' }}>
-        
-        {/* Top Status Card */}
+
         <div style={{ background: 'white', padding: '24px', borderRadius: '24px', border: '1px solid var(--border)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-            <div style={{ fontSize: '24px' }}>{statusIcon(currentShop.status)}</div>
-            <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0 }}>{getStatusText(currentShop.status)}</h2>
+            <div style={{ fontSize: '24px' }}>{statusIcon(currentStatus)}</div>
+            <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0 }}>{getStatusText(currentDetail?.trackingStepLabel || currentShop.trackingStepLabel)}</h2>
           </div>
 
           <div style={{ position: 'relative', paddingLeft: '16px' }}>
-            {/* Vertical Line */}
             <div style={{ position: 'absolute', left: '6px', top: '10px', bottom: '10px', width: '2px', backgroundColor: '#f1f5f9' }} />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               {[
-                { label: '주문 접수', time: '오후 1:20', active: getStepIndex(currentShop.status) >= 0 },
-                { label: '상품 준비 중', time: '오후 1:22', active: getStepIndex(currentShop.status) >= 1 },
-                { label: '픽업 대기', time: '진행 예정', active: getStepIndex(currentShop.status) >= 2 },
-                { label: '배송 중', time: '진행 예정', active: getStepIndex(currentShop.status) >= 4 },
-                { label: '배송 완료', time: '오후 1:45', active: getStepIndex(currentShop.status) >= 5 }
+                {
+                  label: '주문 접수',
+                  time: getStepTimeLabel(currentDetail?.orderReceivedAt, currentStepIndex >= 0),
+                  active: currentStepIndex >= 0
+                },
+                {
+                  label: '상품 준비 중',
+                  time: getStepTimeLabel(currentDetail?.preparingAt, currentStepIndex >= 1),
+                  active: currentStepIndex >= 1
+                },
+                {
+                  label: '픽업 대기',
+                  time: getStepTimeLabel(currentDetail?.pickupWaitingAt, currentStepIndex >= 2),
+                  active: currentStepIndex >= 2
+                },
+                {
+                  label: '배송 중',
+                  time: getStepTimeLabel(currentDetail?.deliveringAt, currentStepIndex >= 3),
+                  active: currentStepIndex >= 3
+                },
+                {
+                  label: '배송 완료',
+                  time: getStepTimeLabel(currentDetail?.deliveredAt, currentStepIndex >= 4),
+                  active: currentStepIndex >= 4
+                }
               ].map((step, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', position: 'relative' }}>
-                  <div style={{ 
-                    width: '14px', 
-                    height: '14px', 
-                    borderRadius: '50%', 
+                  <div style={{
+                    width: '14px',
+                    height: '14px',
+                    borderRadius: '50%',
                     backgroundColor: step.active ? 'var(--primary)' : 'white',
                     border: step.active ? '2px solid var(--primary)' : '2px solid #cbd5e1',
                     zIndex: 1,
@@ -128,42 +307,44 @@ const OrderTrackingView = ({ orderId, onBack, isModal = false }) => {
             </div>
           </div>
 
-          {/* Map for Delivering Status */}
-          {currentShop.status === 'DELIVERING' && (
+          {currentStatus === 'DELIVERING' && (
             <div style={{ marginTop: '24px', borderRadius: '16px', overflow: 'hidden', border: '1px solid #e2e8f0', height: '200px' }}>
               <img src={deliveryMap} alt="Delivery Map" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>
           )}
 
-          {/* Photo for Delivered Status */}
-          {(currentShop.status === 'DELIVERED' || currentShop.status === 'PREPARING') && ( 
+          {currentStatus === 'DELIVERED' && (currentDetail?.deliveryPhotoUrls?.length ?? 0) > 0 && (
             <div style={{ marginTop: '24px' }}>
               <div style={{ fontSize: '14px', fontWeight: '700', marginBottom: '12px', color: '#334155' }}>배송 완료 사진</div>
               <div style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-                <img src={deliveryProof} alt="Delivery Proof" style={{ width: '100%', height: 'auto', maxHeight: '300px', objectFit: 'cover' }} />
+                <img src={deliveryPhotoUrl} alt="Delivery Proof" style={{ width: '100%', height: 'auto', maxHeight: '300px', objectFit: 'cover' }} />
               </div>
             </div>
           )}
         </div>
 
-        {/* ETA & Rider Card */}
         <div style={{ background: 'white', padding: '24px', borderRadius: '24px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '20px' }}>
-             <div>
-               <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '4px' }}>예상 도착 시간</div>
-               <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--primary)' }}>{currentShop.eta}분 후</div>
-             </div>
-             <div style={{ textAlign: 'right' }}>
-               <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '4px' }}>도착 예정</div>
-               <div style={{ fontSize: '18px', fontWeight: '700' }}>13:45</div>
-             </div>
+            <div>
+              <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '4px' }}>예상 도착 시간</div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--primary)' }}>{currentShop.eta || 0}분</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '4px' }}>도착 예정</div>
+              <div style={{ fontSize: '18px', fontWeight: '700' }}>{formatTime(currentShop.etaAt)}</div>
+            </div>
           </div>
 
-           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px' }}>👨‍✈️</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px' }}>🚗</div>
             <div style={{ flexGrow: 1 }}>
-              <div style={{ fontSize: '16px', fontWeight: '800', marginBottom: '2px' }}>{currentShop.rider}</div>
-              <div style={{ fontSize: '13px', color: '#64748b' }}>현대 아이오닉5 (전기차)</div>
+              <div style={{ fontSize: '16px', fontWeight: '800', marginBottom: '2px' }}>{currentDetail?.riderName || currentShop.rider || '-'}</div>
+              <div style={{ fontSize: '13px', color: '#64748b' }}>{currentDetail?.riderPhone || '연락처 정보 없음'}</div>
+              {currentDetail?.riderLocation && (
+                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                  위치: {currentDetail.riderLocation.latitude.toFixed(5)}, {currentDetail.riderLocation.longitude.toFixed(5)}
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button style={{ padding: '8px 16px', borderRadius: '8px', background: '#f1f5f9', color: '#1e293b', border: 'none', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>전화</button>
@@ -172,17 +353,16 @@ const OrderTrackingView = ({ orderId, onBack, isModal = false }) => {
           </div>
         </div>
 
-        {/* Order Summary */}
         <div style={{ background: 'white', padding: '24px', borderRadius: '24px', border: '1px solid var(--border)' }}>
           <h3 style={{ fontSize: '16px', fontWeight: '800', marginBottom: '16px', color: '#334155' }}>주문 요약</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
               <span style={{ color: '#64748b' }}>주문 번호</span>
-              <span style={{ fontWeight: '600' }}>ORD-{orderId}</span>
+              <span style={{ fontWeight: '600' }}>{currentDetail?.orderNumber || currentShop.orderNumber || '-'}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', fontSize: '14px' }}>
               <span style={{ color: '#64748b' }}>배송지</span>
-              <span style={{ fontWeight: '600', textAlign: 'right', lineHeight: '1.5' }}>서울특별시 강남구<br/>역삼동 123-45</span>
+              <span style={{ fontWeight: '600', textAlign: 'right', lineHeight: '1.5' }}>{currentDetail?.deliveryAddress || '-'}</span>
             </div>
           </div>
         </div>

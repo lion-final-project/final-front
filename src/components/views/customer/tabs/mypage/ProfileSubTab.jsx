@@ -5,7 +5,7 @@ const ProfileSubTab = ({
   orderList,
   reviews,
   setActiveTab,
-  setIsTrackingOpen,
+  openTrackingModal,
   handleOpenReviewModal,
   handleCancelOrder,
   setViewingReview,
@@ -19,21 +19,16 @@ const ProfileSubTab = ({
 }) => (
   <OrderManagementView
     orders={orderList}
-    onTracking={() => setIsTrackingOpen(true)}
+    onTracking={(order) => openTrackingModal(order)}
     onWriteReview={(order) => {
       setViewingReview(null);
       handleOpenReviewModal(order);
     }}
     onCancelOrder={handleCancelOrder}
     onViewReview={(order) => {
-      const review = reviews.find((r) => r.store === order.store) || {
-        rate: 5,
-        content: "정말 신선하고 배송도 빨라요! 재구매 의사 있습니다.",
-        store: order.store,
-      };
-      setViewingReview(review);
-      setSelectedOrderForReview(order);
-      setIsReviewModalOpen(true);
+      // CustomerView의 handleOpenReviewModal이 reviewWritten 여부를 체크하여
+      // 자동으로 조회 모드/작성 모드를 분기 처리함
+      handleOpenReviewModal(order);
     }}
     onBack={() => setActiveTab("home")}
     onDateFilterChange={onDateFilterChange}
