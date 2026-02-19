@@ -1,6 +1,6 @@
 import React from 'react';
 
-const SettingsTab = ({ storeInfo, setStoreInfo, businessHours, handleBusinessHourChange, onSaveBusinessHours, businessHoursSaving, businessHoursLoading }) => (
+const SettingsTab = ({ storeInfo, setStoreInfo, businessHours, handleBusinessHourChange, onSaveSettings, businessHoursSaving, businessHoursLoading }) => (
   <div style={{ background: 'white', padding: '40px', borderRadius: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', maxWidth: '800px' }}>
     <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '32px' }}>마트 운영 설정</h2>
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
@@ -90,7 +90,7 @@ const SettingsTab = ({ storeInfo, setStoreInfo, businessHours, handleBusinessHou
       </div>
       <button
         type="button"
-        onClick={onSaveBusinessHours}
+        onClick={onSaveSettings}
         disabled={businessHoursSaving || businessHoursLoading}
         style={{
           marginTop: '20px',
