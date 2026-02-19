@@ -72,6 +72,60 @@ export const subscribeNotifications = (onMessage, onError) => {
     }
   });
 
+  // ── 라이더 배달 관련 SSE 이벤트 ──
+
+  // 새로운 배달 요청 (단일 배달 ID 문자열)
+  eventSource.addEventListener('new-delivery', (event) => {
+    try {
+      const data = event.data;
+      console.log('[SSE] 새 배달 요청:', data);
+      if (onMessage) {
+        onMessage('NEW_DELIVERY', data);
+      }
+    } catch (e) {
+      console.error('[SSE] new-delivery 처리 오류:', e);
+    }
+  });
+
+  // 주변 배달 목록 갱신 (배달 ID 배열 JSON)
+  eventSource.addEventListener('nearby-deliveries', (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      console.log('[SSE] 주변 배달 목록:', data);
+      if (onMessage) {
+        onMessage('NEARBY_DELIVERIES', data);
+      }
+    } catch (e) {
+      console.error('[SSE] nearby-deliveries 처리 오류:', e);
+    }
+  });
+
+  // 배달 매칭 완료 (해당 배달 ID를 목록에서 제거)
+  eventSource.addEventListener('delivery-matched', (event) => {
+    try {
+      const data = event.data;
+      console.log('[SSE] 배달 매칭 완료:', data);
+      if (onMessage) {
+        onMessage('DELIVERY_MATCHED', data);
+      }
+    } catch (e) {
+      console.error('[SSE] delivery-matched 처리 오류:', e);
+    }
+  });
+
+  // 배달 상태 변경
+  eventSource.addEventListener('delivery-status-changed', (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      console.log('[SSE] 배달 상태 변경:', data);
+      if (onMessage) {
+        onMessage('DELIVERY_STATUS_CHANGED', data);
+      }
+    } catch (e) {
+      console.error('[SSE] delivery-status-changed 처리 오류:', e);
+    }
+  });
+
   eventSource.onerror = (error) => {
     console.error('[SSE] 연결 오류:', error);
     console.error('[SSE] EventSource 상태:', eventSource.readyState);
