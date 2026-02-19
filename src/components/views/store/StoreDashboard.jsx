@@ -15,7 +15,7 @@ import {
   mapCompletedStoreOrderToDisplay,
 } from './utils/storeDashboardUtils';
 import { getNewOrders, getCompletedOrders, getOrderHistory, acceptOrder, completePreparation, rejectOrder, getMonthlySales } from '../../../api/storeOrderApi';
-import { getBusinessHours, updateBusinessHours, updateDeliveryAvailable } from '../../../api/storeApi';
+import { getBusinessHours, updateBusinessHours, updateDeliveryAvailable, updateStoreImage } from '../../../api/storeApi';
 import OrdersTab from './tabs/OrdersTab';
 import DashboardTab from './tabs/DashboardTab';
 import SettlementsTab from './tabs/SettlementsTab';
@@ -310,7 +310,12 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
       .then(json => {
         const d = json?.data;
         if (d?.storeName != null) {
-          setStoreInfo(prev => ({ ...prev, name: d.storeName, category: d.categoryName || prev.category }));
+          setStoreInfo(prev => ({
+            ...prev,
+            name: d.storeName,
+            category: d.categoryName || prev.category,
+            img: d.storeImage ?? prev.img,
+          }));
         }
         if (d?.isDeliveryAvailable !== undefined) {
           setIsStoreOpen(!!d.isDeliveryAvailable);
@@ -532,6 +537,31 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     }
   };
 
+  /** data URL을 File로 변환 */
+  const dataUrlToFile = (dataUrl, filename = 'store.png') => {
+    return fetch(dataUrl).then((r) => r.blob()).then((blob) => new File([blob], filename));
+  };
+
+  /** 운영설정 완료: 대표 이미지 저장 후 영업시간 저장 */
+  const handleSaveSettings = async () => {
+    setBusinessHoursSaving(true);
+    try {
+      let urlToSave = storeInfo.img;
+      if (storeInfo.img?.startsWith?.('data:')) {
+        const file = await dataUrlToFile(storeInfo.img);
+        urlToSave = await uploadStoreImage(file);
+      }
+      await updateStoreImage(urlToSave ?? '');
+      setStoreInfo((prev) => ({ ...prev, img: urlToSave || null }));
+      await handleSaveBusinessHours();
+    } catch (e) {
+      const msg = e?.response?.data?.error?.message ?? e?.message ?? '저장에 실패했습니다.';
+      alert(msg);
+    } finally {
+      setBusinessHoursSaving(false);
+    }
+  };
+
 
   const [storeInfo, setStoreInfo] = useState({
     name: '상점',
@@ -700,6 +730,24 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     return json.data;
   };
 
+  /** 스토어 대표 이미지 업로드 (운영설정용, type=PROFILE) */
+  const uploadStoreImage = async (file) => {
+    const base = getApiBase();
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${base}/api/storage/store/image?type=PROFILE`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      const message = json?.error?.message || json?.message || json?.data?.message || '이미지 업로드 실패';
+      throw new Error(message);
+    }
+    return json.data;
+  };
+
   const handleSaveProduct = async (e) => {
     e.preventDefault();
     if (editingProduct && !canEditProduct) {
@@ -739,7 +787,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
           credentials: 'include',
         });
         const json = await res.json();
-        if (!res.ok) throw new Error(json.message || json.code || '상품 수정 실패');
+        if (!res.ok) throw new Error(json.error?.message || json.message || json.error?.code || '상품 수정 실패');
         await fetchMyProducts();
         setIsProductModalOpen(false);
       } catch (err) {
@@ -1128,7 +1176,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
             setStoreInfo={setStoreInfo}
             businessHours={businessHours}
             handleBusinessHourChange={handleBusinessHourChange}
-            onSaveBusinessHours={handleSaveBusinessHours}
+            onSaveSettings={handleSaveSettings}
             businessHoursSaving={businessHoursSaving}
             businessHoursLoading={businessHoursLoading}
           />
