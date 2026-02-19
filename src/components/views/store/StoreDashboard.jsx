@@ -15,6 +15,8 @@ import {
   mapCompletedStoreOrderToDisplay,
 } from './utils/storeDashboardUtils';
 import { getNewOrders, getCompletedOrders, getOrderHistory, acceptOrder, completePreparation, rejectOrder } from '../../../api/storeOrderApi';
+import { getBusinessHours, updateBusinessHours, updateDeliveryAvailable } from '../../../api/storeApi';
+import * as reviewApi from '../../../api/reviewApi';
 import OrdersTab from './tabs/OrdersTab';
 import DashboardTab from './tabs/DashboardTab';
 import SettlementsTab from './tabs/SettlementsTab';
@@ -28,6 +30,9 @@ import ProductModal from './modals/ProductModal';
 import SubscriptionModal from './modals/SubscriptionModal';
 import RejectModal from './modals/RejectModal';
 import ReportModal from './modals/ReportModal';
+
+const DAY_NAMES = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+const FRONTEND_DAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // 프론트 표시 순서: 월~일 → dayOfWeek
 
 const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   const createEmptyProductForm = () => ({
@@ -44,6 +49,12 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   });
   const [activeTab, setActiveTab] = useState('dashboard');
   const [productsLoading, setProductsLoading] = useState(false);
+  const [storeInfo, setStoreInfo] = useState({
+    id: null,
+    name: '상점',
+    category: '',
+    img: null
+  });
   const [inventoryStats, setInventoryStats] = useState(null);
   const [inventoryHistory, setInventoryHistory] = useState([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
@@ -97,7 +108,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     imagePreview: null,
   });
   const [expandedSubscriptions, setExpandedSubscriptions] = useState(new Set());
-  
+
   const [userSubscriptions, setUserSubscriptions] = useState([
     { id: 1, userName: '김철수', productName: '신선 채소 꾸러미', startDate: '2026-01-10', status: 'APPROVED', deliveryStatus: 'DELIVERED', nextDelivery: '2026-02-01' },
     { id: 2, userName: '이영희', productName: '제철 과일 꾸러미', startDate: '2026-01-15', status: 'PENDING', deliveryStatus: 'PENDING', nextDelivery: '2026-01-28' },
@@ -105,11 +116,8 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     { id: 4, userName: '최지우', productName: '다이어트 샐러드 팩', startDate: '2026-01-25', status: 'REJECTED', deliveryStatus: '-', nextDelivery: '-' },
   ]);
 
-  const [reviews, setReviews] = useState([
-    { id: 1, userName: '김철수', rating: 5, content: '배송이 정말 빨라요! 우유도 아주 신선합니다.', date: '2026-01-20', productName: '유기농 우유 1L', reply: null },
-    { id: 2, userName: '이영희', rating: 4, content: '채소들이 싱싱해서 좋아요. 다음에도 이용할게요.', date: '2026-01-18', productName: '대추토마토 500g', reply: '구매해주셔서 감사합니다! 항상 신선한 상품으로 보답하겠습니다.' },
-    { id: 3, userName: '박민수', rating: 3, content: '달걀 하나가 살짝 금이 가 있었어요. 주의 부탁드려요.', date: '2026-01-15', productName: '신선란 10구', reply: null },
-  ]);
+  const [reviews, setReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
   const [replyInput, setReplyInput] = useState({});
 
   const mapProductFromApi = (p) => {
@@ -290,10 +298,18 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
       .then(json => {
         const d = json?.data;
         if (d?.storeName != null) {
-          setStoreInfo(prev => ({ ...prev, name: d.storeName, category: d.categoryName || prev.category }));
+          setStoreInfo(prev => ({
+            ...prev,
+            id: d.storeId,
+            name: d.storeName,
+            category: d.categoryName || prev.category
+          }));
+        }
+        if (d?.isDeliveryAvailable !== undefined) {
+          setIsStoreOpen(!!d.isDeliveryAvailable);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -321,6 +337,34 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     }
   }, [activeTab, orderSubTab]);
 
+  const fetchReviews = async () => {
+    if (!storeInfo.id) return;
+    setReviewsLoading(true);
+    try {
+      const data = await reviewApi.getStoreReviews(storeInfo.id, { page: 0, size: 50 });
+      const mapped = (data.reviews?.content || []).map(r => ({
+        id: r.reviewId,
+        userName: r.writerNickname,
+        rating: r.rating,
+        content: r.content,
+        date: r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '',
+        reply: r.ownerReply,
+        productName: (r.products || []).map(p => p.productName).join(', ')
+      }));
+      setReviews(mapped);
+    } catch (e) {
+      console.error('리뷰 조회 실패:', e);
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'reviews' && storeInfo.id) {
+      fetchReviews();
+    }
+  }, [activeTab, storeInfo.id]);
+
   // currentTime만 갱신 (자동 거절 / 준비시간 카운트다운 표시용). 실제 자동 거절은 백엔드 스케줄러에서 처리.
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
@@ -335,7 +379,11 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
       fetchNewOrdersRef.current();
     };
     window.addEventListener('store-order-created', handler);
-    return () => window.removeEventListener('store-order-created', handler);
+    window.addEventListener('store-order-updated', handler);
+    return () => {
+      window.removeEventListener('store-order-created', handler);
+      window.removeEventListener('store-order-updated', handler);
+    };
   }, []);
 
   // SSE 누락 대비: 탭 포커스 시 대시보드면 신규 주문 재조회
@@ -422,20 +470,64 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     { day: '토요일', open: '09:00', close: '22:00', lastOrder: '21:30', isClosed: false },
     { day: '일요일', open: '09:00', close: '22:00', lastOrder: '21:30', isClosed: true },
   ]);
+  const [businessHoursLoading, setBusinessHoursLoading] = useState(false);
+  const [businessHoursSaving, setBusinessHoursSaving] = useState(false);
+
+  useEffect(() => {
+    if (activeTab !== 'settings') return;
+    let cancelled = false;
+    setBusinessHoursLoading(true);
+    getBusinessHours()
+      .then((list) => {
+        if (cancelled || !Array.isArray(list) || list.length === 0) return;
+        const byDay = list.reduce((acc, bh) => {
+          acc[bh.dayOfWeek] = bh;
+          return acc;
+        }, {});
+        const ordered = FRONTEND_DAY_ORDER.map((dayOfWeek) => {
+          const bh = byDay[dayOfWeek];
+          const dayName = DAY_NAMES[dayOfWeek];
+          if (!bh) return { day: dayName, open: '09:00', close: '22:00', lastOrder: '21:30', isClosed: false };
+          return {
+            day: dayName,
+            open: bh.openTime || '09:00',
+            close: bh.closeTime || '22:00',
+            lastOrder: '21:30',
+            isClosed: bh.isClosed ?? false,
+          };
+        });
+        setBusinessHours(ordered);
+      })
+      .catch(() => { if (!cancelled) setBusinessHours([]); })
+      .finally(() => { if (!cancelled) setBusinessHoursLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeTab]);
 
   const handleBusinessHourChange = (index, field, value) => {
     const updated = [...businessHours];
-    updated[index][field] = value;
+    updated[index] = { ...updated[index], [field]: value };
     setBusinessHours(updated);
   };
 
+  const handleSaveBusinessHours = async () => {
+    setBusinessHoursSaving(true);
+    try {
+      const payload = businessHours.map((bh, idx) => ({
+        dayOfWeek: FRONTEND_DAY_ORDER[idx],
+        openTime: bh.open || '09:00',
+        closeTime: bh.close || '22:00',
+        isClosed: bh.isClosed ?? false,
+      }));
+      await updateBusinessHours(payload);
+      alert('영업시간이 저장되었습니다.');
+    } catch (e) {
+      const msg = e?.response?.data?.error?.message ?? e?.message ?? '영업시간 저장에 실패했습니다.';
+      alert(msg);
+    } finally {
+      setBusinessHoursSaving(false);
+    }
+  };
 
-  const [storeInfo, setStoreInfo] = useState({
-    name: '상점',
-    category: '',
-    img: null
-  });
-  
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [orders, setOrders] = useState([]);
   const [completedOrdersLoading, setCompletedOrdersLoading] = useState(false);
@@ -446,47 +538,23 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   const [historyTotalPages, setHistoryTotalPages] = useState(0);
   const [historyTotalElements, setHistoryTotalElements] = useState(0);
 
-  const completedPrepIdsRef = React.useRef(new Set());
-  const autoRejectedIdsRef = React.useRef(new Set());
+  // TTL 기반: 상태 변경은 백엔드에서 처리. 카운트다운 0 되면 목록만 재조회(오차 보정)
+  const countdownZeroFetchedRef = React.useRef(new Set());
   useEffect(() => {
     if (activeTab !== 'dashboard') return;
     const now = Date.now();
-
-    const toComplete = orders.filter(
-      (o) => o.status === '준비중' && o.readyAt != null && o.readyAt <= now && !completedPrepIdsRef.current.has(o.id)
-    );
-    if (toComplete.length > 0) {
-      toComplete.forEach((o) => completedPrepIdsRef.current.add(o.id));
-      (async () => {
-        for (const order of toComplete) {
-          try {
-            await completePreparation(order.id);
-          } catch (e) {
-            completedPrepIdsRef.current.delete(order.id);
-            console.error('준비 완료 처리 실패:', e);
-          }
-        }
-        await fetchNewOrders();
-      })();
-      return;
+    let shouldFetch = false;
+    for (const o of orders) {
+      const alreadyFetched = countdownZeroFetchedRef.current.has(o.id);
+      const rejectDeadline = o.status === '신규' && o.createdAt != null && o.createdAt + 5 * 60 * 1000 <= now;
+      const readyDeadline = o.status === '준비중' && o.readyAt != null && o.readyAt <= now;
+      if ((rejectDeadline || readyDeadline) && !alreadyFetched) {
+        countdownZeroFetchedRef.current.add(o.id);
+        shouldFetch = true;
+      }
     }
-
-    const expiredOrders = orders.filter(
-      (o) => o.status === '신규' && o.createdAt != null && o.createdAt + 5 * 60 * 1000 <= now && !autoRejectedIdsRef.current.has(o.id)
-    );
-    if (expiredOrders.length > 0) {
-      expiredOrders.forEach((o) => autoRejectedIdsRef.current.add(o.id));
-      (async () => {
-        for (const order of expiredOrders) {
-          try {
-            await rejectOrder(order.id, '자동 거절 (미응답)');
-          } catch (e) {
-            autoRejectedIdsRef.current.delete(order.id);
-            console.error('자동 거절 처리 실패:', e);
-          }
-        }
-        await fetchNewOrders();
-      })();
+    if (shouldFetch) {
+      fetchNewOrdersRef.current();
     }
   }, [activeTab, orders, currentTime]);
 
@@ -933,13 +1001,19 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     }
   };
 
-  const handleReplyReview = (reviewId) => {
+  const handleReplyReview = async (reviewId) => {
     const reply = replyInput[reviewId];
     if (!reply || !reply.trim()) return;
-    
-    setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, reply } : r));
-    setReplyInput(prev => ({ ...prev, [reviewId]: '' }));
-    alert('답변이 등록되었습니다.');
+
+    try {
+      await reviewApi.addOwnerReply(reviewId, reply);
+      alert('답변이 등록되었습니다.');
+      setReplyInput(prev => ({ ...prev, [reviewId]: '' }));
+      fetchReviews();
+    } catch (e) {
+      const msg = e?.response?.data?.error?.message ?? e?.message ?? '답변 등록에 실패했습니다.';
+      alert(msg);
+    }
   };
 
   // Delivery Completion Simulation: '배달중' -> '배달완료'
@@ -1045,12 +1119,16 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
             setStoreInfo={setStoreInfo}
             businessHours={businessHours}
             handleBusinessHourChange={handleBusinessHourChange}
+            onSaveBusinessHours={handleSaveBusinessHours}
+            businessHoursSaving={businessHoursSaving}
+            businessHoursLoading={businessHoursLoading}
           />
         );
       case 'reviews':
         return (
           <ReviewsTab
             reviews={reviews}
+            isLoading={reviewsLoading}
             replyInput={replyInput}
             setReplyInput={setReplyInput}
             handleReplyReview={handleReplyReview}
@@ -1095,7 +1173,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
         height: '100vh',
         boxShadow: '4px 0 10px rgba(0,0,0,0.1)'
       }}>
-        <div 
+        <div
           onClick={() => setActiveTab('dashboard')}
           style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '24px', fontWeight: '900', marginBottom: '40px', color: '#38bdf8', cursor: 'pointer', letterSpacing: '-1px' }}>
           <span style={{ fontSize: '32px' }}>🏪</span> 동네마켓 Store
@@ -1110,14 +1188,14 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
           { id: 'reviews', label: '리뷰 관리', icon: '⭐' },
           { id: 'settings', label: '운영 설정', icon: '⚙️' }
         ].map((item) => (
-          <div 
+          <div
             key={item.id}
-            className={`nav-item ${activeTab === item.id ? 'active' : ''}`} 
+            className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
             onClick={() => setActiveTab(item.id)}
-            style={{ 
-              padding: '14px 18px', 
-              borderRadius: '12px', 
-              backgroundColor: activeTab === item.id ? '#334155' : 'transparent', 
+            style={{
+              padding: '14px 18px',
+              borderRadius: '12px',
+              backgroundColor: activeTab === item.id ? '#334155' : 'transparent',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -1130,7 +1208,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
             <span>{item.icon}</span> {item.label}
           </div>
         ))}
-        
+
         <div style={{ marginTop: 'auto', padding: '20px', backgroundColor: '#0f172a', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>고객센터 안내</div>
           <div style={{ fontSize: '18px', fontWeight: '800', color: '#38bdf8' }}>1588-0000</div>
@@ -1149,28 +1227,37 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
               </h1>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-               {/* Toggle Switch */}
-               <div 
-                 onClick={() => setIsStoreOpen(!isStoreOpen)}
-                 style={{ 
-                   display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', 
-                   padding: '4px 6px', borderRadius: '30px', backgroundColor: isStoreOpen ? '#dcfce7' : '#fee2e2', 
-                   transition: 'all 0.3s' 
-                 }}
-               >
-                  <div style={{ 
-                    width: '44px', height: '24px', borderRadius: '20px', backgroundColor: isStoreOpen ? '#10b981' : '#ef4444', 
-                    position: 'relative', transition: 'all 0.3s'
-                  }}>
-                    <div style={{ 
-                      width: '20px', height: '20px', borderRadius: '50%', backgroundColor: 'white', position: 'absolute', top: '2px', 
-                      left: isStoreOpen ? '22px' : '2px', transition: 'all 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                    }}></div>
-                  </div>
-                  <span style={{ fontWeight: '800', fontSize: '14px', color: isStoreOpen ? '#166534' : '#991b1b', paddingRight: '10px' }}>
-                    {isStoreOpen ? '배달 가능' : '배달 불가'}
-                  </span>
-               </div>
+              {/* Toggle Switch - 배달 가능 on/off (서버 반영) */}
+              <div
+                onClick={async () => {
+                  const next = !isStoreOpen;
+                  try {
+                    await updateDeliveryAvailable(next);
+                    setIsStoreOpen(next);
+                  } catch (e) {
+                    const msg = e?.response?.data?.error?.message ?? e?.message ?? '배달 가능 여부 변경에 실패했습니다.';
+                    alert(msg);
+                  }
+                }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
+                  padding: '4px 6px', borderRadius: '30px', backgroundColor: isStoreOpen ? '#dcfce7' : '#fee2e2',
+                  transition: 'all 0.3s'
+                }}
+              >
+                <div style={{
+                  width: '44px', height: '24px', borderRadius: '20px', backgroundColor: isStoreOpen ? '#10b981' : '#ef4444',
+                  position: 'relative', transition: 'all 0.3s'
+                }}>
+                  <div style={{
+                    width: '20px', height: '20px', borderRadius: '50%', backgroundColor: 'white', position: 'absolute', top: '2px',
+                    left: isStoreOpen ? '22px' : '2px', transition: 'all 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                  }}></div>
+                </div>
+                <span style={{ fontWeight: '800', fontSize: '14px', color: isStoreOpen ? '#166534' : '#991b1b', paddingRight: '10px' }}>
+                  {isStoreOpen ? '배달 가능' : '배달 불가'}
+                </span>
+              </div>
             </div>
           </header>
         </div>
