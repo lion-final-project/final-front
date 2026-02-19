@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { getRiderInfo, updateRiderStatus, updateRiderLocation, getRiderLocation, removeRiderLocation } from '../../../api/riderApi';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { getRiderInfo, updateRiderStatus, updateRiderLocation, getRiderLocation, removeRiderLocation, completeDelivery, getDeliveryDetail, acceptDeliveryRequest, pickUpDelivery as pickUpDeliveryApi, startDelivery as startDeliveryApi } from '../../../api/riderApi';
+import { uploadDeliveryPhoto } from '../../../api/storageApi';
 import MainTab from './tabs/MainTab';
 import EarningsTab from './tabs/EarningsTab';
 import HistoryTab from './tabs/HistoryTab';
@@ -37,12 +38,99 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
     fetchInfo();
   }, []);
   const [activeDeliveries, setActiveDeliveries] = useState([]); // Array of { ...req, status }
+  const [deliveryRequests, setDeliveryRequests] = useState([]); // SSE로 수신한 주변 배달 요청
+  const [isLoadingRequests, setIsLoadingRequests] = useState(false);
+  const deliveryRequestsRef = useRef([]); // SSE 콜백 내 최신 상태 참조
   const [earnings, setEarnings] = useState({ today: 48500, weekly: 342000 });
   const [showMsgModal, setShowMsgModal] = useState(false);
   const [completionNotification, setCompletionNotification] = useState(null); // { fee: 3500 }
   const [showPhotoUploadModal, setShowPhotoUploadModal] = useState(false);
   const [uploadingDeliveryId, setUploadingDeliveryId] = useState(null);
   const [deliveryPhoto, setDeliveryPhoto] = useState(null);
+  const [deliveryPhotoFile, setDeliveryPhotoFile] = useState(null);
+  const [isCompletingDelivery, setIsCompletingDelivery] = useState(false);
+
+  // deliveryRequests ref 동기화
+  useEffect(() => {
+    deliveryRequestsRef.current = deliveryRequests;
+  }, [deliveryRequests]);
+
+  // 배달 ID로 상세 조회 → UI용 객체로 변환
+  const fetchDeliveryAsRequest = useCallback(async (deliveryId) => {
+    try {
+      const res = await getDeliveryDetail(deliveryId);
+      const detail = res?.data || res;
+      return {
+        id: detail.id,
+        store: detail['store-name'] || detail.storeName || '알 수 없음',
+        storeAddress: detail['pickup-address'] || detail.pickupAddress || '',
+        destination: detail['delivery-address'] || detail.deliveryAddress || '',
+        distance: detail['distance-km'] ? `${detail['distance-km']}km` : '',
+        fee: detail['delivery-fee'] || detail.deliveryFee || 0,
+        orderNumber: detail['store-order-id'] || detail.storeOrderId,
+      };
+    } catch (error) {
+      console.error(`배달 ${deliveryId} 상세 조회 실패:`, error);
+      return null;
+    }
+  }, []);
+
+  // SSE 이벤트 처리: nearby-deliveries (전체 목록 갱신)
+  useEffect(() => {
+    const handleNearbyDeliveries = async (e) => {
+      const deliveryIds = e.detail; // 배달 ID 배열
+      if (!Array.isArray(deliveryIds)) return;
+
+      setIsLoadingRequests(true);
+      try {
+        const results = await Promise.all(
+          deliveryIds.map(id => fetchDeliveryAsRequest(id))
+        );
+        const valid = results.filter(Boolean);
+        setDeliveryRequests(valid);
+      } catch (err) {
+        console.error('주변 배달 목록 갱신 실패:', err);
+      } finally {
+        setIsLoadingRequests(false);
+      }
+    };
+
+    // SSE 이벤트: new-delivery (단건 추가)
+    const handleNewDelivery = async (e) => {
+      const rawData = e.detail; // "새로운 배달 요청: {id}" 형태 또는 숫자
+      let deliveryId;
+      if (typeof rawData === 'string' && rawData.includes(':')) {
+        deliveryId = rawData.split(':').pop().trim();
+      } else {
+        deliveryId = rawData;
+      }
+      if (!deliveryId) return;
+
+      // 이미 목록에 있으면 무시
+      if (deliveryRequestsRef.current.some(r => String(r.id) === String(deliveryId))) return;
+
+      const req = await fetchDeliveryAsRequest(deliveryId);
+      if (req) {
+        setDeliveryRequests(prev => [...prev, req]);
+      }
+    };
+
+    // SSE 이벤트: delivery-matched (해당 건 제거)
+    const handleDeliveryMatched = (e) => {
+      const deliveryId = e.detail;
+      setDeliveryRequests(prev => prev.filter(r => String(r.id) !== String(deliveryId)));
+    };
+
+    window.addEventListener('nearby-deliveries', handleNearbyDeliveries);
+    window.addEventListener('new-delivery', handleNewDelivery);
+    window.addEventListener('delivery-matched', handleDeliveryMatched);
+
+    return () => {
+      window.removeEventListener('nearby-deliveries', handleNearbyDeliveries);
+      window.removeEventListener('new-delivery', handleNewDelivery);
+      window.removeEventListener('delivery-matched', handleDeliveryMatched);
+    };
+  }, [fetchDeliveryAsRequest]);
 
   const [verificationStatus /* , setVerificationStatus */] = useState('verified'); // unverified, pending, verified
   const [vehicleInfo, setVehicleInfo] = useState({
@@ -194,57 +282,77 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
     }
   };
 
-  const deliveryRequests = [
-    { id: 'REQ001', store: '무림 정육점', storeAddress: '강남구 삼성동 15-5', destination: '삼성동 빌라 302호', distance: '1.2km', fee: 3500, customerPhone: '010-1234-5678' },
-    { id: 'REQ002', store: '행복 마트 강남점', storeAddress: '역삼동 823-1', destination: '논현동 원룸 201호', distance: '0.8km', fee: 3000, customerPhone: '010-9876-5432' }
-  ];
-
-  const handleAcceptRequest = (req) => {
+  const handleAcceptRequest = async (req) => {
     if (activeDeliveries.some(d => d.id === req.id)) return;
-    setActiveDeliveries(prev => [...prev, { ...req, status: 'accepted' }]);
+    try {
+      await acceptDeliveryRequest(req.id);
+      // 수락 성공 → 진행 중 배달 목록에 추가, 요청 목록에서 제거
+      setActiveDeliveries(prev => [...prev, { ...req, status: 'accepted' }]);
+      setDeliveryRequests(prev => prev.filter(r => r.id !== req.id));
+    } catch (error) {
+      console.error('배달 수락 실패:', error);
+      alert('배달 수락에 실패했습니다. 이미 다른 라이더가 수락했을 수 있습니다.');
+    }
   };
 
-  const nextStep = (id) => {
-    setActiveDeliveries(prev => {
-      const delivery = prev.find(d => d.id === id);
-      if (!delivery) return prev;
+  const nextStep = async (id) => {
+    const delivery = activeDeliveries.find(d => d.id === id);
+    if (!delivery) return;
 
+    try {
       if (delivery.status === 'accepted') {
-        return prev.map(d => d.id === id ? { ...d, status: 'pickup' } : d);
+        await pickUpDeliveryApi(id);
+        setActiveDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: 'pickup' } : d));
       } else if (delivery.status === 'pickup') {
-        return prev.map(d => d.id === id ? { ...d, status: 'delivering' } : d);
+        await startDeliveryApi(id);
+        setActiveDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: 'delivering' } : d));
       } else if (delivery.status === 'delivering') {
-        // Require photo proof before completing
+        // 사진 증빙 필요
         setUploadingDeliveryId(id);
         setShowPhotoUploadModal(true);
-        return prev;
       }
-      return prev;
-    });
+    } catch (error) {
+      console.error('배달 상태 변경 실패:', error);
+      alert('상태 변경에 실패했습니다. 다시 시도해주세요.');
+    }
   };
 
-  const handleCompleteDelivery = () => {
-    if (!uploadingDeliveryId) return;
+  const handleCompleteDelivery = async () => {
+    if (!uploadingDeliveryId || !deliveryPhotoFile) return;
+    setIsCompletingDelivery(true);
 
-    setActiveDeliveries(prev => {
-      const delivery = prev.find(d => d.id === uploadingDeliveryId);
-      if (delivery) {
-        setEarnings(e => ({ ...e, today: e.today + delivery.fee }));
-        setCompletionNotification({ fee: delivery.fee });
-        setTimeout(() => setCompletionNotification(null), 4000);
-        return prev.filter(d => d.id !== uploadingDeliveryId);
-      }
-      return prev;
-    });
+    try {
+      const delivery = activeDeliveries.find(d => d.id === uploadingDeliveryId);
+      if (!delivery) return;
 
-    setUploadingDeliveryId(null);
-    setShowPhotoUploadModal(false);
-    setDeliveryPhoto(null);
+      // 1. 증빙 사진 업로드 → URL 획득
+      const orderNumber = delivery.orderNumber || delivery.id;
+      const photoUrl = await uploadDeliveryPhoto(deliveryPhotoFile, orderNumber, uploadingDeliveryId);
+
+      // 2. 배달 완료 API 호출 (photoUrl 필수)
+      await completeDelivery(uploadingDeliveryId, photoUrl);
+
+      // 3. 로컬 상태 반영
+      setActiveDeliveries(prev => prev.filter(d => d.id !== uploadingDeliveryId));
+      setEarnings(e => ({ ...e, today: e.today + (delivery.fee || 0) }));
+      setCompletionNotification({ fee: delivery.fee || 0 });
+      setTimeout(() => setCompletionNotification(null), 4000);
+    } catch (error) {
+      console.error('배달 완료 처리 실패:', error);
+      alert('배달 완료 처리에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsCompletingDelivery(false);
+      setUploadingDeliveryId(null);
+      setShowPhotoUploadModal(false);
+      setDeliveryPhoto(null);
+      setDeliveryPhotoFile(null);
+    }
   };
 
   const handlePhotoSelect = (e) => {
     const file = e.target.files[0];
     if (file) {
+      setDeliveryPhotoFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setDeliveryPhoto(reader.result);
@@ -283,8 +391,6 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
       case 'history':
         return (
           <HistoryTab
-            historyFilter={historyFilter}
-            setHistoryFilter={setHistoryFilter}
             expandedHistoryItems={expandedHistoryItems}
             toggleHistoryExpand={toggleHistoryExpand}
             setSelectedReceipt={setSelectedReceipt}
@@ -310,6 +416,7 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
             earnings={earnings}
             activeDeliveries={activeDeliveries}
             deliveryRequests={deliveryRequests}
+            isLoadingRequests={isLoadingRequests}
             setShowMsgModal={setShowMsgModal}
             nextStep={nextStep}
             handleAcceptRequest={handleAcceptRequest}
@@ -405,7 +512,8 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
           deliveryPhoto={deliveryPhoto}
           onPhotoSelect={handlePhotoSelect}
           onSubmit={handleCompleteDelivery}
-          onClose={() => { setShowPhotoUploadModal(false); setDeliveryPhoto(null); setUploadingDeliveryId(null); }}
+          onClose={() => { setShowPhotoUploadModal(false); setDeliveryPhoto(null); setDeliveryPhotoFile(null); setUploadingDeliveryId(null); }}
+          isUploading={isCompletingDelivery}
         />
       )}
 
