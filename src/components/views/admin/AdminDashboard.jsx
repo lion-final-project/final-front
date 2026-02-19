@@ -35,7 +35,7 @@ const AdminDashboard = () => {
   const [settlementMonthFilter, setSettlementMonthFilter] = useState('2026-01');
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [selectedApproval, setSelectedApproval] = useState(null);
-  const [approvalFilter, setApprovalFilter] = useState('ALL'); // ALL, STORE, RIDER
+  const [approvalFilter, setApprovalFilter] = useState('ALL'); // 전체, 마트, 라이더
   const [approvalItems, setApprovalItems] = useState([]);
   const approvalFetchErrorShownRef = useRef(false);
 
@@ -60,10 +60,10 @@ const AdminDashboard = () => {
   const [riderSearchInput, setRiderSearchInput] = useState('');
   const [riderSearchTerm, setRiderSearchTerm] = useState('');
 
-  const [approvalStatusFilter, setApprovalStatusFilter] = useState('ALL'); // ALL, PENDING, HOLD
+  const [approvalStatusFilter, setApprovalStatusFilter] = useState('ALL'); // 전체, 심사대기, 보류
 
-  const [chartPeriod, setChartPeriod] = useState('weekly'); // weekly, monthly, yearly
-  const [reportsFilter, setReportsFilter] = useState('ALL'); // ALL, RESOLVED, UNRESOLVED
+  const [chartPeriod, setChartPeriod] = useState('weekly'); // 주간, 월간, 연간
+  const [reportsFilter, setReportsFilter] = useState('ALL'); // 전체, 처리완료, 미처리
   const [reportsSearch, setReportsSearch] = useState('');
   const [userSearch, setUserSearch] = useState('');
   const [expandedUserId, setExpandedUserId] = useState(null);
@@ -72,11 +72,11 @@ const AdminDashboard = () => {
   const [paymentRegionFilter, setPaymentRegionFilter] = useState('ALL');
   const [settlementSearch, setSettlementSearch] = useState('');
   const [settlementStatusFilter, setSettlementStatusFilter] = useState('ALL');
-  const [inquiryFilter, setInquiryFilter] = useState('ALL'); // ALL, PENDING, COMPLETED
+  const [inquiryFilter, setInquiryFilter] = useState('ALL'); // 전체, 대기, 완료
 
   const [faqs, setFaqs] = useState([]);
 
-  const [settlementFilter, setSettlementFilter] = useState('STORE'); // STORE, RIDER
+  const [settlementFilter, setSettlementFilter] = useState('STORE'); // 마트, 라이더
   const [settlements, setSettlements] = useState([]);
 
   const [detailedSettlements, setDetailedSettlements] = useState([]);
@@ -922,21 +922,21 @@ const AdminDashboard = () => {
 
     if (!confirm(`${type === 'STORE' ? '마트' : '배달원'} 정산 업무를 실행하시겠습니까?\n대상: ${targetItems.length}건`)) return;
 
-    // Simulation of retry logic and partial settlement
+    // 정산 재시도 및 부분 성공 시나리오 모의 처리
     let successCount = 0;
     let retryCount = 0;
     
-    // In a real app, this would be an async API call
+    // 실제 서비스에서는 비동기 API 호출로 처리
     targetItems.forEach(item => {
-      // Simulate that some might fail initially but pass on retry
+      // 일부 건은 최초 실패 후 재시도에서 성공하도록 모의 처리
       const random = Math.random();
-      if (random > 0.1) { // 90% success rate
+      if (random > 0.1) { // 성공 확률 90%
         successCount++;
       } else {
-        // Retry logic: try 3 times
+        // 재시도 로직: 최대 3회
         for(let i=1; i<=3; i++) {
           retryCount++;
-          if (Math.random() > 0.2) { // 80% success on retry
+          if (Math.random() > 0.2) { // 재시도 시 성공 확률 80%
             successCount++;
             break;
           }
@@ -946,7 +946,7 @@ const AdminDashboard = () => {
 
     setter(prev => prev.map(item => {
       if (item.status === '확인 대기' || item.status === '지급 처리중' || item.status === '지급 실패') {
-        // For simplicity in mock, we mark them as completed if they "passed" the simulation
+        // 모의 처리 단순화를 위해 성공 건은 지급 완료로 반영
         return { ...item, status: '지급 완료', color: '#10b981' };
       }
       return item;
@@ -1255,7 +1255,7 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
-      {/* Sidebar */}
+      {/* 사이드바 */}
       <div className="sidebar" style={{
         width: '260px',
         backgroundColor: '#1e293b',
@@ -1306,7 +1306,7 @@ const AdminDashboard = () => {
           style={{ padding: '12px', borderRadius: '8px', backgroundColor: activeTab === 'inquiry' ? '#334155' : 'transparent', color: activeTab === 'inquiry' ? '#38bdf8' : 'inherit', cursor: 'pointer' }}>💬 1:1 문의</div>
       </div>
 
-      {/* Main Content */}
+      {/* 메인 콘텐츠 */}
       <div className="main-content" style={{ flexGrow: 1, padding: '40px' }}>
         <header style={{ marginBottom: '40px' }}>
           <h1 style={{ fontSize: '32px', fontWeight: '700' }}>
