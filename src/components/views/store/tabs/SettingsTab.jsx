@@ -1,6 +1,6 @@
 import React from 'react';
 
-const SettingsTab = ({ storeInfo, setStoreInfo, businessHours, handleBusinessHourChange }) => (
+const SettingsTab = ({ storeInfo, setStoreInfo, businessHours, handleBusinessHourChange, onSaveBusinessHours, businessHoursSaving, businessHoursLoading }) => (
   <div style={{ background: 'white', padding: '40px', borderRadius: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', maxWidth: '800px' }}>
     <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '32px' }}>마트 운영 설정</h2>
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
@@ -55,6 +55,7 @@ const SettingsTab = ({ storeInfo, setStoreInfo, businessHours, handleBusinessHou
 
       <div>
         <label style={{ display: 'block', marginBottom: '20px', fontWeight: '800', fontSize: '16px', color: '#1e293b' }}>요일별 영업 시간 설정</label>
+        {businessHoursLoading && <p style={{ marginBottom: '12px', color: '#64748b', fontSize: '14px' }}>영업시간을 불러오는 중...</p>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {businessHours.map((bh, idx) => (
             <div
@@ -87,8 +88,24 @@ const SettingsTab = ({ storeInfo, setStoreInfo, businessHours, handleBusinessHou
           ))}
         </div>
       </div>
-      <button style={{ marginTop: '20px', padding: '18px', borderRadius: '12px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: '800', fontSize: '16px', cursor: 'pointer', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)' }}>
-        운영 설정 완료
+      <button
+        type="button"
+        onClick={onSaveBusinessHours}
+        disabled={businessHoursSaving || businessHoursLoading}
+        style={{
+          marginTop: '20px',
+          padding: '18px',
+          borderRadius: '12px',
+          background: businessHoursSaving || businessHoursLoading ? '#94a3b8' : 'var(--primary)',
+          color: 'white',
+          border: 'none',
+          fontWeight: '800',
+          fontSize: '16px',
+          cursor: businessHoursSaving || businessHoursLoading ? 'not-allowed' : 'pointer',
+          boxShadow: businessHoursSaving || businessHoursLoading ? 'none' : '0 4px 14px rgba(16, 185, 129, 0.4)',
+        }}
+      >
+        {businessHoursSaving ? '저장 중...' : '운영 설정 완료'}
       </button>
     </div>
   </div>
