@@ -75,6 +75,8 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   const [salesData, setSalesData] = useState(null);
   const [salesLoading, setSalesLoading] = useState(false);
   const [salesError, setSalesError] = useState(null);
+  const [dashboardTodaySales, setDashboardTodaySales] = useState(null);
+  const [dashboardDayOverDayRate, setDashboardDayOverDayRate] = useState(null);
   const settlementPeriodOptions = (() => {
     const list = [];
     for (let i = 0; i < 12; i++) {
@@ -373,6 +375,21 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
       fetchMonthlySales();
     }
   }, [activeTab, fetchMonthlySales]);
+
+  useEffect(() => {
+    if (activeTab !== 'dashboard') return;
+    let cancelled = false;
+    getMonthlySales(currentYear, currentMonth)
+      .then((data) => {
+        if (!cancelled && data) {
+          setDashboardTodaySales(data.todaySales ?? 0);
+          setDashboardDayOverDayRate(data.dayOverDayRate ?? 0);
+        }
+      })
+      .catch(() => { if (!cancelled) setDashboardTodaySales(0); setDashboardDayOverDayRate(0); })
+      .finally(() => {});
+    return () => { cancelled = true; };
+  }, [activeTab, currentYear, currentMonth]);
 
   // currentTime만 갱신 (자동 거절 / 준비시간 카운트다운 표시용). 실제 자동 거절은 백엔드 스케줄러에서 처리.
   useEffect(() => {
@@ -1208,6 +1225,8 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
             completingOrderId={completingOrderId}
             handleOpenRejectModal={handleOpenRejectModal}
             toggleSoldOut={toggleSoldOut}
+            todaySales={dashboardTodaySales ?? 0}
+            dayOverDayRate={dashboardDayOverDayRate ?? 0}
           />
         );
     }
