@@ -73,7 +73,9 @@ function AddressInputSection({
   onOpenKakaoAddress,
   isSearching,
   formData,
+  setFormData,
   errors,
+  setErrors,
 }) {
   return (
     <div style={{
@@ -118,6 +120,9 @@ function AddressInputSection({
         <div style={{ padding: '16px', background: '#f0fdf4', borderRadius: '8px', marginBottom: '16px', border: '1px solid #dcfce7' }}>
           <div style={{ fontSize: '14px', color: '#166534', fontWeight: '600', marginBottom: '8px' }}>
             ✓ 선택된 주소: {formData.address}
+            {formData.postalCode && (
+              <span style={{ marginLeft: '8px', fontSize: '13px', color: '#15803d' }}>(우편번호: {formData.postalCode})</span>
+            )}
           </div>
           {formData.latitude != null && formData.longitude != null ? (
             <div style={{
@@ -143,6 +148,20 @@ function AddressInputSection({
           )}
         </div>
       )}
+      <div style={{ marginTop: '16px' }}>
+        <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#64748b' }}>
+          상세주소 <span style={{ fontSize: '12px', fontWeight: '500' }}>(선택)</span>
+        </label>
+        <input
+          type="text"
+          placeholder="동, 호수, 상세 주소 등"
+          value={formData.addressDetail ?? ''}
+          onChange={(e) => setFormData((prev) => ({ ...prev, addressDetail: e.target.value }))}
+          style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '14px', outline: 'none' }}
+          onFocus={(e) => { e.target.style.border = '2px solid var(--primary)'; }}
+          onBlur={(e) => { e.target.style.border = '1px solid #e2e8f0'; }}
+        />
+      </div>
       {errors.address && (
         <div id="error-address" style={{ color: '#ef4444', fontSize: '12px', marginTop: '8px', fontWeight: '600' }}>
           {errors.address}
@@ -165,6 +184,8 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
     businessNumber: '', // 사업자등록증 번호
     mailOrderNumber: '', // 통신 판매업 신고번호
     address: '',      // 매장 주소
+    addressDetail: '', // 상세주소 (동, 호수 등)
+    postalCode: '',   // 우편번호 (주소 검색 시 자동 입력)
     latitude: null,   // 위도
     longitude: null,  // 경도
     bankName: '',
@@ -277,10 +298,12 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
           if (data.buildingName !== '') extraAddress += (extraAddress !== '' ? ', ' + data.buildingName : data.buildingName);
         }
         const finalAddress = fullAddress + (extraAddress ? ' (' + extraAddress + ')' : '');
+        const zonecode = data.zonecode || '';
 
         setFormData(prev => ({
           ...prev,
           address: finalAddress,
+          postalCode: zonecode,
           latitude: null,
           longitude: null
         }));
@@ -294,6 +317,7 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
               setFormData(prev => ({
                 ...prev,
                 address: finalAddress,
+                postalCode: prev.postalCode || zonecode,
                 latitude: parseFloat(result[0].y),
                 longitude: parseFloat(result[0].x)
               }));
@@ -425,6 +449,8 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
         storeOwnerName: formData.companyName,
         storeName: formData.storeName,
         addressLine: formData.address,
+        addressLine2: (formData.addressDetail && formData.addressDetail.trim()) ? formData.addressDetail.trim() : null,
+        postalCode: (formData.postalCode && formData.postalCode.trim()) ? formData.postalCode.trim() : null,
         latitude: formData.latitude,
         longitude: formData.longitude,
         representativeName: formData.repName,
@@ -581,7 +607,9 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
             onOpenKakaoAddress={handleOpenKakaoAddress}
             isSearching={isSearching}
             formData={formData}
+            setFormData={setFormData}
             errors={errors}
+            setErrors={setErrors}
           />
           <InputSection label="대표자명" field="repName" formData={formData} setFormData={setFormData} errors={errors} setErrors={setErrors} />
           <InputSection label="대표자 연락처" field="contact" placeholder="010-0000-0000" formData={formData} setFormData={setFormData} errors={errors} setErrors={setErrors} />
