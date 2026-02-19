@@ -102,3 +102,15 @@ export const getDeliveryTrackingDetail = async (deliveryId) => {
   const response = await api.get(`/api/deliveries/tracking/${deliveryId}`);
   return response.data?.data ?? response.data;
 };
+
+/**
+ * 배달 이력 조회 (완료/취소된 배달, 최신순)
+ * @param {number} page - 페이지 번호 (기본값: 0)
+ * @param {number} size - 페이지 크기 (기본값: 10)
+ */
+export const getDeliveryHistory = async (page = 0, size = 10) => {
+  const response = await api.get('/api/deliveries/history', {
+    params: { page, size },
+  });
+  return response.data?.data ?? response.data;
+};

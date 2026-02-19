@@ -154,6 +154,18 @@ function App() {
       } else if (eventName === 'STORE_ORDER_UPDATED') {
         // TTL 기반 상태 변경(자동 거절/준비완료) 후 목록 갱신 요청
         window.dispatchEvent(new CustomEvent('store-order-updated', { detail: data }));
+      } else if (eventName === 'NEW_DELIVERY') {
+        // 라이더 주변 새 배달 요청
+        window.dispatchEvent(new CustomEvent('new-delivery', { detail: data }));
+      } else if (eventName === 'NEARBY_DELIVERIES') {
+        // 라이더 주변 배달 목록 전체 갱신
+        window.dispatchEvent(new CustomEvent('nearby-deliveries', { detail: data }));
+      } else if (eventName === 'DELIVERY_MATCHED') {
+        // 다른 라이더가 배달 수락 → 목록에서 제거
+        window.dispatchEvent(new CustomEvent('delivery-matched', { detail: data }));
+      } else if (eventName === 'DELIVERY_STATUS_CHANGED') {
+        // 배달 상태 변경 알림
+        window.dispatchEvent(new CustomEvent('delivery-status-changed', { detail: data }));
       }
     };
 

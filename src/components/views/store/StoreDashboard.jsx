@@ -436,11 +436,30 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     const handler = () => {
       fetchNewOrdersRef.current();
     };
+
+    // delivery-matched: 라이더 수락 → 주문 목록 재조회하여 배차 완료 반영
+    const deliveryMatchedHandler = () => {
+      fetchNewOrdersRef.current();
+    };
+
     window.addEventListener('store-order-created', handler);
     window.addEventListener('store-order-updated', handler);
+    window.addEventListener('delivery-matched', deliveryMatchedHandler);
+
+    // delivery-status-changed: 라이더 픽업 완료 등 배달 상태 변경 시 주문 목록 즉시 갱신
+    const deliveryStatusChangedHandler = (e) => {
+      const data = e.detail;
+      if (data && (data.status === 'PICKED_UP' || data.status === 'DELIVERING' || data.status === 'DELIVERED')) {
+        fetchNewOrdersRef.current();
+      }
+    };
+    window.addEventListener('delivery-status-changed', deliveryStatusChangedHandler);
+
     return () => {
       window.removeEventListener('store-order-created', handler);
       window.removeEventListener('store-order-updated', handler);
+      window.removeEventListener('delivery-matched', deliveryMatchedHandler);
+      window.removeEventListener('delivery-status-changed', deliveryStatusChangedHandler);
     };
   }, []);
 
