@@ -8,6 +8,7 @@ import RiderDashboard from './components/views/rider/RiderDashboard';
 import AdminDashboard from './components/views/admin/AdminDashboard';
 import NotificationPanel from './components/common/NotificationPanel';
 import AuthModal from './components/features/auth/AuthModal';
+import PasswordResetView from './components/features/auth/PasswordResetView';
 import { Agentation } from "agentation";
 
 import { checkAuth, logout } from './api/authApi';
@@ -234,26 +235,26 @@ function App() {
       if (res.ok) {
         const json = await res.json();
         const data = json?.data;
-          if (data?.status) {
-            setRiderRegistrationStatus(data.status);
-            setIsResidentRider(data.status === 'APPROVED');
-            setRiderRegistrationApprovalId(data.approvalId ?? null);
-          } else {
-            setRiderRegistrationStatus('NONE');
-            setIsResidentRider(false);
-            setRiderRegistrationApprovalId(null);
-          }
+        if (data?.status) {
+          setRiderRegistrationStatus(data.status);
+          setIsResidentRider(data.status === 'APPROVED');
+          setRiderRegistrationApprovalId(data.approvalId ?? null);
         } else {
           setRiderRegistrationStatus('NONE');
           setIsResidentRider(false);
           setRiderRegistrationApprovalId(null);
         }
-      } catch {
+      } else {
         setRiderRegistrationStatus('NONE');
         setIsResidentRider(false);
         setRiderRegistrationApprovalId(null);
       }
-    };
+    } catch {
+      setRiderRegistrationStatus('NONE');
+      setIsResidentRider(false);
+      setRiderRegistrationApprovalId(null);
+    }
+  };
 
   const refreshRiderRegistration = useCallback(() => {
     fetchRiderRegistration();
@@ -416,6 +417,21 @@ function App() {
   }, [handleOAuthCallback]);
 
   const renderContent = () => {
+    // 비밀번호 재설정 페이지 확인
+    if (window.location.pathname === '/reset-password') {
+      return (
+        <PasswordResetView
+          onResetSuccess={() => {
+            window.history.pushState({}, '', '/');
+            setIsLoggedIn(false);
+            setUserInfo(null);
+            setUserRole('CUSTOMER');
+            setIsAuthModalOpen(true);
+          }}
+        />
+      );
+    }
+
     if (userRole === 'CUSTOMER' || userRole === 'USER') return (
       <CustomerView
         userRole={userRole}
@@ -431,13 +447,13 @@ function App() {
         setIsResidentRider={setIsResidentRider}
         storeRegistrationStatus={storeRegistrationStatus}
         setStoreRegistrationStatus={setStoreRegistrationStatus}
-      storeRegistrationStoreName={storeRegistrationStoreName}
-      setStoreRegistrationStoreName={setStoreRegistrationStoreName}
-      riderRegistrationStatus={riderRegistrationStatus}
-      riderRegistrationApprovalId={riderRegistrationApprovalId}
-      refreshRiderRegistration={refreshRiderRegistration}
-      riderInfo={riderInfo}
-      setRiderInfo={setRiderInfo}
+        storeRegistrationStoreName={storeRegistrationStoreName}
+        setStoreRegistrationStoreName={setStoreRegistrationStoreName}
+        riderRegistrationStatus={riderRegistrationStatus}
+        riderRegistrationApprovalId={riderRegistrationApprovalId}
+        refreshRiderRegistration={refreshRiderRegistration}
+        riderInfo={riderInfo}
+        setRiderInfo={setRiderInfo}
         notificationCount={unreadCount}
         userInfo={userInfo}
         isNotificationOpen={isNotificationOpen}
