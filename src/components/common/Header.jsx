@@ -54,7 +54,7 @@ const Header = ({
         <div className="header-right">
           <div className="header-icons">
 
-            {/* Notifications */}
+            {/* 알림 */}
             <div 
               ref={notificationButtonRef}
               style={{ position: 'relative', cursor: 'pointer' }} 
@@ -100,7 +100,7 @@ const Header = ({
               )}
             </div>
             
-            {/* Cart */}
+            {/* 장바구니 */}
             <div style={{ position: 'relative', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }} onClick={() => onCartClick ? onCartClick() : onTabChange?.('cart')}>
               <span style={{ color: activeTab === 'cart' ? 'var(--primary)' : 'inherit', fontSize: '20px' }}>🛒</span>
               <span className="header-icon-label" style={{ fontSize: '10px', fontWeight: '700', color: activeTab === 'cart' ? 'var(--primary)' : '#94a3b8' }}>장바구니</span>
@@ -137,7 +137,7 @@ const Header = ({
               </div>
             )}
 
-            {/* Profile / Auth */}
+            {/* 프로필 / 인증 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginLeft: '4px' }}>
               <div 
                 style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', cursor: 'pointer' }}
