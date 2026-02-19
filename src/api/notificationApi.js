@@ -74,10 +74,10 @@ export const subscribeNotifications = (onMessage, onError) => {
 
   // ── 라이더 배달 관련 SSE 이벤트 ──
 
-  // 새로운 배달 요청 (단일 배달 ID 문자열)
+  // 새로운 배달 요청 (배달 상세 정보 JSON 객체)
   eventSource.addEventListener('new-delivery', (event) => {
     try {
-      const data = event.data;
+      const data = JSON.parse(event.data);
       console.log('[SSE] 새 배달 요청:', data);
       if (onMessage) {
         onMessage('NEW_DELIVERY', data);
