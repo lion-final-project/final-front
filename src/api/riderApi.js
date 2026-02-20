@@ -80,3 +80,64 @@ export const removeRiderLocation = async (riderId) => {
         throw error;
     }
 };
+
+// 내 배달 목록 조회 (status 필터 선택적)
+export const getMyDeliveries = async (status) => {
+    try {
+        const params = status ? { status } : {};
+        const response = await api.get('/api/riders/deliveries', { params });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};
+
+// 배달 상세 조회
+export const getDeliveryDetail = async (deliveryId) => {
+    try {
+        const response = await api.get(`/api/riders/deliveries/${deliveryId}`);
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};
+
+// 배달 수락 (REQUESTED → ACCEPTED)
+export const acceptDeliveryRequest = async (deliveryId) => {
+    try {
+        const response = await api.post(`/api/riders/deliveries/${deliveryId}/accept`);
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};
+
+// 픽업 완료 (ACCEPTED → PICKED_UP)
+export const pickUpDelivery = async (deliveryId) => {
+    try {
+        const response = await api.patch(`/api/riders/deliveries/${deliveryId}/pickup`);
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};
+
+// 배송 시작 (PICKED_UP → DELIVERING)
+export const startDelivery = async (deliveryId) => {
+    try {
+        const response = await api.patch(`/api/riders/deliveries/${deliveryId}/start`);
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};
+
+// 배달 완료 (증빙 사진 URL 필수)
+export const completeDelivery = async (deliveryId, photoUrl) => {
+    try {
+        const response = await api.patch(`/api/riders/deliveries/${deliveryId}/complete`, { photoUrl });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};

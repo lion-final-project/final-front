@@ -21,3 +21,24 @@ export const uploadFile = async (file, userId, applicantType, documentType) => {
         throw error;
     }
 };
+
+// 배달 증빙 사진 업로드 → URL 반환
+export const uploadDeliveryPhoto = async (file, orderNumber, deliveryId) => {
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await api.post(
+            `/api/storage/delivery/${orderNumber}/${deliveryId}`,
+            formData,
+            {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            }
+        );
+        return response.data.data; // 업로드된 URL 반환
+    } catch (error) {
+        throw error;
+    }
+};
