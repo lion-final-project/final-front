@@ -5,7 +5,6 @@ import {
   ProfileSubTab,
   UserProfileSubTab,
   SubscriptionSubTab,
-  CouponSubTab,
   HelpSubTab,
   AddressSubTab,
   PaymentSubTab,
@@ -15,7 +14,7 @@ import {
 
 const MypageTabContent = (props) => {
   const {
-    isLoggedIn, loyaltyPoints, coupons, myPageTab, setMyPageTab,
+    isLoggedIn, myPageTab, setMyPageTab,
     isResidentRider, verifyStep, setVerifyStep, setActiveTab, onLogout,
     orderList, reviews, userInfo,     subscriptionList, subscriptionListLoading,
     subscriptionListError, subscriptionPayments, subscriptionFilter, setSubscriptionFilter,
@@ -37,6 +36,7 @@ const MypageTabContent = (props) => {
     isAddressModalOpen, setIsAddressModalOpen, isPaymentModalOpen, setIsPaymentModalOpen,
     editingAddress, newAddress, setNewAddress, editingPaymentMethod, newPaymentMethod, setNewPaymentMethod,
   } = props;
+  const effectiveTab = myPageTab === 'coupon' ? 'profile' : myPageTab;
 
   return (
           <div style={{ padding: "20px" }}>
@@ -89,39 +89,6 @@ const MypageTabContent = (props) => {
                       ? "님은 'VIP' 등급입니다."
                       : "로그인하고 혜택을 받으세요."}
                   </div>
-                  <div
-                    style={{
-                      marginTop: "12px",
-                      display: "flex",
-                      justifyContent: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        backgroundColor: "#fdf2f8",
-                        color: "#db2777",
-                        padding: "4px 10px",
-                        borderRadius: "20px",
-                        fontSize: "11px",
-                        fontWeight: "800",
-                      }}
-                    >
-                      P {loyaltyPoints.toLocaleString()}
-                    </div>
-                    <div
-                      style={{
-                        backgroundColor: "#fff7ed",
-                        color: "#c2410c",
-                        padding: "4px 10px",
-                        borderRadius: "20px",
-                        fontSize: "11px",
-                        fontWeight: "800",
-                      }}
-                    >
-                      쿠폰 {coupons.length}장
-                    </div>
-                  </div>
                 </div>
                 <div
                   style={{
@@ -136,7 +103,6 @@ const MypageTabContent = (props) => {
                     { id: "subscription", label: "구독 관리", icon: "📅" },
                     { id: "address", label: "배송지 관리", icon: "📍" },
                     { id: "payment", label: "구독 결제 관리", icon: "💳" },
-                    { id: "coupon", label: "쿠폰함", icon: "🎫" },
                     { id: "help", label: "고객지원", icon: "📞" },
                     {
                       id: "application_status",
@@ -161,11 +127,11 @@ const MypageTabContent = (props) => {
                           borderRadius: "12px",
                           border: "none",
                           background:
-                            myPageTab === tab.id
+                            effectiveTab === tab.id
                               ? "rgba(46, 204, 113, 0.1)"
                               : "transparent",
                           color:
-                            myPageTab === tab.id ? "var(--primary)" : "#475569",
+                            effectiveTab === tab.id ? "var(--primary)" : "#475569",
                           fontWeight: "700",
                           cursor: "pointer",
                           display: "flex",
@@ -174,11 +140,11 @@ const MypageTabContent = (props) => {
                           transition: "all 0.2s",
                         }}
                         onMouseOver={(e) => {
-                          if (myPageTab !== tab.id)
+                          if (effectiveTab !== tab.id)
                             e.currentTarget.style.backgroundColor = "#f8fafc";
                         }}
                         onMouseOut={(e) => {
-                          if (myPageTab !== tab.id)
+                          if (effectiveTab !== tab.id)
                             e.currentTarget.style.backgroundColor =
                               "transparent";
                         }}
@@ -225,7 +191,7 @@ const MypageTabContent = (props) => {
                   gap: "24px",
                 }}
               >
-                {myPageTab === "profile" && (
+                {effectiveTab === "profile" && (
                   <ProfileSubTab
                     orderList={orderList}
                     reviews={reviews}
@@ -244,7 +210,7 @@ const MypageTabContent = (props) => {
                   />
                 )}
 
-                {myPageTab === "user_profile" && (
+                {effectiveTab === "user_profile" && (
                   <UserProfileSubTab
                     userInfo={userInfo}
                     subscriptionList={subscriptionList}
@@ -252,7 +218,7 @@ const MypageTabContent = (props) => {
                   />
                 )}
 
-                {myPageTab === "subscription" && (
+                {effectiveTab === "subscription" && (
                   <SubscriptionSubTab
                     subscriptionList={subscriptionList}
                     subscriptionListLoading={subscriptionListLoading}
@@ -267,9 +233,7 @@ const MypageTabContent = (props) => {
                   />
                 )}
 
-                {myPageTab === "coupon" && <CouponSubTab coupons={coupons} />}
-
-                {myPageTab === "address" && (
+                {effectiveTab === "address" && (
                   <AddressSubTab
                     addressList={addressList}
                     handleOpenAddressModal={handleOpenAddressModal}
@@ -285,7 +249,7 @@ const MypageTabContent = (props) => {
                   />
                 )}
 
-                {myPageTab === "payment" && (
+                {effectiveTab === "payment" && (
                   <PaymentSubTab
                     paymentMethodList={paymentMethodList}
                     handleOpenPaymentModal={handleOpenPaymentModal}
@@ -303,7 +267,7 @@ const MypageTabContent = (props) => {
                   />
                 )}
 
-                {myPageTab === "help" && (
+                {effectiveTab === "help" && (
                   <HelpSubTab
                     userRole={userRole}
                     isLoggedIn={isLoggedIn}
@@ -311,7 +275,7 @@ const MypageTabContent = (props) => {
                   />
                 )}
 
-                {myPageTab === "resident" && (
+                {effectiveTab === "resident" && (
                   <ResidentSubTab
                     isResidentRider={isResidentRider}
                     verifyStep={verifyStep}
@@ -322,7 +286,7 @@ const MypageTabContent = (props) => {
                   />
                 )}
 
-                {myPageTab === "application_status" && (
+                {effectiveTab === "application_status" && (
                   <ApplicationStatusSubTab
                       storeRegistrationStatus={storeRegistrationStatus}
                       storeRegistrationStoreName={storeRegistrationStoreName}
