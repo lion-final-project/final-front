@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { PLACEHOLDER_PRODUCT_IMAGE } from '../../../constants/placeholderImage';
 import OrderDetailModal from '../../features/order/OrderDetailModal';
 import OrderDetailFullModal from '../../features/order/OrderDetailFullModal';
 import ReceiptModal from '../../features/order/ReceiptModal';
@@ -165,8 +166,13 @@ const OrderManagementView = ({ orders, onTracking, onWriteReview, onCancelOrder,
 
               {/* Product Content */}
               <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
-                <div style={{ width: '80px', height: '80px', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#f1f5f9', flexShrink: 0 }}>
-                  <img src={order.img} alt={order.product} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <div style={{ width: '80px', height: '80px', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#e2e8f0', flexShrink: 0 }}>
+                  <img
+                    src={order.img || PLACEHOLDER_PRODUCT_IMAGE}
+                    alt={order.product}
+                    onError={(e) => { e.target.onerror = null; e.target.src = PLACEHOLDER_PRODUCT_IMAGE; }}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
                 </div>
                 <div style={{ flexGrow: 1 }}>
                   <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>{order.store}</div>

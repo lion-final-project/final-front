@@ -1,4 +1,5 @@
 import React from 'react';
+import { PLACEHOLDER_PRODUCT_IMAGE } from '../../../constants/placeholderImage';
 
 const OrderDetailModal = ({ isOpen, onClose, order, onTracking, onReview, onOpenDetail, onOpenReceipt, onOpenInquiry, onOpenReport }) => {
   if (!isOpen || !order) return null;
@@ -14,8 +15,13 @@ const OrderDetailModal = ({ isOpen, onClose, order, onTracking, onReview, onOpen
       }} onClick={e => e.stopPropagation()}>
 
         <div style={{ padding: '20px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
-          <div style={{ width: '60px', height: '60px', margin: '0 auto 12px', borderRadius: '8px', overflow: 'hidden' }}>
-            <img src={order.img} alt={order.product} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <div style={{ width: '60px', height: '60px', margin: '0 auto 12px', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#e2e8f0' }}>
+            <img
+              src={order.img || PLACEHOLDER_PRODUCT_IMAGE}
+              alt={order.product}
+              onError={(e) => { e.target.onerror = null; e.target.src = PLACEHOLDER_PRODUCT_IMAGE; }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
           </div>
           <h3 style={{ fontSize: '15px', fontWeight: '700', margin: 0, lineHeight: '1.4', wordBreak: 'keep-all' }}>{order.product}</h3>
         </div>
