@@ -59,3 +59,11 @@ export const getStoreCategories = async () => {
         return [];
     }
 };
+
+/**
+ * 내 상점 마트 소개 수정
+ * @param {string} description
+ */
+export const updateStoreDescription = async (description) => {
+    await api.patch('/api/stores/my/description', { description: description ?? '' });
+};

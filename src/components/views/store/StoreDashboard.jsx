@@ -15,7 +15,7 @@ import {
   mapCompletedStoreOrderToDisplay,
 } from './utils/storeDashboardUtils';
 import { getNewOrders, getCompletedOrders, getOrderHistory, acceptOrder, completePreparation, rejectOrder, getMonthlySales } from '../../../api/storeOrderApi';
-import { getBusinessHours, updateBusinessHours, updateDeliveryAvailable, updateStoreImage } from '../../../api/storeApi';
+import { getBusinessHours, updateBusinessHours, updateDeliveryAvailable, updateStoreImage, updateStoreDescription } from '../../../api/storeApi';
 import OrdersTab from './tabs/OrdersTab';
 import DashboardTab from './tabs/DashboardTab';
 import SettlementsTab from './tabs/SettlementsTab';
@@ -52,7 +52,8 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     id: null,
     name: '상점',
     category: '',
-    img: null
+    img: null,
+    description: ''
   });
   const [inventoryStats, setInventoryStats] = useState(null);
   const [inventoryHistory, setInventoryHistory] = useState([]);
@@ -321,6 +322,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
                 name: d.storeName,
                 category: d.categoryName || prev.category,
                 img: d.storeImage ?? prev.img,
+                description: d.description ?? prev.description ?? '',
             }));
         }
         if (d?.isDeliveryAvailable !== undefined) {
@@ -608,6 +610,22 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
       alert(msg);
     } finally {
       setBusinessHoursSaving(false);
+    }
+  };
+
+  const [descriptionSaving, setDescriptionSaving] = useState(false);
+  /** 마트 소개만 저장 */
+  const handleSaveDescription = async (description) => {
+    setDescriptionSaving(true);
+    try {
+      await updateStoreDescription(description ?? storeInfo.description ?? '');
+      setStoreInfo((prev) => ({ ...prev, description: description ?? prev.description ?? '' }));
+      alert('마트 소개가 저장되었습니다.');
+    } catch (e) {
+      const msg = e?.response?.data?.error?.message ?? e?.message ?? '저장에 실패했습니다.';
+      alert(msg);
+    } finally {
+      setDescriptionSaving(false);
     }
   };
 
@@ -1227,6 +1245,8 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
             onSaveSettings={handleSaveSettings}
             businessHoursSaving={businessHoursSaving}
             businessHoursLoading={businessHoursLoading}
+            onSaveDescription={handleSaveDescription}
+            descriptionSaving={descriptionSaving}
           />
         );
       case 'reviews':

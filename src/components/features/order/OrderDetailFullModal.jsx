@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { getStoreOrderDetail } from '../../../api/orderApi';
+import { PLACEHOLDER_PRODUCT_IMAGE } from '../../../constants/placeholderImage';
 
 const OrderDetailFullModal = ({ isOpen, onClose, order }) => {
   const [detail, setDetail] = useState(null);
@@ -75,10 +76,11 @@ const OrderDetailFullModal = ({ isOpen, onClose, order }) => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {productList.map((product, index) => (
                 <div key={index} style={{ display: 'flex', gap: '16px', paddingBottom: '16px', borderBottom: index < productList.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                  <div style={{ width: '80px', height: '80px', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#f1f5f9', flexShrink: 0 }}>
+                  <div style={{ width: '80px', height: '80px', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#e2e8f0', flexShrink: 0 }}>
                     <img
-                      src={product.productImageUrl || order.storeImageUrl || "https://images.unsplash.com/photo-1550583724-125581f77833?w=120&q=80"}
+                      src={product.productImageUrl || order.storeImageUrl || PLACEHOLDER_PRODUCT_IMAGE}
                       alt={product.productNameSnapshot}
+                      onError={(e) => { e.target.onerror = null; e.target.src = PLACEHOLDER_PRODUCT_IMAGE; }}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                   </div>
