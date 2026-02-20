@@ -15,8 +15,9 @@ import {
 const KAKAO_OAUTH_AUTHORIZE_URL = 'http://localhost:8080/oauth2/authorization/kakao';
 const NAVER_OAUTH_AUTHORIZE_URL = 'http://localhost:8080/oauth2/authorization/naver';
 
-const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
+const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode, socialSignupState }) => {
   /** onLoginSuccess(userData): userData = { userId, email, name, roles } (로그인/회원가입 성공 시 백엔드 data) */
+  /** socialSignupState: 소셜 추가 가입 완료 시 백엔드에 보낼 state JWT (세션 대신 사용) */
   const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'social-extra' | 'forgot-password'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -214,8 +215,9 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
       return;
     }
 
-    // 2. 소셜 가입 추가 정보 (카카오 등)
+    // 2. 소셜 가입 추가 정보 (카카오/네이버) — state JWT 필수
     if (mode === 'social-extra') {
+      if (!socialSignupState) return alert('소셜 가입 정보가 만료되었습니다. 다시 로그인해 주세요.');
       if (!name || !phone) return alert('이름과 휴대폰 번호를 모두 입력해주세요.');
       if (!isPhoneVerified) return alert('휴대폰 인증이 필요합니다.');
       if (!email?.trim()) return alert('이메일을 입력해주세요.');
@@ -231,6 +233,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode }) => {
           termsAgreed: agreements.service,
           privacyAgreed: agreements.privacy,
           marketingAgreed: agreements.marketing,
+          state: socialSignupState,
         };
         const user = await socialSignupComplete(data);
         onLoginSuccess(user);

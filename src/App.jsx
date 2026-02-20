@@ -49,6 +49,7 @@ function App() {
   const [userInfo, setUserInfo] = useState(null); // 사용자 정보 저장
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalInitialMode, setAuthModalInitialMode] = useState(null); // 'social-extra' | null
+  const [socialSignupState, setSocialSignupState] = useState(null); // 소셜 추가 가입용 state JWT (세션 대신)
 
   const [isResidentRider, setIsResidentRider] = useState(false);
   const [storeRegistrationStatus, setStoreRegistrationStatus] = useState('NONE'); // NONE, PENDING, APPROVED
@@ -348,8 +349,8 @@ function App() {
     fetchRiderRegistration();
   };
 
-  // 소셜 로그인(카카오/네이버) 콜백 후 5173으로 리다이렉트된 경우: URL 쿼리 처리 후 /me로 로그인 상태 반영
-  const handleOAuthCallback = useCallback((status, errorMessage) => {
+  // 소셜 로그인(카카오/네이버) 콜백 후 5173으로 리다이렉트된 경우: URL 쿼리 처리 후 JWT/state 반영
+  const handleOAuthCallback = useCallback((status, errorMessage, stateToken) => {
     if (status === 'error') {
       if (errorMessage) alert(errorMessage);
       window.history.replaceState({}, '', window.location.pathname || '/');
@@ -371,6 +372,7 @@ function App() {
       return;
     }
     if (status === 'signup_required') {
+      setSocialSignupState(stateToken || null);
       setIsAuthModalOpen(true);
       setAuthModalInitialMode('social-extra');
       window.history.replaceState({}, '', window.location.pathname || '/');
@@ -380,13 +382,27 @@ function App() {
   const handleOAuthCallbackRef = useRef(handleOAuthCallback);
   handleOAuthCallbackRef.current = handleOAuthCallback;
 
+  // 401 → refresh 실패 시 세션 만료: 로그인 상태 초기화 후 로그인 모달 오픈 (보완_권장사항.md)
+  useEffect(() => {
+    const onSessionExpired = () => {
+      setIsLoggedIn(false);
+      setUserInfo(null);
+      setUserRole('CUSTOMER');
+      setSocialSignupState(null);
+      setAuthModalInitialMode(null);
+      setIsAuthModalOpen(true);
+    };
+    window.addEventListener('auth:session-expired', onSessionExpired);
+    return () => window.removeEventListener('auth:session-expired', onSessionExpired);
+  }, []);
+
   // 팝업에서 소셜 로그인 완료 시 postMessage로 부모 창에 알림 → 부모(5173)에서 로그인 상태 반영
   useEffect(() => {
     const onMessage = (event) => {
       if (event.origin !== window.location.origin) return;
       const d = event.data;
       if (d?.type === 'oauth_callback') {
-        handleOAuthCallbackRef.current(d.status, d.message);
+        handleOAuthCallbackRef.current(d.status, d.message, d.state);
       }
     };
     window.addEventListener('message', onMessage);
@@ -419,11 +435,12 @@ function App() {
       return;
     }
     if (kakao === 'signup_required' || naver === 'signup_required') {
+      const stateParam = params.get('state');
       if (isPopup) {
-        window.opener.postMessage({ type: 'oauth_callback', status: 'signup_required' }, window.location.origin);
+        window.opener.postMessage({ type: 'oauth_callback', status: 'signup_required', state: stateParam || undefined }, window.location.origin);
         window.close();
       } else {
-        handleOAuthCallback('signup_required');
+        handleOAuthCallback('signup_required', undefined, stateParam || undefined);
       }
     }
   }, [handleOAuthCallback]);
@@ -551,9 +568,10 @@ function App() {
 
         <AuthModal
           isOpen={isAuthModalOpen}
-          onClose={() => { setIsAuthModalOpen(false); setAuthModalInitialMode(null); }}
+          onClose={() => { setIsAuthModalOpen(false); setAuthModalInitialMode(null); setSocialSignupState(null); }}
           onLoginSuccess={handleLoginSuccess}
           initialMode={authModalInitialMode}
+          socialSignupState={socialSignupState}
         />
         {import.meta.env.DEV && <Agentation />}
       </div>
