@@ -33,25 +33,38 @@ api.interceptors.request.use(
     }
 );
 
+// 401 시 refresh 1회 재시도 후 실패하면 세션 만료 이벤트 발생 (보완_권장사항.md)
+let refreshPromise = null;
+
+function dispatchSessionExpired() {
+    try {
+        window.dispatchEvent(new CustomEvent('auth:session-expired'));
+    } catch (e) {
+        console.warn('auth:session-expired dispatch failed', e);
+    }
+}
+
 // 응답 인터셉터
 api.interceptors.response.use(
     (response) => {
         return response;
     },
-    (error) => {
+    async (error) => {
+        const config = error.config;
+
         // 디버깅: 에러 응답 상세 정보
         if (error.response) {
             console.error('API 에러 응답:', {
                 status: error.response.status,
                 statusText: error.response.statusText,
-                url: error.config?.url,
-                method: error.config?.method?.toUpperCase(),
+                url: config?.url,
+                method: config?.method?.toUpperCase(),
                 data: error.response.data
             });
         } else if (error.request) {
             console.error('API 요청 실패 (응답 없음):', {
-                url: error.config?.url,
-                method: error.config?.method?.toUpperCase()
+                url: config?.url,
+                method: config?.method?.toUpperCase()
             });
         }
 
@@ -60,12 +73,35 @@ api.interceptors.response.use(
             const apiResponse = error.response.data;
             if (apiResponse.error && apiResponse.error.message) {
                 console.error('API Error:', apiResponse.error.message);
-                // 에러 객체에 서버 메시지 추가
                 error.message = apiResponse.error.message;
             } else if (apiResponse.message) {
                 error.message = apiResponse.message;
             }
         }
+
+        // 401: refresh 1회 시도 후 재요청, 실패 시 세션 만료 처리
+        if (error.response?.status === 401 && config) {
+            const isRefreshUrl = typeof config.url === 'string' && config.url.includes('/api/auth/refresh');
+            const isRetry = config._retryByAuth === true;
+
+            if (!isRefreshUrl && !isRetry) {
+                try {
+                    if (!refreshPromise) {
+                        refreshPromise = api.post('/api/auth/refresh');
+                    }
+                    await refreshPromise;
+                    refreshPromise = null;
+                    config._retryByAuth = true;
+                    return api.request(config);
+                } catch (refreshErr) {
+                    refreshPromise = null;
+                    dispatchSessionExpired();
+                }
+            } else {
+                dispatchSessionExpired();
+            }
+        }
+
         return Promise.reject(error);
     }
 );
