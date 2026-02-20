@@ -18,9 +18,7 @@ import {
   paymentMethods,
   faqs,
   categories,
-  coupons,
   inquiries,
-  loyaltyPoints,
 } from "../../../data/mockData";
 import CartModal from "../../features/cart/CartModal";
 import StoreDetailView from "./StoreDetailView";
@@ -1653,8 +1651,6 @@ const CustomerView = ({
         return (
           <MypageTabContent
             isLoggedIn={isLoggedIn}
-            loyaltyPoints={loyaltyPoints}
-            coupons={coupons}
             myPageTab={myPageTab}
             setMyPageTab={setMyPageTab}
             isResidentRider={isResidentRider}
