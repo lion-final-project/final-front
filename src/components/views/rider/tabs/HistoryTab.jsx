@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getDeliveryHistory, getDeliveryTrackingDetail } from '../../../../api/orderApi';
+import { getRiderDeliveryHistory, getDeliveryDetail } from '../../../../api/riderApi';
 
 const HistoryTab = ({
   expandedHistoryItems,
@@ -19,7 +19,8 @@ const HistoryTab = ({
     setIsLoading(true);
     setError(null);
     try {
-      const data = await getDeliveryHistory(targetPage, SIZE);
+      const response = await getRiderDeliveryHistory(targetPage, SIZE);
+      const data = response.data || response;
       // API 응답이 Page 객체인 경우
       if (data?.content) {
         setHistoryData(data.content);
@@ -51,7 +52,8 @@ const HistoryTab = ({
     // 펼칠 때만 상세 조회 (캐시 없으면)
     if (!expandedHistoryItems.has(deliveryId) && !detailCache[deliveryId]) {
       try {
-        const detail = await getDeliveryTrackingDetail(deliveryId);
+        const res = await getDeliveryDetail(deliveryId);
+        const detail = res?.data || res;
         setDetailCache(prev => ({ ...prev, [deliveryId]: detail }));
       } catch (err) {
         console.error('배달 상세 조회 실패:', err);
@@ -134,12 +136,22 @@ const HistoryTab = ({
                   <span style={{ fontSize: '12px', color: '#94a3b8' }}>
                     {formatDateTime(item.deliveredAt || item.cancelledAt || item.createdAt)}
                   </span>
-                  <span style={{
-                    fontSize: '11px',
-                    backgroundColor: isCancelled ? 'rgba(239, 68, 68, 0.2)' : '#0f172a',
-                    color: isCancelled ? '#ef4444' : '#2ecc71',
-                    padding: '4px 10px', borderRadius: '6px', fontWeight: '900'
-                  }}>{getStatusLabel(item.deliveryStatus)}</span>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <span style={{
+                      fontSize: '11px',
+                      backgroundColor: isCancelled ? 'rgba(239, 68, 68, 0.2)' : '#0f172a',
+                      color: isCancelled ? '#ef4444' : '#2ecc71',
+                      padding: '4px 10px', borderRadius: '6px', fontWeight: '900'
+                    }}>{getStatusLabel(item.deliveryStatus)}</span>
+                    {(item.deliveryStatus === 'DELIVERED' && item.isSettled) && (
+                      <span style={{
+                        fontSize: '11px',
+                        backgroundColor: 'rgba(56, 189, 248, 0.2)',
+                        color: '#38bdf8',
+                        padding: '4px 10px', borderRadius: '6px', fontWeight: '900'
+                      }}>정산완료</span>
+                    )}
+                  </div>
                 </div>
 
                 <div
