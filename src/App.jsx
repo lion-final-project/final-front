@@ -11,9 +11,9 @@ import AuthModal from './components/features/auth/AuthModal';
 import PasswordResetView from './components/features/auth/PasswordResetView';
 import { Agentation } from "agentation";
 
-import { checkAuth, logout } from './api/authApi';
+import { checkAuth, logout, clearAuthCookies } from './api/authApi';
 import { subscribeNotifications, getUnreadNotifications, markAllAsRead, markAsRead } from './api/notificationApi';
-import { API_BASE_URL } from './config/api';
+import api from './api/axios';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -222,17 +222,14 @@ function App() {
     }
   }, [isNotificationOpen, isLoggedIn]);
 
-  // 마트 입점 신청 현황 조회 (로그인 사용자)
+  // 마트 입점 신청 현황 조회 (로그인 사용자) — axios 사용으로 쿠키/프록시 일관
   const fetchStoreRegistration = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/stores/registration`, { credentials: 'include' });
-      if (res.ok) {
-        const json = await res.json();
-        const data = json?.data;
-        if (data?.status) {
-          setStoreRegistrationStatus(data.status === 'APPROVED' ? 'APPROVED' : 'PENDING');
-          setStoreRegistrationStoreName(data.storeName || null);
-        }
+      const res = await api.get('/api/stores/registration');
+      const data = res?.data?.data;
+      if (data?.status && data.status !== 'NONE') {
+        setStoreRegistrationStatus(data.status === 'APPROVED' ? 'APPROVED' : 'PENDING');
+        setStoreRegistrationStoreName(data.storeName || null);
       } else {
         setStoreRegistrationStatus('NONE');
         setStoreRegistrationStoreName(null);
@@ -244,19 +241,12 @@ function App() {
   };
   const fetchRiderRegistration = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/riders/registration`, { credentials: 'include' });
-      if (res.ok) {
-        const json = await res.json();
-        const data = json?.data;
-        if (data?.status) {
-          setRiderRegistrationStatus(data.status);
-          setIsResidentRider(data.status === 'APPROVED');
-          setRiderRegistrationApprovalId(data.approvalId ?? null);
-        } else {
-          setRiderRegistrationStatus('NONE');
-          setIsResidentRider(false);
-          setRiderRegistrationApprovalId(null);
-        }
+      const res = await api.get('/api/riders/registration');
+      const data = res?.data?.data;
+      if (data?.status) {
+        setRiderRegistrationStatus(data.status);
+        setIsResidentRider(data.status === 'APPROVED');
+        setRiderRegistrationApprovalId(data.approvalId ?? null);
       } else {
         setRiderRegistrationStatus('NONE');
         setIsResidentRider(false);
@@ -319,19 +309,20 @@ function App() {
   };
 
   const handleLogout = async () => {
+    setIsLoggedIn(false);
+    setUserInfo(null);
+    setUserRole('CUSTOMER');
     try {
       await logout();
-      setIsLoggedIn(false);
-      setUserInfo(null);
-      setUserRole('CUSTOMER'); // Default back to customer view as guest
-      alert('로그아웃되었습니다.');
     } catch (error) {
       console.error('Logout failed', error);
-      // 강제 로그아웃 처리
-      setIsLoggedIn(false);
-      setUserInfo(null);
-      setUserRole('CUSTOMER');
     }
+    try {
+      await clearAuthCookies();
+      await new Promise((r) => setTimeout(r, 150));
+    } catch (_) { /* 무시 */ }
+    alert('로그아웃되었습니다.');
+    window.location.replace(window.location.pathname || '/');
   };
 
   const [cartRefreshTrigger, setCartRefreshTrigger] = useState(0);
@@ -357,18 +348,34 @@ function App() {
       return;
     }
     if (status === 'success') {
-      checkAuth()
-        .then(async (user) => {
-          if (user) {
-            handleLoginSuccess(user);
-            await fetchStoreRegistration();
-            await fetchRiderRegistration();
-          }
-        })
-        .catch(() => { })
-        .finally(() => {
-          window.history.replaceState({}, '', window.location.pathname || '/');
-        });
+      setIsAuthModalOpen(false);
+      setSocialSignupState(null);
+      setAuthModalInitialMode(null);
+      window.history.replaceState({}, '', window.location.pathname || '/');
+      // 리다이렉트 직후 쿠키가 아직 반영되지 않을 수 있어, 짧은 간격으로 재시도
+      const applyLogin = async (user) => {
+        if (user) {
+          handleLoginSuccess(user);
+          await fetchStoreRegistration();
+          await fetchRiderRegistration();
+        }
+      };
+      const tryCheckAuth = (attempt = 0) => {
+        const maxAttempts = 4;
+        const delayMs = attempt === 0 ? 0 : 300 * attempt;
+        const doTry = () =>
+          checkAuth()
+            .then(async (user) => {
+              if (user) return applyLogin(user);
+              if (attempt < maxAttempts - 1) setTimeout(() => tryCheckAuth(attempt + 1), 300);
+            })
+            .catch(() => {
+              if (attempt < maxAttempts - 1) setTimeout(() => tryCheckAuth(attempt + 1), 300);
+            });
+        if (delayMs > 0) setTimeout(doTry, delayMs);
+        else doTry();
+      };
+      tryCheckAuth();
       return;
     }
     if (status === 'signup_required') {
@@ -382,15 +389,21 @@ function App() {
   const handleOAuthCallbackRef = useRef(handleOAuthCallback);
   handleOAuthCallbackRef.current = handleOAuthCallback;
 
-  // 401 → refresh 실패 시 세션 만료: 로그인 상태 초기화 후 로그인 모달 오픈 (보완_권장사항.md)
+  const isLoggedInRef = useRef(false);
+  useEffect(() => {
+    isLoggedInRef.current = isLoggedIn;
+  }, [isLoggedIn]);
+
+  // 401 → refresh 실패 시 세션 만료: 로그인 상태 초기화. (이미 로그인된 상태에서 만료된 경우에만 로그인 모달 오픈)
   useEffect(() => {
     const onSessionExpired = () => {
+      const wasLoggedIn = isLoggedInRef.current;
       setIsLoggedIn(false);
       setUserInfo(null);
       setUserRole('CUSTOMER');
       setSocialSignupState(null);
       setAuthModalInitialMode(null);
-      setIsAuthModalOpen(true);
+      if (wasLoggedIn) setIsAuthModalOpen(true);
     };
     window.addEventListener('auth:session-expired', onSessionExpired);
     return () => window.removeEventListener('auth:session-expired', onSessionExpired);

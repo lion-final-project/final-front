@@ -240,9 +240,13 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode, socialSignupS
           marketingAgreed: agreements.marketing,
           state: socialSignupState,
         };
-        const user = await socialSignupComplete(data);
-        onLoginSuccess(user);
+        const res = await socialSignupComplete(data);
+        // 응답이 { data: user } 래핑이거나 user 직접인 경우 모두 처리
+        const user = res?.data !== undefined ? res.data : res;
         onClose();
+        if (user && Array.isArray(user.roles)) {
+          onLoginSuccess(user);
+        }
       } catch (err) {
         alert(getErrorMessage(err, '회원가입 처리에 실패했습니다.'));
       } finally {

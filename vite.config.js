@@ -9,6 +9,19 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes, req, res) => {
+            const setCookie = proxyRes.headers['set-cookie'];
+            if (setCookie) {
+              const list = Array.isArray(setCookie) ? setCookie : [setCookie];
+              proxyRes.headers['set-cookie'] = list.map((cookie) =>
+                cookie
+                  .replace(/;\s*Secure/gi, '')
+                  .replace(/;\s*Domain=[^;]+/gi, '')
+              );
+            }
+          });
+        },
       },
     },
   },

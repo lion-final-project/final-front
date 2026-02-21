@@ -71,6 +71,9 @@ export const logout = async () => {
     }
 };
 
+/** 서버에 쿠키 삭제 응답(Set-Cookie)을 요청. 로그아웃 후 한 번 더 호출해 브라우저 쿠키 삭제를 확실히 함. */
+export const clearAuthCookies = () => api.get('/api/auth/clear-cookies');
+
 export const checkAuth = async () => {
     try {
         const response = await api.get('/api/auth/me');
