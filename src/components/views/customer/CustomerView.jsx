@@ -34,7 +34,7 @@ import {
   deletePaymentMethod,
 } from "../../../api/billingApi";
 import * as storeApi from "../../../api/storeApi";
-import { getOrderList, cancelStoreOrder } from "../../../api/orderApi";
+import { getOrderList, cancelStoreOrder, requestRefund, getStoreOrderDetail } from "../../../api/orderApi";
 import {
   createReview,
   getReviewDetail,
@@ -54,6 +54,7 @@ import { EffectCoverflow, Pagination, Navigation } from "swiper/modules";
 import TrackingModal from "../../features/order/TrackingModal";
 import PaymentSuccessModal from "../../features/order/PaymentSuccessModal";
 import OrderCancelModal from "../../features/order/OrderCancelModal";
+import OrderRefundModal from "../../features/order/OrderRefundModal";
 import ReviewModal from "./modals/ReviewModal";
 import Toast from "../../ui/Toast";
 import LoginRequiredPrompt from "./tabs/LoginRequiredPrompt";
@@ -107,6 +108,14 @@ const CustomerView = ({
   const [coords, setCoords] = useState({ lat: 37.5665, lon: 126.978 }); // Default: Seoul City Hall
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // 환불 요청 모달 상태
+  const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
+  const [refundingOrderId, setRefundingOrderId] = useState(null);
+  const [refundReason, setRefundReason] = useState("simple_change");
+  const [refundDetail, setRefundDetail] = useState("");
+  const [isRefunding, setIsRefunding] = useState(false);
+
   const [isSubscriptionOrder, setIsSubscriptionOrder] = useState(false);
   const [orderList, setOrderList] = useState([]);
   const [orderListLoading, setOrderListLoading] = useState(false);
@@ -306,19 +315,22 @@ const CustomerView = ({
     fetchAddresses();
   }, [fetchAddresses]);
 
-  // 주문 상태를 프론트엔드 형식으로 변환
   const convertOrderStatus = (orderStatus, storeOrderStatus) => {
-    // StoreOrder 상태가 취소/거절된 경우를 먼저 체크
+    // StoreOrder 상태가 취소/거절/환불인 경우 최우선으로 반환
     if (storeOrderStatus === "CANCELLED" || storeOrderStatus === "REJECTED") {
       return "주문 취소됨";
+    } else if (storeOrderStatus === "REFUND_REQUESTED") {
+      return "환불 요청";
+    } else if (storeOrderStatus === "REFUNDED") {
+      return "환불됨";
     }
 
-    // 전체 주문이 취소된 경우 (하지만 이 경우 개별 상태도 CANCELLED여야 함)
+    // 전체 주문이 취소된 경우 (단, 위에서 개별 환불건 등은 이미 걸러짐)
     if (orderStatus === "CANCELLED") {
       return "주문 취소됨";
     }
 
-    // StoreOrder 상태에 따라 변환
+    // 그 외 StoreOrder 정상 진행 상태에 따라 변환
     if (storeOrderStatus === "PENDING") {
       return "주문 접수 중";
     } else if (
@@ -1090,8 +1102,17 @@ const CustomerView = ({
       return;
     }
 
-    const finalReason =
+    let finalReason =
       cancelReason === "other" && cancelDetail ? cancelDetail : cancelReason;
+
+    // 한글로 변환하여 백엔드에 저장되게 처리
+    const reasonMap = {
+      'simple_change': '단순 변심',
+      'delivery_delay': '배송 지연',
+      'product_out_of_stock': '상품 품절',
+      'wrong_order': '주문 실수'
+    };
+    finalReason = reasonMap[finalReason] || finalReason;
 
     setIsCancelling(true);
     try {
@@ -1116,6 +1137,67 @@ const CustomerView = ({
       alert(error.response?.data?.message || "주문 취소에 실패했습니다.");
     } finally {
       setIsCancelling(false);
+    }
+  };
+
+  const handleRefundOrder = (orderId) => {
+    setRefundingOrderId(orderId);
+    setRefundReason("simple_change");
+    setRefundDetail("");
+    setIsRefundModalOpen(true);
+  };
+
+  const submitRefundOrder = async () => {
+    if (!refundReason) {
+      alert("환불 사유를 선택해주세요.");
+      return;
+    }
+
+    let finalReason =
+      refundReason === "other" && refundDetail ? refundDetail : refundReason;
+
+    // 한글로 변환하여 백엔드에 저장되게 처리
+    const reasonMap = {
+      'simple_change': '단순 변심',
+      'damaged_product': '상품 파손',
+      'missing_product': '누락된 상품',
+      'wrong_product': '오배송'
+    };
+    finalReason = reasonMap[finalReason] || finalReason;
+
+    setIsRefunding(true);
+    try {
+      await requestRefund(refundingOrderId, finalReason);
+      setIsRefundModalOpen(false);
+      showToast("환불 요청이 성공적으로 접수되었습니다.");
+      await fetchOrders(orderCurrentPage, orderDateFilter, orderSearchTerm);
+    } catch (error) {
+      console.error("환불 요청 실패:", error);
+      const errorMsg = error.response?.data?.message || "";
+      if (errorMsg.includes("이미 처리된 결제입니다") || errorMsg.includes("환불 신청이 불가")) {
+        alert("이미 환불 요청되었거나 거절된 주문 처리건이므로 다시 환불 신청이 불가합니다.");
+      } else {
+        alert(errorMsg || "환불 요청에 실패했습니다.");
+      }
+    } finally {
+      setIsRefunding(false);
+    }
+  };
+
+  const handleAddToCartFromOrder = async (storeOrderId) => {
+    try {
+      showToast("장바구니 담는 중...");
+      const detail = await getStoreOrderDetail(storeOrderId);
+      if (detail && detail.products) {
+        for (const item of detail.products) {
+          await cartAPI.addToCart(item.productId, item.quantity);
+        }
+        showToast("장바구니에 다시 담았습니다.");
+        fetchCart();
+      }
+    } catch (error) {
+      console.error("장바구니 담기 실패:", error);
+      alert("장바구니 담기에 실패했습니다.");
     }
   };
 
@@ -1691,6 +1773,8 @@ const CustomerView = ({
             openTrackingModal={openTrackingModal}
             handleOpenReviewModal={handleOpenReviewModal}
             handleCancelOrder={handleCancelOrder}
+            handleRefundOrder={handleRefundOrder}
+            handleAddToCartFromOrder={handleAddToCartFromOrder}
             setViewingReview={setViewingReview}
             setSelectedOrderForReview={setSelectedOrderForReview}
             setIsReviewModalOpen={setIsReviewModalOpen}
@@ -1945,6 +2029,16 @@ const CustomerView = ({
         setDetail={setCancelDetail}
         onConfirm={submitCancelOrder}
         isProcessing={isCancelling}
+      />
+      <OrderRefundModal
+        isOpen={isRefundModalOpen}
+        onClose={() => !isRefunding && setIsRefundModalOpen(false)}
+        reason={refundReason}
+        setReason={setRefundReason}
+        detail={refundDetail}
+        setDetail={setRefundDetail}
+        onConfirm={submitRefundOrder}
+        isProcessing={isRefunding}
       />
       <Header
         activeTab={activeTab}
