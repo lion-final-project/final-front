@@ -79,12 +79,13 @@ api.interceptors.response.use(
             }
         }
 
-        // 401: refresh 1회 시도 후 재요청, 실패 시 세션 만료 처리
+        // 401: refresh 1회 시도 후 재요청, 실패 시 세션 만료 처리 (로그아웃 요청은 재시도 제외)
         if (error.response?.status === 401 && config) {
             const isRefreshUrl = typeof config.url === 'string' && config.url.includes('/api/auth/refresh');
+            const isLogoutUrl = typeof config.url === 'string' && config.url.includes('/api/auth/logout');
             const isRetry = config._retryByAuth === true;
 
-            if (!isRefreshUrl && !isRetry) {
+            if (!isRefreshUrl && !isLogoutUrl && !isRetry) {
                 try {
                     if (!refreshPromise) {
                         refreshPromise = api.post('/api/auth/refresh');
