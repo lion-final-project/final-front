@@ -6,7 +6,7 @@ import ReceiptModal from '../../features/order/ReceiptModal';
 import InquiryModal from '../../features/support/InquiryModal';
 import OrderReportModal from '../../features/order/OrderReportModal';
 
-const OrderManagementView = ({ orders, onTracking, onWriteReview, onCancelOrder, onViewReview, onBack, onDateFilterChange, currentPage, totalPages, onPageChange, onSearch }) => {
+const OrderManagementView = ({ orders, onTracking, onWriteReview, onCancelOrder, onRequestRefund, onAddToCartFromOrder, onViewReview, onBack, onDateFilterChange, currentPage, totalPages, onPageChange, onSearch }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState(null); // For "..." modal
   const [detailOrder, setDetailOrder] = useState(null);
@@ -143,7 +143,7 @@ const OrderManagementView = ({ orders, onTracking, onWriteReview, onCancelOrder,
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {filteredOrders.length > 0 ? (
           filteredOrders.map((order, index) => (
-            <div key={order.id} style={{ backgroundColor: 'white', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', opacity: order.status === '주문 취소됨' ? 0.6 : 1 }}>
+            <div key={order.id} style={{ backgroundColor: 'white', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', opacity: (order.status === '주문 취소됨' || order.status === '환불됨') ? 0.6 : 1 }}>
               {/* Header Line */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>
@@ -158,7 +158,9 @@ const OrderManagementView = ({ orders, onTracking, onWriteReview, onCancelOrder,
                   fontWeight: '800',
                   color: order.status === '배송 완료' ? 'var(--primary)' :
                     order.status === '주문 접수 중' ? '#3b82f6' :
-                      order.status === '주문 취소됨' ? '#ef4444' : '#1e293b',
+                      order.status === '주문 취소됨' ? '#ef4444' :
+                        order.status === '환불 요청' ? '#f59e0b' :
+                          order.status === '환불됨' ? '#64748b' : '#1e293b',
                   fontSize: '16px'
                 }}>{order.status}</span>
                 {order.status === '배송 완료' && <span style={{ fontSize: '12px', color: '#94a3b8' }}>{order.date.replace(/\./g, '/').slice(5)} 도착</span>}
@@ -182,67 +184,79 @@ const OrderManagementView = ({ orders, onTracking, onWriteReview, onCancelOrder,
               </div>
 
               {/* Action Buttons */}
-              <div className="order-actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+              <div className="order-actions" style={{ display: 'flex', gap: '8px' }}>
                 {order.status === '주문 접수 중' ? (
                   <button
                     onClick={() => onCancelOrder && onCancelOrder(order.storeOrderId)}
-                    style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ef4444', background: 'white', color: '#ef4444', fontWeight: '800', cursor: 'pointer', fontSize: '14px' }}
+                    style={{ flex: 1, padding: '10px', borderRadius: '4px', border: '1px solid #ef4444', background: 'white', color: '#ef4444', fontWeight: '800', cursor: 'pointer', fontSize: '14px', whiteSpace: 'nowrap' }}
                   >
                     주문 취소
                   </button>
                 ) : order.status === '준비 중' ? (
                   <button
                     onClick={() => onTracking && onTracking(order)}
-                    style={{ padding: '10px', borderRadius: '4px', border: '1px solid #3b82f6', background: 'white', color: '#3b82f6', fontWeight: '700', cursor: 'pointer', fontSize: '14px' }}
+                    style={{ flex: 1, padding: '10px', borderRadius: '4px', border: '1px solid #3b82f6', background: 'white', color: '#3b82f6', fontWeight: '700', cursor: 'pointer', fontSize: '14px', whiteSpace: 'nowrap' }}
                   >
                     주문 확인
                   </button>
                 ) : order.status === '배송 중' ? (
                   <button
                     onClick={() => onTracking && onTracking(order)}
-                    style={{ padding: '10px', borderRadius: '4px', border: '1px solid #3b82f6', background: 'white', color: '#3b82f6', fontWeight: '700', cursor: 'pointer', fontSize: '14px' }}
+                    style={{ flex: 1, padding: '10px', borderRadius: '4px', border: '1px solid #3b82f6', background: 'white', color: '#3b82f6', fontWeight: '700', cursor: 'pointer', fontSize: '14px', whiteSpace: 'nowrap' }}
                   >
                     배송 추적
                   </button>
                 ) : order.reviewWritten ? (
                   <button
                     onClick={() => onViewReview && onViewReview(order)}
-                    style={{ padding: '10px', borderRadius: '4px', border: '1px solid #cbd5e1', background: 'white', color: '#334155', fontWeight: '600', cursor: 'pointer', fontSize: '14px' }}
+                    style={{ flex: 1, padding: '10px', borderRadius: '4px', border: '1px solid #cbd5e1', background: 'white', color: '#334155', fontWeight: '600', cursor: 'pointer', fontSize: '14px', whiteSpace: 'nowrap' }}
                   >
                     내 리뷰 보기
                   </button>
                 ) : order.status === '배송 완료' ? (
-                  <button
-                    onClick={() => onWriteReview && onWriteReview(order)}
-                    style={{
-                      padding: '10px', borderRadius: '4px', border: '1px solid var(--primary)',
-                      background: 'white', color: 'var(--primary)', fontWeight: '700',
-                      cursor: 'pointer', fontSize: '14px'
-                    }}
-                  >
-                    리뷰 쓰기
-                  </button>
-                ) : order.status === '주문 취소됨' ? (
+                  <>
+                    <button
+                      onClick={() => onWriteReview && onWriteReview(order)}
+                      style={{
+                        flex: 1, padding: '10px', borderRadius: '4px', border: '1px solid var(--primary)',
+                        background: 'white', color: 'var(--primary)', fontWeight: '700',
+                        cursor: 'pointer', fontSize: '14px', whiteSpace: 'nowrap'
+                      }}
+                    >
+                      리뷰 쓰기
+                    </button>
+                    <button
+                      onClick={() => onRequestRefund && onRequestRefund(order.storeOrderId)}
+                      style={{
+                        flex: 1, padding: '10px', borderRadius: '4px', border: '1px solid #ef4444',
+                        background: 'white', color: '#ef4444', fontWeight: '700',
+                        cursor: 'pointer', fontSize: '14px', whiteSpace: 'nowrap'
+                      }}
+                    >
+                      환불 요청
+                    </button>
+                  </>
+                ) : order.status === '주문 취소됨' || order.status === '환불됨' || order.status === '환불 요청' ? (
                   <button
                     disabled
                     style={{
-                      padding: '10px', borderRadius: '4px', border: '1px solid #cbd5e1',
+                      flex: 1, padding: '10px', borderRadius: '4px', border: '1px solid #cbd5e1',
                       background: '#f8fafc', color: '#94a3b8', fontWeight: '600',
-                      cursor: 'not-allowed', fontSize: '14px'
+                      cursor: 'not-allowed', fontSize: '14px', whiteSpace: 'nowrap'
                     }}
                   >
-                    취소된 주문
+                    {order.status === '환불됨' ? '환불된 주문' : order.status === '환불 요청' ? '환불 처리 중' : '취소된 주문'}
                   </button>
                 ) : null}
                 <button
-                  onClick={() => alert('장바구니에 다시 담았습니다.')}
-                  style={{ padding: '10px', borderRadius: '4px', border: '1px solid #e2e8f0', background: 'white', color: '#334155', fontWeight: '600', cursor: 'pointer', fontSize: '14px' }}
+                  onClick={() => onAddToCartFromOrder && onAddToCartFromOrder(order.storeOrderId)}
+                  style={{ flex: 1, padding: '10px', borderRadius: '4px', border: '1px solid #e2e8f0', background: 'white', color: '#334155', fontWeight: '600', cursor: 'pointer', fontSize: '14px', whiteSpace: 'nowrap' }}
                 >
                   장바구니 담기
                 </button>
                 <button
                   onClick={() => setDetailOrder(order)}
-                  style={{ padding: '10px', borderRadius: '4px', border: '1px solid #e2e8f0', background: 'white', color: '#334155', fontWeight: '600', cursor: 'pointer', fontSize: '14px' }}
+                  style={{ flex: 1, padding: '10px', borderRadius: '4px', border: '1px solid #e2e8f0', background: 'white', color: '#334155', fontWeight: '600', cursor: 'pointer', fontSize: '14px', whiteSpace: 'nowrap' }}
                 >
                   상세 조회
                 </button>
