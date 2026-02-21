@@ -8,6 +8,8 @@ const ProfileSubTab = ({
   openTrackingModal,
   handleOpenReviewModal,
   handleCancelOrder,
+  handleRefundOrder,
+  handleAddToCartFromOrder,
   setViewingReview,
   setSelectedOrderForReview,
   setIsReviewModalOpen,
@@ -25,6 +27,8 @@ const ProfileSubTab = ({
       handleOpenReviewModal(order);
     }}
     onCancelOrder={handleCancelOrder}
+    onRequestRefund={handleRefundOrder}
+    onAddToCartFromOrder={handleAddToCartFromOrder}
     onViewReview={(order) => {
       // CustomerView의 handleOpenReviewModal이 reviewWritten 여부를 체크하여
       // 자동으로 조회 모드/작성 모드를 분기 처리함

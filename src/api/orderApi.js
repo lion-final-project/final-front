@@ -86,6 +86,16 @@ export const cancelStoreOrder = async (storeOrderId, reason) => {
 };
 
 /**
+ * 스토어 주문 환불 요청
+ * @param {number} storeOrderId - 스토어 주문 ID
+ * @param {string} reason - 환불 사유
+ * @returns {Promise<void>}
+ */
+export const requestRefund = async (storeOrderId, reason) => {
+  await api.post(`/api/store-orders/${storeOrderId}/refund`, { reason });
+};
+
+/**
  * 고객 배달 추적 목록 조회 (진행중 주문)
  */
 export const getDeliveryTrackingList = async (page = 0, size = 10) => {
