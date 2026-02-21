@@ -344,7 +344,7 @@ function App() {
     // STORE 역할 유저는 메인 페이지(CUSTOMER)를 먼저 보여주고, 헤더의 사장님 버튼으로 전환
     const role = Array.isArray(roles) && roles.length > 0 ? roles[0] : 'CUSTOMER';
     const normalizedRole = typeof role === 'string' ? role.replace('ROLE_', '') : role;
-    setUserRole(normalizedRole === 'STORE' ? 'CUSTOMER' : normalizedRole);
+    setUserRole(normalizedRole === 'STORE_OWNER' ? 'STORE' : normalizedRole);
     fetchStoreRegistration();
     fetchRiderRegistration();
   };

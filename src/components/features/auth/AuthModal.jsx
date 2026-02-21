@@ -95,7 +95,11 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode, socialSignupS
   };
 
   const getErrorMessage = (error, fallback) => {
-    return error.response?.data?.message || fallback;
+    const data = error.response?.data;
+    if (data?.error?.details?.length) {
+      return data.error.details[0].message || data.error?.message || fallback;
+    }
+    return data?.error?.message || data?.message || fallback;
   };
 
   const handleCheckEmail = async () => {
@@ -207,10 +211,11 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode, socialSignupS
         const user = await login(email, password);
         onLoginSuccess(user);
         onClose();
-      } catch (err) {
-        alert(getErrorMessage(err, '회원가입에 실패했습니다.'));
+} catch (err) {
+        const msg = getErrorMessage(err, '입력 정보를 확인해주세요.');
+        alert(msg);
       } finally {
-        setApiLoading(false);
+      setApiLoading(false);
       }
       return;
     }
