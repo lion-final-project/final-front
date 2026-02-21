@@ -1,10 +1,25 @@
-﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getNotices, createNotice, updateNotice, deleteNotice } from '../../../api/noticeApi';
 import { getBanners, createBanner, updateBanner, deleteBanner, updateBannerOrder } from '../../../api/bannerApi';
 import { getFaqsForAdmin, createFaq, updateFaq, deleteFaq } from '../../../api/faqApi';
 import { getAdminInquiries, getAdminInquiryDetail, answerInquiry } from '../../../api/inquiryApi';
 import { getAdminUsers, getAdminUserDetail, updateAdminUserStatus } from '../../../api/adminUserApi';
 import { getAdminReports, getAdminReportDetail, resolveAdminReport, getAdminBroadcastHistory, createAdminBroadcast } from '../../../api/adminModerationApi';
+import {
+  getAdminOverviewStats,
+  getAdminTransactionTrend,
+  getAdminPaymentSummary,
+  getAdminRiderSettlementSummary,
+  getAdminRiderSettlementTrend,
+  getAdminStoreSettlementSummary,
+  getAdminStoreSettlementTrend,
+  executeAdminRiderSettlement,
+  executeAdminRiderSettlementSingle,
+  getAdminStoreSettlements,
+  getAdminRiderSettlements,
+  executeAdminStoreSettlement,
+  executeAdminStoreSettlementSingle
+} from '../../../api/adminFinanceApi';
 import { formatDate, formatDateLocale, mapStoreApprovalItem, mapRiderApprovalItem, extractDocument } from './utils/adminDashboardUtils';
 import RecordDetailModal from './modals/RecordDetailModal';
 import ApprovalDetailModal from './modals/ApprovalDetailModal';
@@ -53,6 +68,7 @@ const AdminDashboard = () => {
 
 
   const [reports, setReports] = useState([]);
+  const [overviewReports, setOverviewReports] = useState([]);
 
   const [riders, setRiders] = useState([]);
   const [riderStats, setRiderStats] = useState({ total: 0, operating: 0, unavailable: 0, idCardPending: 0 });
@@ -82,8 +98,51 @@ const AdminDashboard = () => {
   const [detailedSettlements, setDetailedSettlements] = useState([]);
 
   const [riderSettlements, setRiderSettlements] = useState([]);
+  const [settlementPageInfo, setSettlementPageInfo] = useState({ page: 0, size: itemsPerPage, totalElements: 0, totalPages: 0, hasNext: false });
 
   const [paymentHistory, setPaymentHistory] = useState([]);
+  const [paymentSummary, setPaymentSummary] = useState({
+    grossPaymentAmount: 0,
+    platformFeeRevenue: 0,
+    refundAmount: 0,
+    netRevenue: 0,
+    paymentCount: 0,
+    refundRequestedCount: 0,
+    refundApprovedCount: 0,
+    refundRejectedCount: 0,
+    refundRequestedAmount: 0,
+    refundApprovedAmount: 0,
+    refundRejectedAmount: 0,
+    regularSalesAmount: 0,
+    subscriptionSalesAmount: 0
+  });
+  const [overviewStats, setOverviewStats] = useState({
+    totalUsers: 0,
+    approvedStores: 0,
+    deliveringRiders: 0,
+    pendingStoreSettlements: 0,
+    pendingReports: 0,
+    pendingInquiries: 0
+  });
+  const [transactionTrend, setTransactionTrend] = useState({ xLabels: [], yValues: [], maxY: 0 });
+  const [settlementSummary, setSettlementSummary] = useState({
+    totalTargets: 0,
+    completedTargets: 0,
+    pendingTargets: 0,
+    failedTargets: 0,
+    totalSettlementAmount: 0,
+    completedRate: 0
+  });
+  const [settlementTrend, setSettlementTrend] = useState({ xLabels: [], yValues: [], totalAmount: 0, changeRate: 0 });
+  const [riderSettlementSummary, setRiderSettlementSummary] = useState({
+    totalTargets: 0,
+    completedTargets: 0,
+    pendingTargets: 0,
+    failedTargets: 0,
+    totalSettlementAmount: 0,
+    completedRate: 0
+  });
+  const [riderSettlementTrend, setRiderSettlementTrend] = useState({ xLabels: [], yValues: [], totalAmount: 0, changeRate: 0 });
 
   useEffect(() => {
     setCurrentPage(1);
@@ -826,6 +885,21 @@ const AdminDashboard = () => {
     }
   }, [currentPage, itemsPerPage, reportsFilter, reportsSearch]);
 
+  const fetchOverviewReports = useCallback(async () => {
+    try {
+      const data = await getAdminReports({
+        page: 0,
+        size: 20,
+        keyword: null,
+        status: null
+      });
+      setOverviewReports((data?.content || []).map(toUiReport));
+    } catch (error) {
+      console.error('전체현황 신고 데이터 조회 실패:', error);
+      setOverviewReports([]);
+    }
+  }, []);
+
   const fetchReportDetail = useCallback(async (reportId) => {
     try {
       const data = await getAdminReportDetail(reportId);
@@ -908,51 +982,267 @@ const AdminDashboard = () => {
     }
   }, [activeTab, fetchBroadcastHistory]);
 
-  const handleExecuteSettlement = (type) => {
-    const list = type === 'STORE' ? detailedSettlements : riderSettlements;
-    const setter = type === 'STORE' ? setDetailedSettlements : setRiderSettlements;
-    const targetItems = list.filter(
-      s => s.status === '확인 대기' || s.status === '지급 처리중' || s.status === '지급 실패'
-    );
+  const toSettlementStatusLabel = (status) => {
+    if (status === 'COMPLETED') return '지급 완료';
+    if (status === 'PENDING') return '지급 처리중';
+    if (status === 'FAILED') return '지급 실패';
+    return '확인 대기';
+  };
 
-    if (targetItems.length === 0) {
-      alert('정산 실행 대상이 없습니다.');
+  const toSettlementStatusColor = (statusLabel) => {
+    if (statusLabel === '지급 완료') return '#10b981';
+    if (statusLabel === '지급 처리중') return '#38bdf8';
+    if (statusLabel === '지급 실패') return '#ef4444';
+    return '#f59e0b';
+  };
+
+  const toSettlementApiStatus = (statusLabel) => {
+    if (statusLabel === '지급 완료') return 'COMPLETED';
+    if (statusLabel === '지급 처리중' || statusLabel === '확인 대기') return 'PENDING';
+    if (statusLabel === '지급 실패') return 'FAILED';
+    return undefined;
+  };
+
+  const fetchFinanceOverview = useCallback(async () => {
+    try {
+      const stats = await getAdminOverviewStats();
+      setOverviewStats(stats || {});
+    } catch (error) {
+      console.error('전체현황 요약 조회 실패:', error);
+    }
+
+    try {
+      const trend = await getAdminTransactionTrend(chartPeriod);
+      setTransactionTrend(trend || { xLabels: [], yValues: [], maxY: 0 });
+    } catch (error) {
+      console.error('거래액 추이 조회 실패:', error);
+      setTransactionTrend({ xLabels: [], yValues: [], maxY: 0 });
+    }
+  }, [chartPeriod]);
+
+  const fetchSettlementDashboard = useCallback(async () => {
+    if (settlementFilter === 'STORE') {
+      try {
+        const summary = await getAdminStoreSettlementSummary(settlementMonthFilter);
+        setSettlementSummary(summary || {});
+      } catch (error) {
+        console.error('정산 요약 조회 실패:', error);
+      }
+
+      try {
+        const trend = await getAdminStoreSettlementTrend(6, settlementMonthFilter);
+        setSettlementTrend(trend || { xLabels: [], yValues: [], totalAmount: 0, changeRate: 0 });
+      } catch (error) {
+        console.error('정산 추이 조회 실패:', error);
+        setSettlementTrend({ xLabels: [], yValues: [], totalAmount: 0, changeRate: 0 });
+      }
       return;
     }
 
-    if (!confirm(`${type === 'STORE' ? '마트' : '배달원'} 정산 업무를 실행하시겠습니까?\n대상: ${targetItems.length}건`)) return;
+    try {
+      const summary = await getAdminRiderSettlementSummary(settlementMonthFilter);
+      setRiderSettlementSummary(summary || {});
+    } catch (error) {
+      console.error('라이더 정산 요약 조회 실패:', error);
+    }
 
-    // 정산 재시도 및 부분 성공 시나리오 모의 처리
-    let successCount = 0;
-    let retryCount = 0;
-    
-    // 실제 서비스에서는 비동기 API 호출로 처리
-    targetItems.forEach(item => {
-      // 일부 건은 최초 실패 후 재시도에서 성공하도록 모의 처리
-      const random = Math.random();
-      if (random > 0.1) { // 성공 확률 90%
-        successCount++;
-      } else {
-        // 재시도 로직: 최대 3회
-        for(let i=1; i<=3; i++) {
-          retryCount++;
-          if (Math.random() > 0.2) { // 재시도 시 성공 확률 80%
-            successCount++;
-            break;
+    try {
+      const trend = await getAdminRiderSettlementTrend(6, settlementMonthFilter);
+      setRiderSettlementTrend(trend || { xLabels: [], yValues: [], totalAmount: 0, changeRate: 0 });
+    } catch (error) {
+      console.error('라이더 정산 추이 조회 실패:', error);
+      setRiderSettlementTrend({ xLabels: [], yValues: [], totalAmount: 0, changeRate: 0 });
+    }
+  }, [settlementFilter, settlementMonthFilter]);
+
+  const fetchSettlementList = useCallback(async () => {
+    if (settlementFilter === 'STORE') {
+      try {
+        const response = await getAdminStoreSettlements({
+          yearMonth: settlementMonthFilter,
+          status: settlementStatusFilter === 'ALL' ? undefined : toSettlementApiStatus(settlementStatusFilter),
+          keyword: settlementSearch,
+          page: Math.max(currentPage - 1, 0),
+          size: itemsPerPage
+        });
+
+        const content = Array.isArray(response?.content) ? response.content : [];
+        const mapped = content.map((item) => {
+          const status = toSettlementStatusLabel(item.status);
+          return {
+            id: item.settlementId,
+            id_code: item.idCode || `STORE-${item.storeId}`,
+            name: item.storeName || '-',
+            region: item.region || '미상',
+            amount: item.amount || 0,
+            date: item.settlementPeriodEnd || item.settledAt || '-',
+            periodStart: item.settlementPeriodStart || null,
+            periodEnd: item.settlementPeriodEnd || null,
+            settledAt: item.settledAt || null,
+            contact: '-',
+            status,
+            color: toSettlementStatusColor(status)
+          };
+        });
+        setDetailedSettlements(mapped);
+        setSettlementPageInfo(response?.page || { page: 0, size: itemsPerPage, totalElements: content.length, totalPages: 1, hasNext: false });
+      } catch (error) {
+        console.error('마트 정산 목록 조회 실패:', error);
+        setDetailedSettlements([]);
+        setSettlementPageInfo({ page: 0, size: itemsPerPage, totalElements: 0, totalPages: 0, hasNext: false });
+      }
+      return;
+    }
+
+    try {
+      const response = await getAdminRiderSettlements({
+        yearMonth: settlementMonthFilter,
+        status: settlementStatusFilter === 'ALL' ? undefined : toSettlementApiStatus(settlementStatusFilter),
+        keyword: settlementSearch,
+        page: Math.max(currentPage - 1, 0),
+        size: itemsPerPage
+      });
+
+      const content = Array.isArray(response?.content) ? response.content : [];
+      const mapped = content.map((item) => {
+        const status = toSettlementStatusLabel(item.status);
+        return {
+          id: item.settlementId,
+          id_code: item.idCode || `RIDER-${item.riderId}`,
+          name: item.riderName || '-',
+          region: item.region || '전국',
+          amount: item.amount || 0,
+          date: item.settlementPeriodEnd || item.settledAt || '-',
+          periodStart: item.settlementPeriodStart || null,
+          periodEnd: item.settlementPeriodEnd || null,
+          settledAt: item.settledAt || null,
+          contact: item.riderPhone || '-',
+          status,
+          color: toSettlementStatusColor(status)
+        };
+      });
+      setRiderSettlements(mapped);
+      setSettlementPageInfo(response?.page || { page: 0, size: itemsPerPage, totalElements: content.length, totalPages: 1, hasNext: false });
+    } catch (error) {
+      console.error('라이더 정산 목록 조회 실패:', error);
+      setRiderSettlements([]);
+      setSettlementPageInfo({ page: 0, size: itemsPerPage, totalElements: 0, totalPages: 0, hasNext: false });
+    }
+  }, [settlementFilter, settlementMonthFilter, settlementStatusFilter, settlementSearch, currentPage, itemsPerPage]);
+
+  const fetchPaymentHistory = useCallback(async () => {
+    try {
+      const [summary, listResponse] = await Promise.all([
+        getAdminPaymentSummary(paymentMonthFilter),
+        (async () => {
+          const params = new URLSearchParams();
+          params.set('yearMonth', paymentMonthFilter);
+          params.set('page', String(Math.max(currentPage - 1, 0)));
+          params.set('size', String(itemsPerPage));
+          if (paymentSearch?.trim()) params.set('keyword', paymentSearch.trim());
+
+          const response = await fetch(`${API_BASE_URL}/api/admin/finance/payments?${params.toString()}`, {
+            headers: { ...authHeader() },
+            credentials: 'include'
+          });
+          if (!response.ok) {
+            throw new Error('Failed to load payments');
           }
-        }
-      }
-    });
+          return response.json();
+        })()
+      ]);
 
-    setter(prev => prev.map(item => {
-      if (item.status === '확인 대기' || item.status === '지급 처리중' || item.status === '지급 실패') {
-        // 모의 처리 단순화를 위해 성공 건은 지급 완료로 반영
-        return { ...item, status: '지급 완료', color: '#10b981' };
-      }
-      return item;
-    }));
+      setPaymentSummary(summary || {});
+      const content = Array.isArray(listResponse?.data?.content) ? listResponse.data.content : [];
+      setPaymentHistory(content.map((item) => ({
+        region: item.region || '미상',
+        category: item.category || '미분류',
+        mart: item.mart || '-',
+        amount: item.amount || 0,
+        commission: item.commission || 0,
+        refundAmount: item.refundAmount || 0,
+        status: item.status || '확인 대기'
+      })));
+    } catch (error) {
+      console.error('결제 내역 조회 실패:', error);
+      setPaymentSummary({
+        grossPaymentAmount: 0,
+        platformFeeRevenue: 0,
+        refundAmount: 0,
+        netRevenue: 0,
+        paymentCount: 0,
+        refundRequestedCount: 0,
+        refundApprovedCount: 0,
+        refundRejectedCount: 0,
+        refundRequestedAmount: 0,
+        refundApprovedAmount: 0,
+        refundRejectedAmount: 0,
+        regularSalesAmount: 0,
+        subscriptionSalesAmount: 0
+      });
+      setPaymentHistory([]);
+    }
+  }, [paymentMonthFilter, currentPage, itemsPerPage, paymentSearch]);
 
-    alert(`정산 실행 완료\n\n- 성공: ${successCount}건\n- 자동 재시도 횟수: ${retryCount}회\n\n실패 건도 재시도 후 최종적으로 '지급 완료'로 업데이트했습니다.`);
+  useEffect(() => {
+    if (activeTab === 'overview') {
+      fetchFinanceOverview();
+      fetchOverviewReports();
+    }
+  }, [activeTab, fetchFinanceOverview, fetchOverviewReports]);
+
+  useEffect(() => {
+    if (activeTab === 'settlements') {
+      fetchSettlementDashboard();
+      fetchSettlementList();
+    }
+  }, [activeTab, fetchSettlementDashboard, fetchSettlementList]);
+
+  useEffect(() => {
+    if (activeTab === 'payments') {
+      fetchPaymentHistory();
+    }
+  }, [activeTab, fetchPaymentHistory]);
+
+  const handleExecuteSettlement = (type) => {
+    const isStore = type === 'STORE';
+    const targetItems = (isStore ? detailedSettlements : riderSettlements).filter(
+      (s) => s.status === '확인 대기' || s.status === '지급 처리중' || s.status === '지급 실패'
+    );
+    if (!confirm(`${isStore ? '마트' : '라이더'} 정산 업무를 실행하시겠습니까?\n대상: ${targetItems.length}건`)) {
+      return;
+    }
+
+    const execute = isStore ? executeAdminStoreSettlement : executeAdminRiderSettlement;
+    execute(settlementMonthFilter)
+      .then((result) => {
+        alert(`정산 실행이 완료되었습니다.\n완료 건수: ${result?.completedCount ?? 0}건`);
+        fetchSettlementDashboard();
+        fetchSettlementList();
+      })
+      .catch((error) => {
+        console.error('정산 실행 실패:', error);
+        alert(error?.message || '정산 실행에 실패했습니다.');
+      });
+  };
+
+  const handleExecuteSingleSettlement = (type, settlementId) => {
+    const isStore = type === 'STORE';
+    if (!confirm(`${isStore ? '마트' : '라이더'} 개별 정산을 실행하시겠습니까?`)) {
+      return;
+    }
+
+    const execute = isStore ? executeAdminStoreSettlementSingle : executeAdminRiderSettlementSingle;
+    execute(settlementId)
+      .then(() => {
+        alert('개별 정산이 완료되었습니다.');
+        fetchSettlementDashboard();
+        fetchSettlementList();
+      })
+      .catch((error) => {
+        console.error('개별 정산 실행 실패:', error);
+        alert(error?.message || '개별 정산 실행에 실패했습니다.');
+      });
   };
 
   const handleInquiryAnswerSubmit = async (inquiry, answer, refresh) => {
@@ -979,7 +1269,7 @@ const AdminDashboard = () => {
   const renderActiveView = () => {
     switch (activeTab) {
       case 'overview':
-        return <OverviewTab chartPeriod={chartPeriod} setChartPeriod={setChartPeriod} setActiveTab={setActiveTab} detailedSettlements={detailedSettlements} riderSettlements={riderSettlements} reports={reports} approvalItems={approvalItems} inquiryList={inquiryList} />;
+        return <OverviewTab chartPeriod={chartPeriod} setChartPeriod={setChartPeriod} setActiveTab={setActiveTab} detailedSettlements={detailedSettlements} riderSettlements={riderSettlements} reports={overviewReports} approvalItems={approvalItems} inquiryList={inquiryList} overviewStats={overviewStats} transactionTrend={transactionTrend} />;
       case 'stores':
         return (
           <StoresTab
@@ -1080,9 +1370,9 @@ const AdminDashboard = () => {
           />
         );
       case 'payments':
-        return <PaymentsTab paymentMonthFilter={paymentMonthFilter} setPaymentMonthFilter={setPaymentMonthFilter} paymentHistory={paymentHistory} paymentSearch={paymentSearch} paymentRegionFilter={paymentRegionFilter} setPaymentSearch={setPaymentSearch} setPaymentRegionFilter={setPaymentRegionFilter} />;
+        return <PaymentsTab paymentMonthFilter={paymentMonthFilter} setPaymentMonthFilter={setPaymentMonthFilter} paymentHistory={paymentHistory} paymentSearch={paymentSearch} paymentRegionFilter={paymentRegionFilter} setPaymentSearch={setPaymentSearch} setPaymentRegionFilter={setPaymentRegionFilter} paymentSummary={paymentSummary} />;
       case 'settlements':
-        return <SettlementsTab settlementFilter={settlementFilter} setSettlementFilter={setSettlementFilter} detailedSettlements={detailedSettlements} riderSettlements={riderSettlements} settlementMonthFilter={settlementMonthFilter} setSettlementMonthFilter={setSettlementMonthFilter} settlementSearch={settlementSearch} settlementStatusFilter={settlementStatusFilter} setSettlementSearch={setSettlementSearch} setSettlementStatusFilter={setSettlementStatusFilter} handleExecuteSettlement={handleExecuteSettlement} />;
+        return <SettlementsTab settlementFilter={settlementFilter} setSettlementFilter={setSettlementFilter} detailedSettlements={detailedSettlements} riderSettlements={riderSettlements} settlementMonthFilter={settlementMonthFilter} setSettlementMonthFilter={setSettlementMonthFilter} settlementSearch={settlementSearch} settlementStatusFilter={settlementStatusFilter} setSettlementSearch={setSettlementSearch} setSettlementStatusFilter={setSettlementStatusFilter} handleExecuteSettlement={handleExecuteSettlement} handleExecuteSingleSettlement={handleExecuteSingleSettlement} settlementSummary={settlementSummary} settlementTrend={settlementTrend} riderSettlementSummary={riderSettlementSummary} riderSettlementTrend={riderSettlementTrend} pageInfo={settlementPageInfo} currentPage={currentPage} itemsPerPage={itemsPerPage} setCurrentPage={setCurrentPage} />;
       case 'approvals':
         return <ApprovalsTab approvalItems={approvalItems} approvalFilter={approvalFilter} approvalStatusFilter={approvalStatusFilter} setApprovalFilter={setApprovalFilter} setApprovalStatusFilter={setApprovalStatusFilter} handleOpenApproval={handleOpenApproval} currentPage={currentPage} itemsPerPage={itemsPerPage} setCurrentPage={setCurrentPage} />;
       case 'notifications':
@@ -1118,7 +1408,7 @@ const AdminDashboard = () => {
           />
         );
       default:
-        return <OverviewTab chartPeriod={chartPeriod} setChartPeriod={setChartPeriod} setActiveTab={setActiveTab} detailedSettlements={detailedSettlements} riderSettlements={riderSettlements} reports={reports} approvalItems={approvalItems} inquiryList={inquiryList} />;
+        return <OverviewTab chartPeriod={chartPeriod} setChartPeriod={setChartPeriod} setActiveTab={setActiveTab} detailedSettlements={detailedSettlements} riderSettlements={riderSettlements} reports={overviewReports} approvalItems={approvalItems} inquiryList={inquiryList} overviewStats={overviewStats} transactionTrend={transactionTrend} />;
     }
   };
 
@@ -1316,7 +1606,7 @@ const AdminDashboard = () => {
              activeTab === 'users' ? '사용자 관리' :
              activeTab === 'riders' ? '배달원 관리' :
              activeTab === 'payments' ? '결제 관리 센터' :
-             activeTab === 'settlements' ? '마트 정산 현황' :
+             activeTab === 'settlements' ? '정산 현황' :
              activeTab === 'cms' ? '콘텐츠 관리' :
              activeTab === 'reports' || activeTab === 'reports_view' ? '신고 및 분쟁 관리' :
              activeTab === 'notifications' ? '알림 발송 센터' :
