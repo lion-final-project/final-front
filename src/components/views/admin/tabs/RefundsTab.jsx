@@ -4,6 +4,8 @@ import Pagination from '../../../ui/Pagination';
 const RefundsTab = ({
     refunds,
     pageInfo,
+    refundStatusFilter,
+    setRefundStatusFilter,
     onPageChange,
     onOpenDetail
 }) => {
@@ -38,6 +40,16 @@ const RefundsTab = ({
             <div style={{ backgroundColor: '#1e293b', padding: '32px', borderRadius: '24px', border: '1px solid #334155' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
                     <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0 }}>환불 요청 내역</h2>
+                    <select
+                        value={refundStatusFilter}
+                        onChange={(e) => setRefundStatusFilter(e.target.value)}
+                        style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: '#334155', color: '#f8fafc', border: '1px solid #475569', fontSize: '14px', outline: 'none', cursor: 'pointer' }}
+                    >
+                        <option value="ALL">전체보기</option>
+                        <option value="REQUESTED">승인 대기</option>
+                        <option value="APPROVED">승인 완료</option>
+                        <option value="REJECTED">환불 거절</option>
+                    </select>
                 </div>
 
                 <div className="table-responsive">
