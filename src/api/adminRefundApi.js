@@ -1,8 +1,12 @@
 import api from './axios';
 
-export const getAdminRefunds = async (page = 0, size = 10) => {
+export const getAdminRefunds = async (page = 0, size = 10, status = null) => {
+    const params = { page, size };
+    if (status && status !== 'ALL') {
+        params.status = status;
+    }
     const response = await api.get('/api/admin/refunds', {
-        params: { page, size }
+        params
     });
     return response.data;
 };
