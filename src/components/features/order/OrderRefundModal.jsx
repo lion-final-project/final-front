@@ -186,7 +186,7 @@ const OrderRefundModal = ({
                                     }}
                                 />
                             )}
-                            {isProcessing ? "처리 중..." : "환불 확정"}
+                            {isProcessing ? "처리 중..." : "환불 요청"}
                         </button>
                     </div>
                 </div>
