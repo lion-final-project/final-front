@@ -1102,8 +1102,17 @@ const CustomerView = ({
       return;
     }
 
-    const finalReason =
+    let finalReason =
       cancelReason === "other" && cancelDetail ? cancelDetail : cancelReason;
+
+    // 한글로 변환하여 백엔드에 저장되게 처리
+    const reasonMap = {
+      'simple_change': '단순 변심',
+      'delivery_delay': '배송 지연',
+      'product_out_of_stock': '상품 품절',
+      'wrong_order': '주문 실수'
+    };
+    finalReason = reasonMap[finalReason] || finalReason;
 
     setIsCancelling(true);
     try {
@@ -1144,8 +1153,17 @@ const CustomerView = ({
       return;
     }
 
-    const finalReason =
+    let finalReason =
       refundReason === "other" && refundDetail ? refundDetail : refundReason;
+
+    // 한글로 변환하여 백엔드에 저장되게 처리
+    const reasonMap = {
+      'simple_change': '단순 변심',
+      'damaged_product': '상품 파손',
+      'missing_product': '누락된 상품',
+      'wrong_product': '오배송'
+    };
+    finalReason = reasonMap[finalReason] || finalReason;
 
     setIsRefunding(true);
     try {
@@ -1155,7 +1173,12 @@ const CustomerView = ({
       await fetchOrders(orderCurrentPage, orderDateFilter, orderSearchTerm);
     } catch (error) {
       console.error("환불 요청 실패:", error);
-      alert(error.response?.data?.message || "환불 요청에 실패했습니다.");
+      const errorMsg = error.response?.data?.message || "";
+      if (errorMsg.includes("이미 처리된 결제입니다") || errorMsg.includes("환불 신청이 불가")) {
+        alert("이미 환불 요청되었거나 거절된 주문 처리건이므로 다시 환불 신청이 불가합니다.");
+      } else {
+        alert(errorMsg || "환불 요청에 실패했습니다.");
+      }
     } finally {
       setIsRefunding(false);
     }
