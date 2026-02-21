@@ -141,3 +141,38 @@ export const completeDelivery = async (deliveryId, photoUrl) => {
         throw error;
     }
 };
+
+// 정산 목록 조회
+export const getRiderSettlements = async (year, month) => {
+    try {
+        const params = {};
+        if (year) params.year = year;
+        if (month) params.month = month;
+        const response = await api.get('/api/riders/settlements', { params });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};
+
+// 정산 상세 조회
+export const getRiderSettlementDetail = async (settlementId) => {
+    try {
+        const response = await api.get(`/api/riders/settlements/${settlementId}`);
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};
+
+// 라이더 배달 이력 조회
+export const getRiderDeliveryHistory = async (page = 0, size = 10) => {
+    try {
+        const response = await api.get('/api/riders/deliveries/history', {
+            params: { page, size }
+        });
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};
