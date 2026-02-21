@@ -151,14 +151,15 @@ const AdminDashboard = () => {
   const [refundPageInfo, setRefundPageInfo] = useState({ page: 0, size: itemsPerPage, totalElements: 0, totalPages: 0, hasNext: false });
   const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
   const [currentRefund, setCurrentRefund] = useState(null);
+  const [refundStatusFilter, setRefundStatusFilter] = useState('ALL');
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, approvalFilter, approvalStatusFilter, reportsFilter, settlementFilter, userSearch, inquiryFilter]);
+  }, [activeTab, approvalFilter, approvalStatusFilter, reportsFilter, settlementFilter, userSearch, inquiryFilter, refundStatusFilter]);
 
-  const fetchRefunds = useCallback(async (page = currentPage) => {
+  const fetchRefunds = useCallback(async (page = currentPage, filterStatus = refundStatusFilter) => {
     try {
-      const response = await getAdminRefunds(Math.max(page - 1, 0), itemsPerPage);
+      const response = await getAdminRefunds(Math.max(page - 1, 0), itemsPerPage, filterStatus);
       const data = response?.data?.data || response?.data || response;
       const content = Array.isArray(data?.content) ? data.content : [];
       setRefunds(content);
@@ -172,13 +173,13 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Failed to load refunds:', error);
     }
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, refundStatusFilter]);
 
   useEffect(() => {
     if (activeTab === 'refunds') {
-      fetchRefunds(currentPage);
+      fetchRefunds(currentPage, refundStatusFilter);
     }
-  }, [activeTab, currentPage, fetchRefunds]);
+  }, [activeTab, currentPage, refundStatusFilter, fetchRefunds]);
 
   const handleOpenRefundDetail = async (refundId) => {
     try {
@@ -1479,6 +1480,8 @@ const AdminDashboard = () => {
           <RefundsTab
             refunds={refunds}
             pageInfo={refundPageInfo}
+            refundStatusFilter={refundStatusFilter}
+            setRefundStatusFilter={setRefundStatusFilter}
             onPageChange={(page) => setCurrentPage(page)}
             onOpenDetail={handleOpenRefundDetail}
           />
