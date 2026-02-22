@@ -29,7 +29,7 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
         const response = await getRiderInfo();
         if (response && response.data) {
           setRiderData(response.data);
-          setIsOnline(response.data['operation-status'] === 'ONLINE');
+          setIsOnline(response.data['operation-status'] === 'ONLINE' || response.data['operation-status'] === 'DELIVERING');
         }
       } catch (error) {
         console.error('Failed to fetch rider info:', error);
@@ -59,19 +59,26 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
   useEffect(() => {
     const fetchExistingDeliveries = async () => {
       try {
-        // ACCEPTED 상태 배달 → 진행 중 배달로 표시
-        const res = await getMyDeliveries('ACCEPTED');
-        const deliveries = res?.data?.content || res?.data || [];
-        const items = Array.isArray(deliveries) ? deliveries : [];
-        if (items.length > 0) {
-          const mapped = items.map(d => ({
+        // ACCEPTED, PICKED_UP, DELIVERING 상태의 배달을 각각 호출하여 병합
+        const statuses = ['ACCEPTED', 'PICKED_UP', 'DELIVERING'];
+        const responses = await Promise.all(
+          statuses.map(status => getMyDeliveries(status).catch(() => null))
+        );
+
+        const allDeliveries = responses
+          .filter(Boolean)
+          .flatMap(res => res?.data?.content || res?.data || []);
+
+        if (allDeliveries.length > 0) {
+          const mapped = allDeliveries.map(d => ({
             id: d.id,
             store: d['store-name'] || d.storeName || '알 수 없음',
             storeAddress: d['pickup-address'] || d.pickupAddress || '',
             destination: d['delivery-address'] || d.deliveryAddress || '',
             distance: '',
             fee: d['delivery-fee'] || d.deliveryFee || 0,
-            status: 'accepted',
+            status: d.status === 'ACCEPTED' ? 'accepted' : d.status === 'PICKED_UP' ? 'pickup' : 'delivering',
+            orderNumber: d.orderNumber || d.id
           }));
           setActiveDeliveries(mapped);
         }
@@ -264,7 +271,7 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
       const response = await updateRiderStatus(newStatus);
       if (response && response.data) {
         setRiderData(response.data);
-        const nextIsOnline = response.data['operation-status'] === 'ONLINE';
+        const nextIsOnline = response.data['operation-status'] === 'ONLINE' || response.data['operation-status'] === 'DELIVERING';
         setIsOnline(nextIsOnline);
 
         // 운행 종료(OFFLINE) 시 Redis에서 위치 정보 삭제
@@ -389,15 +396,6 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
   };
 
   const renderActiveView = () => {
-    if (!isOnline && activeTab === 'main') {
-      return (
-        <div style={{ padding: '60px 20px', textAlign: 'center', opacity: 0.6 }}>
-          <div style={{ fontSize: '80px', marginBottom: '20px' }}>💤</div>
-          <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '12px' }}>현재 '운행 불가' 상태입니다</h2>
-          <p style={{ color: '#94a3b8', fontSize: '15px' }}>배달을 시작하려면 상단의 버튼을 활성화해주세요.</p>
-        </div>
-      );
-    }
 
     switch (activeTab) {
       case 'earnings':
@@ -420,6 +418,7 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
       case 'account':
         return (
           <AccountTab
+            userInfo={riderData}
             verificationStatus={verificationStatus}
             registeredVehicles={registeredVehicles}
             activeVehicleId={activeVehicleId}
