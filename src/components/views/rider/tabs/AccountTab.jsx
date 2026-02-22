@@ -1,6 +1,7 @@
 import React from 'react';
 
 const AccountTab = ({
+  userInfo,
   verificationStatus,
   registeredVehicles,
   activeVehicleId,
@@ -11,6 +12,26 @@ const AccountTab = ({
   return (
     <div style={{ padding: '20px' }}>
       <h2 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '24px' }}>계정 및 서류 관리</h2>
+
+      <div style={{ backgroundColor: '#1e293b', padding: '24px', borderRadius: '20px', marginBottom: '24px', border: '1px solid #334155' }}>
+        <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '16px' }}>내 정보</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '14px', color: '#cbd5e1' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ color: '#94a3b8' }}>이름</span>
+            <span style={{ fontWeight: '600', color: 'white' }}>{userInfo?.name || '정보 없음'}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ color: '#94a3b8' }}>연락처</span>
+            <span style={{ fontWeight: '600', color: 'white' }}>{userInfo?.phone || '정보 없음'}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ color: '#94a3b8' }}>정산 계좌</span>
+            <span style={{ fontWeight: '600', color: 'white' }}>
+              {userInfo?.['bank-name'] || userInfo?.bankName || ''} {userInfo?.['bank-account'] || userInfo?.bankAccount || ''} ({userInfo?.['account-holder'] || userInfo?.accountHolder || '본인'})
+            </span>
+          </div>
+        </div>
+      </div>
 
       <div style={{ backgroundColor: '#1e293b', padding: '24px', borderRadius: '20px', marginBottom: '24px', border: '1px solid #334155' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
