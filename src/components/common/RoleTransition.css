@@ -1,0 +1,191 @@
+.role-transition-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    pointer-events: none;
+    clip-path: circle(0% at 50% 50%);
+    animation: role-transition-anim 2s cubic-bezier(0.8, 0, 0.2, 1) forwards;
+}
+
+.role-transition-content {
+    text-align: center;
+    animation: role-content-fade 2s cubic-bezier(0.8, 0, 0.2, 1) forwards;
+}
+
+.role-transition-icon {
+    font-size: 80px;
+    margin-bottom: 20px;
+    display: inline-block;
+    animation: role-icon-bounce 2s cubic-bezier(0.8, 0, 0.2, 1) forwards;
+}
+
+.role-transition-title {
+    font-size: 44px;
+    font-weight: 900;
+    margin: 0;
+    letter-spacing: -2px;
+    text-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.role-transition-subtitle {
+    font-size: 18px;
+    font-weight: 500;
+    opacity: 0.9;
+    margin-top: 12px;
+}
+
+@keyframes role-transition-anim {
+    0% {
+        clip-path: circle(0% at 50% 50%);
+    }
+
+    40% {
+        clip-path: circle(150% at 50% 50%);
+    }
+
+    60% {
+        clip-path: circle(150% at 50% 50%);
+    }
+
+    100% {
+        clip-path: circle(0% at 50% 100%);
+    }
+}
+
+@keyframes role-content-fade {
+    0% {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+
+    35% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    65% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    100% {
+        opacity: 0;
+        transform: scale(1.1);
+    }
+}
+
+@keyframes role-icon-bounce {
+    0% {
+        transform: scale(0) rotate(-20deg);
+    }
+
+    30% {
+        transform: scale(1.2) rotate(10deg);
+    }
+
+    45% {
+        transform: scale(1) rotate(0deg);
+    }
+
+    65% {
+        transform: scale(1) rotate(0deg);
+    }
+
+    100% {
+        transform: scale(2) rotate(20deg);
+        opacity: 0;
+    }
+}
+
+.role-transition-overlay.denied {
+    background-color: #ef4444;
+    /* red-500 */
+    animation: role-denied-anim 2.5s cubic-bezier(0.8, 0, 0.2, 1) forwards;
+}
+
+@keyframes role-denied-anim {
+    0% {
+        clip-path: circle(0% at 50% 50%);
+    }
+
+    20% {
+        clip-path: circle(150% at 50% 50%);
+    }
+
+    80% {
+        clip-path: circle(150% at 50% 50%);
+    }
+
+    100% {
+        clip-path: circle(0% at 50% 100%);
+    }
+}
+
+.role-transition-content.denied {
+    animation: role-denied-content-fade 2.5s cubic-bezier(0.8, 0, 0.2, 1) forwards;
+}
+
+@keyframes role-denied-content-fade {
+    0% {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+
+    15% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    85% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    100% {
+        opacity: 0;
+        transform: scale(1.1);
+    }
+}
+
+.role-transition-icon.denied {
+    animation: role-denied-icon-shake 2.5s cubic-bezier(0.8, 0, 0.2, 1) forwards;
+}
+
+@keyframes role-denied-icon-shake {
+    0% {
+        transform: scale(0);
+    }
+
+    15% {
+        transform: scale(1.2);
+    }
+
+    20% {
+        transform: scale(0.9) rotate(-10deg);
+    }
+
+    25% {
+        transform: scale(1.1) rotate(10deg);
+    }
+
+    30% {
+        transform: scale(1) rotate(0deg);
+    }
+
+    85% {
+        transform: scale(1) rotate(0deg);
+        opacity: 1;
+    }
+
+    100% {
+        transform: scale(0.5);
+        opacity: 0;
+    }
+}

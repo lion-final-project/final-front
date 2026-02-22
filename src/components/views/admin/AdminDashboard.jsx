@@ -45,7 +45,7 @@ import { getAdminRefunds, getAdminRefundDetail, approveAdminRefund, rejectAdminR
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const authHeader = () => ({});
 
-const AdminDashboard = () => {
+const AdminDashboard = ({ setUserRole }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -1684,6 +1684,14 @@ const AdminDashboard = () => {
         <div className={`nav-item ${activeTab === 'inquiry' ? 'active' : ''}`}
           onClick={() => setActiveTab('inquiry')}
           style={{ padding: '12px', borderRadius: '8px', backgroundColor: activeTab === 'inquiry' ? '#334155' : 'transparent', color: activeTab === 'inquiry' ? '#38bdf8' : 'inherit', cursor: 'pointer' }}>💬 1:1 문의</div>
+        <div style={{ height: '1px', backgroundColor: '#334155', margin: '8px 0' }} />
+        <div className="nav-item"
+          onClick={() => {
+            if (window.confirm("고객 모드로 전환하시겠습니까?")) {
+              setUserRole?.('CUSTOMER');
+            }
+          }}
+          style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'transparent', color: 'inherit', cursor: 'pointer' }}>🙋🏻‍♂️ 고객모드</div>
       </div>
 
       {/* 메인 콘텐츠 */}
