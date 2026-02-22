@@ -30,47 +30,67 @@ npm run preview  # Preview production build locally
 src/
 ├── App.jsx                    # 메인 앱 컴포넌트 (역할별 라우팅, 전역 상태)
 ├── main.jsx                   # 앱 엔트리 포인트
+│
+├── api/                       # API 모듈 (백엔드 통신)
+│   ├── axios.js               # Axios 공유 인스턴스 (인터셉터, withCredentials)
+│   ├── authApi.js             # 인증 API (로그인, 회원가입, OAuth)
+│   ├── cart.js                # 장바구니 API
+│   ├── checkoutApi.js         # 결제 API
+│   ├── faqApi.js              # FAQ API
+│   ├── inquiryApi.js          # 1:1 문의 API
+│   ├── noticeApi.js           # 공지사항 API
+│   ├── notificationApi.js     # 알림 API (SSE 구독 포함)
+│   ├── orderApi.js            # 주문 API
+│   ├── riderApi.js            # 라이더 API
+│   └── storageApi.js          # 파일 업로드 API (S3/MinIO)
+│
 ├── components/
+│   ├── common/                # 공통 UI 컴포넌트
+│   │   ├── Header.jsx         # 공통 헤더 (검색, 알림, 사용자 메뉴)
+│   │   ├── Footer.jsx         # 공통 푸터
+│   │   ├── Hero.jsx           # 랜딩 페이지 히어로 섹션 (Swiper)
+│   │   ├── CategorySidebar.jsx # 카테고리 사이드바
+│   │   ├── NotificationPanel.jsx # 알림 패널
+│   │   └── StoreGrid.jsx      # 마트 목록 그리드
 │   │
-│   │  # 공통 UI 컴포넌트
-│   ├── Header.jsx             # 공통 헤더 (검색, 알림, 사용자 메뉴)
-│   ├── Footer.jsx             # 공통 푸터
-│   ├── Hero.jsx               # 랜딩 페이지 히어로 섹션 (Swiper 슬라이드)
-│   ├── AuthModal.jsx          # 로그인/회원가입 모달
-│   ├── NotificationPanel.jsx  # 알림 패널
-│   ├── CategorySidebar.jsx    # 카테고리 사이드바
-│   ├── LocationModal.jsx      # 배송지 선택/변경 모달
+│   ├── modals/                # 모달 컴포넌트
+│   │   ├── AuthModal.jsx      # 로그인/회원가입 모달
+│   │   ├── CartModal.jsx      # 장바구니 모달
+│   │   ├── InquiryModal.jsx   # 1:1 문의 모달
+│   │   ├── LocationModal.jsx  # 배송지 선택/변경 모달
+│   │   ├── OrderDetailFullModal.jsx # 주문 상세 전체 모달
+│   │   ├── OrderDetailModal.jsx # 주문 상세 모달
+│   │   ├── OrderReportModal.jsx # 주문 신고 모달
+│   │   ├── ReceiptModal.jsx   # 영수증 모달
+│   │   └── StoreDetailModal.jsx # 마트 상세/상품 목록 모달
 │   │
-│   │  # 고객(CUSTOMER) 관련 컴포넌트
-│   ├── CustomerView.jsx       # 고객 메인 뷰 (탭 네비게이션)
-│   ├── StoreGrid.jsx          # 마트 목록 그리드
-│   ├── StoreDetailView.jsx    # 마트 상세 페이지
-│   ├── StoreDetailModal.jsx   # 마트 상세/상품 목록 모달
-│   ├── CartModal.jsx          # 장바구니 모달
-│   ├── CheckoutView.jsx       # 결제 페이지
-│   ├── OrderTrackingView.jsx  # 실시간 주문 추적
-│   ├── OrderManagementView.jsx # 주문 관리 (마이페이지)
-│   ├── OrderDetailModal.jsx   # 주문 상세 모달
-│   ├── OrderDetailFullModal.jsx # 주문 상세 전체 모달
-│   ├── SearchResultsView.jsx  # 검색 결과 뷰
-│   ├── ReceiptModal.jsx       # 영수증 모달
-│   │
-│   │  # 마트(STORE) 관련 컴포넌트
-│   ├── StoreDashboard.jsx     # 마트 대시보드
-│   ├── StoreRegistrationView.jsx # 마트 등록 페이지
-│   │
-│   │  # 배달원(RIDER) 관련 컴포넌트
-│   ├── RiderDashboard.jsx     # 배달원 대시보드
-│   ├── RiderRegistrationView.jsx # 배달원 가입 페이지
-│   │
-│   │  # 관리자(ADMIN) 관련 컴포넌트
-│   ├── AdminDashboard.jsx     # 관리자 대시보드
-│   │
-│   │  # 기타 페이지/모달
-│   ├── PartnerPage.jsx        # 파트너 등록 페이지
-│   ├── SupportView.jsx        # 고객지원 페이지
-│   ├── InquiryModal.jsx       # 1:1 문의 모달
-│   └── ResidentDeliveryView.jsx # 주민 배달원 소개
+│   └── views/                 # 페이지 뷰 컴포넌트
+│       │  # 고객(CUSTOMER) 관련
+│       ├── CustomerView.jsx   # 고객 메인 뷰 (탭 네비게이션)
+│       ├── StoreDetailView.jsx # 마트 상세 페이지
+│       ├── CheckoutView.jsx   # 결제 페이지
+│       ├── OrderTrackingView.jsx # 실시간 주문 추적
+│       ├── OrderManagementView.jsx # 주문 관리 (마이페이지)
+│       ├── SearchResultsView.jsx # 검색 결과 뷰
+│       ├── SupportView.jsx    # 고객지원 페이지
+│       │
+│       │  # 마트(STORE) 관련
+│       ├── StoreDashboard.jsx # 마트 대시보드
+│       ├── StoreRegistrationView.jsx # 마트 등록 페이지
+│       │
+│       │  # 배달원(RIDER) 관련
+│       ├── RiderDashboard.jsx # 배달원 대시보드
+│       ├── RiderRegistrationView.jsx # 배달원 가입 페이지
+│       ├── ResidentDeliveryView.jsx # 주민 배달원 소개
+│       │
+│       │  # 관리자(ADMIN) 관련
+│       ├── AdminDashboard.jsx # 관리자 대시보드
+│       │
+│       │  # 기타
+│       └── PartnerPage.jsx    # 파트너 등록 페이지
+│
+├── config/
+│   └── api.js                 # API_BASE_URL, Kakao OAuth URL
 │
 ├── data/
 │   └── mockData.js            # 목업 데이터 (stores, products, orders 등)
