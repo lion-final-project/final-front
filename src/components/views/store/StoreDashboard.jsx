@@ -33,7 +33,7 @@ import ReportModal from './modals/ReportModal';
 const DAY_NAMES = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
 const FRONTEND_DAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // 프론트 표시 순서: 월~일 → dayOfWeek
 
-const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
+const StoreDashboard = ({ userInfo = { userId: 2 }, setUserRole }) => {
   const createEmptyProductForm = () => ({
     name: '',
     price: '',
@@ -316,14 +316,14 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
       .then(json => {
         const d = json?.data;
         if (d?.storeName != null) {
-            setStoreInfo(prev => ({
-                ...prev,
-                id: d.storeId,
-                name: d.storeName,
-                category: d.categoryName || prev.category,
-                img: d.storeImage ?? prev.img,
-                description: d.description ?? prev.description ?? '',
-            }));
+          setStoreInfo(prev => ({
+            ...prev,
+            id: d.storeId,
+            name: d.storeName,
+            category: d.categoryName || prev.category,
+            img: d.storeImage ?? prev.img,
+            description: d.description ?? prev.description ?? '',
+          }));
         }
         if (d?.isDeliveryAvailable !== undefined) {
           setIsStoreOpen(!!d.isDeliveryAvailable);
@@ -393,7 +393,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
         }
       })
       .catch(() => { if (!cancelled) setDashboardTodaySales(0); setDashboardDayOverDayRate(0); })
-      .finally(() => {});
+      .finally(() => { });
     return () => { cancelled = true; };
   }, [activeTab, currentYear, currentMonth]);
 
@@ -1332,28 +1332,43 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
           { id: 'subscriptions', label: '구독 관리', icon: '💎' },
           { id: 'settlements', label: '매출 및 정산', icon: '📈' },
           { id: 'reviews', label: '리뷰 관리', icon: '⭐' },
-          { id: 'settings', label: '운영 설정', icon: '⚙️' }
-        ].map((item) => (
-          <div
-            key={item.id}
-            className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(item.id)}
-            style={{
-              padding: '14px 18px',
-              borderRadius: '12px',
-              backgroundColor: activeTab === item.id ? '#334155' : 'transparent',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              fontSize: '15px',
-              fontWeight: activeTab === item.id ? '700' : '500',
-              color: activeTab === item.id ? '#38bdf8' : '#94a3b8',
-              transition: 'all 0.2s'
-            }}>
-            <span>{item.icon}</span> {item.label}
-          </div>
-        ))}
+          { id: 'settings', label: '운영 설정', icon: '⚙️' },
+          { id: 'divider', isDivider: true },
+          { id: 'customer', label: '고객모드', icon: '🙋🏻‍♂️' }
+        ].map((item, idx) => {
+          if (item.isDivider) {
+            return <div key={`div-${idx}`} style={{ height: '1px', backgroundColor: '#334155', margin: '8px 0' }} />;
+          }
+          return (
+            <div
+              key={item.id}
+              className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
+              onClick={() => {
+                if (item.id === 'customer') {
+                  if (window.confirm("고객 모드로 전환하시겠습니까?")) {
+                    setUserRole?.('CUSTOMER');
+                  }
+                } else {
+                  setActiveTab(item.id);
+                }
+              }}
+              style={{
+                padding: '14px 18px',
+                borderRadius: '12px',
+                backgroundColor: activeTab === item.id ? '#334155' : 'transparent',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                fontSize: '15px',
+                fontWeight: activeTab === item.id ? '700' : '500',
+                color: activeTab === item.id ? '#38bdf8' : '#94a3b8',
+                transition: 'all 0.2s'
+              }}>
+              <span>{item.icon}</span> {item.label}
+            </div>
+          );
+        })}
 
         <div style={{ marginTop: 'auto', padding: '20px', backgroundColor: '#0f172a', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>고객센터 안내</div>
