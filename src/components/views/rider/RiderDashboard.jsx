@@ -5,7 +5,6 @@ import MainTab from './tabs/MainTab';
 import EarningsTab from './tabs/EarningsTab';
 import HistoryTab from './tabs/HistoryTab';
 import AccountTab from './tabs/AccountTab';
-import LoginTab from './tabs/LoginTab';
 import MessageTemplatesModal from './modals/MessageTemplatesModal';
 import PhotoUploadModal from './modals/PhotoUploadModal';
 import ReceiptModal from './modals/ReceiptModal';
@@ -14,7 +13,7 @@ import ReportModal from './modals/ReportModal';
 import StatusPopup from './modals/StatusPopup';
 import CompletionNotification from './modals/CompletionNotification';
 
-const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
+const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo, setUserRole }) => {
   const [activeTab, setActiveTab] = useState('main');
   const [isOnline, setIsOnline] = useState(false); // Default false until loaded
   const [riderData, setRiderData] = useState(initialRiderInfo); // Manage local rider data
@@ -427,8 +426,6 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
             handleDeleteVehicle={handleDeleteVehicle}
           />
         );
-      case 'login':
-        return <LoginTab onLoginSuccess={() => setActiveTab('main')} />;
       default:
         return (
           <MainTab
@@ -567,11 +564,19 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
           { icon: '📋', label: '히스토리', tab: 'history' },
           { icon: '💰', label: '정산', tab: 'earnings' },
           { icon: '👤', label: '마이페이지', tab: 'account' },
-          { icon: '🔐', label: '로그인', tab: 'login' }
+          { icon: '🙋🏻‍♂️', label: '고객모드', tab: 'customer' }
         ].map(item => (
           <div
             key={item.tab}
-            onClick={() => setActiveTab(item.tab)}
+            onClick={() => {
+              if (item.tab === 'customer') {
+                if (window.confirm("고객 모드로 전환하시겠습니까?")) {
+                  setUserRole('CUSTOMER');
+                }
+              } else {
+                setActiveTab(item.tab);
+              }
+            }}
             className="rider-nav-item"
             style={{
               textAlign: 'center',
