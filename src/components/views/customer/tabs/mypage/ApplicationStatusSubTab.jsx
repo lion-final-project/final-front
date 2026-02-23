@@ -4,9 +4,13 @@ import { API_BASE_URL } from '../../../../../config/api';
 const ApplicationStatusSubTab = ({
   storeRegistrationStatus,
   storeRegistrationStoreName,
+  storeRegistrationReason,
+  storeRegistrationHeldUntil,
   setStoreRegistrationStatus,
   riderRegistrationStatus,
   riderRegistrationApprovalId,
+  riderRegistrationReason,
+  riderRegistrationHeldUntil,
   setStoreRegistrationStoreName,
   setActiveTab,
   refreshRiderRegistration,
@@ -16,6 +20,21 @@ const ApplicationStatusSubTab = ({
   showToast,
 }) => {
   const riderStatus = isResidentRider ? 'APPROVED' : (riderRegistrationStatus || 'NONE');
+  const storeStatus = storeRegistrationStatus || 'NONE';
+  const storeStatusLabel = (() => {
+    if (storeStatus === 'APPROVED') return '승인 완료';
+    if (storeStatus === 'PENDING') return '심사대기';
+    if (storeStatus === 'HELD') return '보류';
+    if (storeStatus === 'REJECTED') return '거절';
+    return '미신청';
+  })();
+  const storeStatusStyle = (() => {
+    if (storeStatus === 'APPROVED') return { backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981' };
+    if (storeStatus === 'HELD') return { backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' };
+    if (storeStatus === 'PENDING') return { backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#2563eb' };
+    if (storeStatus === 'REJECTED') return { backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' };
+    return { backgroundColor: '#f1f5f9', color: '#94a3b8' };
+  })();
   const riderStatusLabel = (() => {
     if (riderStatus === 'APPROVED') return '승인 완료';
     if (riderStatus === 'PENDING') return '미승인';
@@ -60,35 +79,31 @@ const ApplicationStatusSubTab = ({
                 borderRadius: '20px',
                 fontSize: '12px',
                 fontWeight: '800',
-                backgroundColor:
-                  storeRegistrationStatus === 'APPROVED'
-                    ? 'rgba(16, 185, 129, 0.1)'
-                    : storeRegistrationStatus && storeRegistrationStatus !== 'NONE'
-                      ? 'rgba(245, 158, 11, 0.1)'
-                      : '#f1f5f9',
-                color:
-                  storeRegistrationStatus === 'APPROVED'
-                    ? '#10b981'
-                    : storeRegistrationStatus && storeRegistrationStatus !== 'NONE'
-                      ? '#f59e0b'
-                      : '#94a3b8',
+                backgroundColor: storeStatusStyle.backgroundColor,
+                color: storeStatusStyle.color,
               }}
             >
-              {storeRegistrationStatus === 'APPROVED'
-                ? '승인 완료'
-                : storeRegistrationStatus && storeRegistrationStatus !== 'NONE'
-                  ? '심사 중'
-                  : '미신청'}
+              {storeStatusLabel}
             </div>
           </div>
-          {storeRegistrationStatus && storeRegistrationStatus !== 'NONE' ? (
+          {storeStatus !== 'NONE' ? (
             <div>
-              <div style={{ fontSize: '14px', color: '#64748b', lineHeight: '1.6', marginBottom: storeRegistrationStatus !== 'APPROVED' ? '12px' : '0' }}>
-                {storeRegistrationStatus === 'APPROVED'
+              <div style={{ fontSize: '14px', color: '#64748b', lineHeight: '1.6', marginBottom: storeStatus !== 'APPROVED' ? '12px' : '0' }}>
+                {storeStatus === 'APPROVED'
                   ? '입점 승인이 완료되었습니다. 마트 관리 기능을 바로 이용할 수 있습니다.'
-                  : '신청서가 접수되어 심사 중입니다. 영업일 기준 1~3일 내 결과를 안내드립니다.'}
+                  : storeStatus === 'HELD'
+                    ? '보류 사유를 확인하고 서류/정보를 보완해 다시 신청할 수 있습니다.'
+                    : storeStatus === 'REJECTED'
+                      ? '거절 사유를 확인한 뒤 정보를 수정하여 다시 신청할 수 있습니다.'
+                      : '신청서가 접수되어 심사 중입니다. 영업일 기준 1~3일 내 결과를 안내드립니다.'}
               </div>
-              {storeRegistrationStatus !== 'APPROVED' && (
+              {(storeRegistrationReason || storeRegistrationHeldUntil) && (
+                <div style={{ marginBottom: '12px', padding: '12px', borderRadius: '10px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '13px', color: '#334155' }}>
+                  {storeRegistrationReason && <div><strong>사유:</strong> {storeRegistrationReason}</div>}
+                  {storeRegistrationHeldUntil && <div style={{ marginTop: '4px' }}><strong>보류 만료:</strong> {new Date(storeRegistrationHeldUntil).toLocaleString('ko-KR')}</div>}
+                </div>
+              )}
+              {storeStatus !== 'APPROVED' && (
                 <button
                   onClick={async () => {
                     if (!window.confirm('마트 신청을 취소하시겠습니까?')) return;
@@ -176,6 +191,12 @@ const ApplicationStatusSubTab = ({
                       ? '라이더 신청이 거절되었습니다. 사유를 확인 후 재신청해주세요.'
                       : '라이더 신청서가 접수되었습니다. 승인 전 상태입니다.'}
               </div>
+              {(riderRegistrationReason || riderRegistrationHeldUntil) && (
+                <div style={{ marginBottom: '12px', padding: '12px', borderRadius: '10px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '13px', color: '#334155' }}>
+                  {riderRegistrationReason && <div><strong>사유:</strong> {riderRegistrationReason}</div>}
+                  {riderRegistrationHeldUntil && <div style={{ marginTop: '4px' }}><strong>보류 만료:</strong> {new Date(riderRegistrationHeldUntil).toLocaleString('ko-KR')}</div>}
+                </div>
+              )}
               {!isResidentRider && (riderStatus === 'PENDING' || riderStatus === 'HELD') && (
                 <button
                   onClick={async () => {

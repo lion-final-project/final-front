@@ -77,8 +77,12 @@ function App() {
   const [isResidentRider, setIsResidentRider] = useState(false);
   const [storeRegistrationStatus, setStoreRegistrationStatus] = useState('NONE'); // NONE, PENDING, APPROVED
   const [storeRegistrationStoreName, setStoreRegistrationStoreName] = useState(null); // 입점 신청한 상호명
+  const [storeRegistrationReason, setStoreRegistrationReason] = useState(null);
+  const [storeRegistrationHeldUntil, setStoreRegistrationHeldUntil] = useState(null);
   const [riderRegistrationStatus, setRiderRegistrationStatus] = useState('NONE');
   const [riderRegistrationApprovalId, setRiderRegistrationApprovalId] = useState(null);
+  const [riderRegistrationReason, setRiderRegistrationReason] = useState(null);
+  const [riderRegistrationHeldUntil, setRiderRegistrationHeldUntil] = useState(null);
   const [riderInfo, setRiderInfo] = useState(null);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -251,15 +255,21 @@ function App() {
       const res = await api.get('/api/stores/registration');
       const data = res?.data?.data;
       if (data?.status && data.status !== 'NONE') {
-        setStoreRegistrationStatus(data.status === 'APPROVED' ? 'APPROVED' : 'PENDING');
+        setStoreRegistrationStatus(data.status);
         setStoreRegistrationStoreName(data.storeName || null);
+        setStoreRegistrationReason(data.reason || null);
+        setStoreRegistrationHeldUntil(data.heldUntil || null);
       } else {
         setStoreRegistrationStatus('NONE');
         setStoreRegistrationStoreName(null);
+        setStoreRegistrationReason(null);
+        setStoreRegistrationHeldUntil(null);
       }
     } catch {
       setStoreRegistrationStatus('NONE');
       setStoreRegistrationStoreName(null);
+      setStoreRegistrationReason(null);
+      setStoreRegistrationHeldUntil(null);
     }
   };
   const fetchRiderRegistration = async () => {
@@ -270,15 +280,21 @@ function App() {
         setRiderRegistrationStatus(data.status);
         setIsResidentRider(data.status === 'APPROVED');
         setRiderRegistrationApprovalId(data.approvalId ?? null);
+        setRiderRegistrationReason(data.reason || null);
+        setRiderRegistrationHeldUntil(data.heldUntil || null);
       } else {
         setRiderRegistrationStatus('NONE');
         setIsResidentRider(false);
         setRiderRegistrationApprovalId(null);
+        setRiderRegistrationReason(null);
+        setRiderRegistrationHeldUntil(null);
       }
     } catch {
       setRiderRegistrationStatus('NONE');
       setIsResidentRider(false);
       setRiderRegistrationApprovalId(null);
+      setRiderRegistrationReason(null);
+      setRiderRegistrationHeldUntil(null);
     }
   };
 
@@ -511,8 +527,12 @@ function App() {
         setStoreRegistrationStatus={setStoreRegistrationStatus}
         storeRegistrationStoreName={storeRegistrationStoreName}
         setStoreRegistrationStoreName={setStoreRegistrationStoreName}
+        storeRegistrationReason={storeRegistrationReason}
+        storeRegistrationHeldUntil={storeRegistrationHeldUntil}
         riderRegistrationStatus={riderRegistrationStatus}
         riderRegistrationApprovalId={riderRegistrationApprovalId}
+        riderRegistrationReason={riderRegistrationReason}
+        riderRegistrationHeldUntil={riderRegistrationHeldUntil}
         refreshRiderRegistration={refreshRiderRegistration}
         riderInfo={riderInfo}
         setRiderInfo={setRiderInfo}
