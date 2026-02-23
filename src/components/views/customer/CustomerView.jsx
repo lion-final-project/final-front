@@ -77,8 +77,12 @@ const CustomerView = ({
   setStoreRegistrationStatus,
   storeRegistrationStoreName,
   setStoreRegistrationStoreName,
+  storeRegistrationReason,
+  storeRegistrationHeldUntil,
   riderRegistrationStatus,
   riderRegistrationApprovalId,
+  riderRegistrationReason,
+  riderRegistrationHeldUntil,
   refreshRiderRegistration,
   riderInfo,
   setRiderInfo,
@@ -1666,6 +1670,8 @@ const CustomerView = ({
           <StoreRegistrationView
             onBack={() => setActiveTab("partner")}
             status={storeRegistrationStatus}
+            reason={storeRegistrationReason}
+            heldUntil={storeRegistrationHeldUntil}
             setStatus={setStoreRegistrationStatus}
             setStoreRegistrationStoreName={setStoreRegistrationStoreName}
             userId={userInfo?.userId}
@@ -1760,10 +1766,14 @@ const CustomerView = ({
             paymentMethodList={paymentMethodList}
             storeRegistrationStatus={storeRegistrationStatus}
             storeRegistrationStoreName={storeRegistrationStoreName}
+            storeRegistrationReason={storeRegistrationReason}
+            storeRegistrationHeldUntil={storeRegistrationHeldUntil}
             setStoreRegistrationStatus={setStoreRegistrationStatus}
             setStoreRegistrationStoreName={setStoreRegistrationStoreName}
             riderRegistrationStatus={riderRegistrationStatus}
             riderRegistrationApprovalId={riderRegistrationApprovalId}
+            riderRegistrationReason={riderRegistrationReason}
+            riderRegistrationHeldUntil={riderRegistrationHeldUntil}
             refreshRiderRegistration={refreshRiderRegistration}
             setIsResidentRider={setIsResidentRider}
             inquiries={inquiries}
