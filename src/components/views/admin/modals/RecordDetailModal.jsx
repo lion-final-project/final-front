@@ -1,10 +1,10 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 
 const isImageFile = (url) => {
   if (!url) return false;
   if (url.startsWith('data:image/')) return true;
   const clean = url.split('?')[0].toLowerCase();
-  return clean.endsWith('.png') || clean.endsWith('.jpg') || clean.endsWith('.jpeg') || clean.endsWith('.gif') || clean.endsWith('.webp');
+  return clean.endsWith('.png') || clean.endsWith('.jpg') || clean.endsWith('.jpeg') || clean.endsWith('.gif') || clean.endsWith('.webp') || clean.endsWith('.svg');
 };
 
 const FilePreview = ({ label, url }) => (
@@ -41,7 +41,7 @@ const FilePreview = ({ label, url }) => (
   </div>
 );
 
-const RecordDetailModal = ({ record, onClose, onToggleStatus, reports }) => {
+const RecordDetailModal = ({ record, onClose, onToggleStatus, reports, onOpenStoreDetail, onOpenRiderDetail }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [showStopInput, setShowStopInput] = useState(false);
   const [reason, setReason] = useState('');
@@ -65,12 +65,20 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports }) => {
     || record.status === '운행중'
     || record.status === '영업중';
 
-  const statusLabel = record.status
-    || (isRider ? (record.isActive ? '운행중' : '운행불가') : (record.isActive ? '영업중' : '영업중지'));
+  const USER_ACTIVE_LABEL = '\uD65C\uC131';
+  const USER_INACTIVE_LABEL = '\uBE44\uD65C\uC131';
+  const RIDER_ACTIVE_LABEL = '\uC6B4\uD589\uC911';
+  const RIDER_INACTIVE_LABEL = '\uC6B4\uD589\uBD88\uAC00';
+  const STORE_ACTIVE_LABEL = '\uC601\uC5C5\uC911';
+  const STORE_INACTIVE_LABEL = '\uC601\uC5C5\uC911\uC9C0';
+
+  const statusLabel = isUser
+    ? (record.isActive ? USER_ACTIVE_LABEL : USER_INACTIVE_LABEL)
+    : (record.status || (isRider ? (record.isActive ? RIDER_ACTIVE_LABEL : RIDER_INACTIVE_LABEL) : (record.isActive ? STORE_ACTIVE_LABEL : STORE_INACTIVE_LABEL)));
 
   const statusColor = isRider
-    ? (statusLabel === '운행중' ? '#10b981' : '#ef4444')
-    : ((statusLabel === '정상' || statusLabel === '활성' || statusLabel === '영업중') ? '#10b981' : '#ef4444');
+    ? (statusLabel === RIDER_ACTIVE_LABEL ? '#10b981' : '#ef4444')
+    : ((statusLabel === '정상' || statusLabel === USER_ACTIVE_LABEL || statusLabel === STORE_ACTIVE_LABEL) ? '#10b981' : '#ef4444');
 
   const handleStatusChange = () => {
     if (isActiveStatus && !showStopInput) {
@@ -85,7 +93,9 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports }) => {
 
   const toggleButtonLabel = isRider
     ? (isActiveStatus ? '운행 비활성화' : '운행중으로 전환')
-    : (isActiveStatus ? (showStopInput ? '정지 완료' : '영업중지 처리') : '영업중으로 전환');
+    : isUser
+      ? (isActiveStatus ? '비활성' : '활성')
+      : (isActiveStatus ? (showStopInput ? '정지 완료' : '영업중지 처리') : '영업중으로 전환');
 
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backdropFilter: 'blur(3px)' }}>
@@ -171,7 +181,11 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports }) => {
             <>
               <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '12px' }}>
                 <span style={{ color: '#94a3b8', fontSize: '14px' }}>지역</span>
-                <span>{record.loc}</span>
+                <span>{record.region || '-'}</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '12px' }}>
+                <span style={{ color: '#94a3b8', fontSize: '14px' }}>주소</span>
+                <span>{record.loc || '-'}</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '12px' }}>
                 <span style={{ color: '#94a3b8', fontSize: '14px' }}>누적 주문</span>
@@ -181,6 +195,51 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports }) => {
                 <span style={{ color: '#94a3b8', fontSize: '14px' }}>가입일</span>
                 <span>{record.join}</span>
               </div>
+              {(record.ownedStore || record.riderProfile) && (
+                <div style={{ marginTop: '12px', padding: '16px', backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #334155' }}>
+                  <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '12px' }}>역할 연계 정보</div>
+                  {record.ownedStore && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr auto', gap: '12px', alignItems: 'center', marginBottom: record.riderProfile ? '12px' : '0' }}>
+                      <span style={{ color: '#94a3b8', fontSize: '14px' }}>마트 정보</span>
+                      <span style={{ fontWeight: '700' }}>
+                        {record.ownedStore.storeName} ({record.ownedStore.activeStatus === 'ACTIVE' ? '운영중' : '운영중지'})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          if (onOpenStoreDetail && record.ownedStore.storeId) {
+                            onOpenStoreDetail(record.ownedStore.storeId);
+                          }
+                        }}
+                        style={{ padding: '6px 12px', borderRadius: '8px', backgroundColor: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', border: 'none', cursor: 'pointer', fontWeight: '700' }}
+                      >
+                        마트 상세정보
+                      </button>
+                    </div>
+                  )}
+                  {record.riderProfile && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr auto', gap: '12px', alignItems: 'center' }}>
+                      <span style={{ color: '#94a3b8', fontSize: '14px' }}>라이더 정보</span>
+                      <span style={{ fontWeight: '700' }}>
+                        {record.riderProfile.riderName} ({record.riderProfile.operationStatus === 'OFFLINE' ? '운행정지' : '운행중'})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          if (onOpenRiderDetail && record.riderProfile.riderId) {
+                            onOpenRiderDetail(record.riderProfile.riderId);
+                          }
+                        }}
+                        style={{ padding: '6px 12px', borderRadius: '8px', backgroundColor: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', border: 'none', cursor: 'pointer', fontWeight: '700' }}
+                      >
+                        라이더 상세정보
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
               <div style={{ marginTop: '12px', padding: '16px', backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #334155' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: '13px', color: '#94a3b8' }}>누적 신고 이력 ({relatedReports.length}건)</span>
@@ -246,7 +305,7 @@ const RecordDetailModal = ({ record, onClose, onToggleStatus, reports }) => {
             <span style={{ color: '#94a3b8', fontSize: '14px' }}>현재 상태</span>
             <span style={{ color: statusColor, fontWeight: '800' }}>
               {statusLabel}
-              {statusLabel === '정지' && record.currentStatusReason ? ` (사유: ${record.currentStatusReason})` : ''}
+              {(statusLabel === '비활성' || statusLabel === '정지') && record.currentStatusReason ? ` (사유: ${record.currentStatusReason})` : ''}
             </span>
           </div>
         </div>
