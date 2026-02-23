@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React, { useMemo, useState } from 'react';
 import Pagination from '../../../ui/Pagination';
 
 const RidersTab = ({
@@ -13,8 +13,21 @@ const RidersTab = ({
   onSearch,
   onOpenDetail
 }) => {
+  const [statusFilter, setStatusFilter] = useState('ALL');
   const safeStats = stats || { total: riders.length, operating: 0, unavailable: 0, idCardPending: 0 };
-  const totalItems = pageInfo?.totalElements ?? riders.length;
+
+  const filteredRiders = useMemo(() => {
+    if (statusFilter === 'ALL') return riders;
+    const active = statusFilter === 'ACTIVE';
+    return riders.filter((rider) => {
+      const isActive = rider.isActive ?? rider.status === '운행중';
+      return isActive === active;
+    });
+  }, [riders, statusFilter]);
+
+  const totalItems = statusFilter === 'ALL'
+    ? (pageInfo?.totalElements ?? riders.length)
+    : filteredRiders.length;
 
   const handleKeyDown = (event) => {
     if (event.key === 'Enter') {
@@ -39,7 +52,7 @@ const RidersTab = ({
       </div>
 
       <div style={{ backgroundColor: '#1e293b', padding: '32px', borderRadius: '24px', border: '1px solid #334155' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0 }}>배달원 목록 및 관리</h2>
           <div style={{ display: 'flex', gap: '12px' }}>
             <input
@@ -58,6 +71,34 @@ const RidersTab = ({
             </button>
           </div>
         </div>
+
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+          {[
+            { key: 'ALL', label: '전체보기' },
+            { key: 'ACTIVE', label: '운행중' },
+            { key: 'INACTIVE', label: '운행정지' }
+          ].map((item) => (
+            <button
+              key={item.key}
+              onClick={() => {
+                setStatusFilter(item.key);
+                setCurrentPage(1);
+              }}
+              style={{
+                padding: '8px 14px',
+                borderRadius: '10px',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: '700',
+                backgroundColor: statusFilter === item.key ? '#334155' : 'transparent',
+                color: statusFilter === item.key ? 'white' : '#94a3b8'
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
         <div className="table-responsive">
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -69,9 +110,9 @@ const RidersTab = ({
               </tr>
             </thead>
             <tbody>
-              {riders.map((rider) => {
+              {filteredRiders.map((rider) => {
                 const isActive = rider.isActive ?? rider.status === '운행중';
-                const statusLabel = isActive ? '운행중' : (rider.status || '운행불가');
+                const statusLabel = isActive ? '운행중' : '운행정지';
                 return (
                   <tr key={rider.id} style={{ borderBottom: '1px solid #334155', fontSize: '15px' }}>
                     <td style={{ padding: '16px' }}>
@@ -101,6 +142,13 @@ const RidersTab = ({
                   </tr>
                 );
               })}
+              {filteredRiders.length === 0 && (
+                <tr>
+                  <td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
+                    조건에 맞는 배달원이 없습니다.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
