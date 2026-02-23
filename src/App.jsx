@@ -6,10 +6,10 @@ import CustomerView from './components/views/customer/CustomerView';
 import StoreDashboard from './components/views/store/StoreDashboard';
 import RiderDashboard from './components/views/rider/RiderDashboard';
 import AdminDashboard from './components/views/admin/AdminDashboard';
-import NotificationPanel from './components/common/NotificationPanel';
 import AuthModal from './components/features/auth/AuthModal';
 import PasswordResetView from './components/features/auth/PasswordResetView';
 import { Agentation } from "agentation";
+import RoleTransition, { AccessDeniedAnimation } from './components/common/RoleTransition';
 
 import { checkAuth, logout, clearAuthCookies } from './api/authApi';
 import { subscribeNotifications, getUnreadNotifications, markAllAsRead, markAsRead } from './api/notificationApi';
@@ -44,9 +44,32 @@ class ErrorBoundary extends React.Component {
 }
 
 function App() {
-  const [userRole, setUserRole] = useState('CUSTOMER'); // CUSTOMER, STORE, RIDER, ADMIN
+  const [userRole, _setUserRole] = useState('CUSTOMER'); // CUSTOMER, STORE, RIDER, ADMIN
+  const [deniedRole, setDeniedRole] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userInfo, setUserInfo] = useState(null); // 사용자 정보 저장
+
+  const hasRole = useCallback((role) => {
+    if (!userInfo?.roles) return false;
+    return userInfo.roles.includes(role) || userInfo.roles.includes(`ROLE_${role}`);
+  }, [userInfo]);
+
+  const setUserRole = useCallback((role) => {
+    if (role === 'STORE' && !hasRole('STORE')) {
+      setDeniedRole('STORE');
+      return;
+    }
+    if (role === 'RIDER' && !hasRole('RIDER')) {
+      setDeniedRole('RIDER');
+      return;
+    }
+    if (role === 'ADMIN' && !hasRole('ADMIN')) {
+      setDeniedRole('ADMIN');
+      return;
+    }
+    _setUserRole(role);
+  }, [hasRole]);
+
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalInitialMode, setAuthModalInitialMode] = useState(null); // 'social-extra' | null
   const [socialSignupState, setSocialSignupState] = useState(null); // 소셜 추가 가입용 state JWT (세션 대신)
@@ -54,8 +77,12 @@ function App() {
   const [isResidentRider, setIsResidentRider] = useState(false);
   const [storeRegistrationStatus, setStoreRegistrationStatus] = useState('NONE'); // NONE, PENDING, APPROVED
   const [storeRegistrationStoreName, setStoreRegistrationStoreName] = useState(null); // 입점 신청한 상호명
+  const [storeRegistrationReason, setStoreRegistrationReason] = useState(null);
+  const [storeRegistrationHeldUntil, setStoreRegistrationHeldUntil] = useState(null);
   const [riderRegistrationStatus, setRiderRegistrationStatus] = useState('NONE');
   const [riderRegistrationApprovalId, setRiderRegistrationApprovalId] = useState(null);
+  const [riderRegistrationReason, setRiderRegistrationReason] = useState(null);
+  const [riderRegistrationHeldUntil, setRiderRegistrationHeldUntil] = useState(null);
   const [riderInfo, setRiderInfo] = useState(null);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -228,15 +255,21 @@ function App() {
       const res = await api.get('/api/stores/registration');
       const data = res?.data?.data;
       if (data?.status && data.status !== 'NONE') {
-        setStoreRegistrationStatus(data.status === 'APPROVED' ? 'APPROVED' : 'PENDING');
+        setStoreRegistrationStatus(data.status);
         setStoreRegistrationStoreName(data.storeName || null);
+        setStoreRegistrationReason(data.reason || null);
+        setStoreRegistrationHeldUntil(data.heldUntil || null);
       } else {
         setStoreRegistrationStatus('NONE');
         setStoreRegistrationStoreName(null);
+        setStoreRegistrationReason(null);
+        setStoreRegistrationHeldUntil(null);
       }
     } catch {
       setStoreRegistrationStatus('NONE');
       setStoreRegistrationStoreName(null);
+      setStoreRegistrationReason(null);
+      setStoreRegistrationHeldUntil(null);
     }
   };
   const fetchRiderRegistration = async () => {
@@ -247,15 +280,21 @@ function App() {
         setRiderRegistrationStatus(data.status);
         setIsResidentRider(data.status === 'APPROVED');
         setRiderRegistrationApprovalId(data.approvalId ?? null);
+        setRiderRegistrationReason(data.reason || null);
+        setRiderRegistrationHeldUntil(data.heldUntil || null);
       } else {
         setRiderRegistrationStatus('NONE');
         setIsResidentRider(false);
         setRiderRegistrationApprovalId(null);
+        setRiderRegistrationReason(null);
+        setRiderRegistrationHeldUntil(null);
       }
     } catch {
       setRiderRegistrationStatus('NONE');
       setIsResidentRider(false);
       setRiderRegistrationApprovalId(null);
+      setRiderRegistrationReason(null);
+      setRiderRegistrationHeldUntil(null);
     }
   };
 
@@ -331,11 +370,8 @@ function App() {
     setIsLoggedIn(true);
     setUserInfo(userData);
     setCartRefreshTrigger((t) => t + 1); // 로그인 직후 장바구니 refetch 유도
-    const roles = userData.roles;
-    // STORE 역할 유저는 메인 페이지(CUSTOMER)를 먼저 보여주고, 헤더의 사장님 버튼으로 전환
-    const role = Array.isArray(roles) && roles.length > 0 ? roles[0] : 'CUSTOMER';
-    const normalizedRole = typeof role === 'string' ? role.replace('ROLE_', '') : role;
-    setUserRole(normalizedRole === 'STORE_OWNER' ? 'STORE' : normalizedRole);
+    // 역할에 상관없이 모든 유저는 로그인 직후 메인 페이지(CUSTOMER)를 보여주도록 변경
+    setUserRole('CUSTOMER');
     fetchStoreRegistration();
     fetchRiderRegistration();
   };
@@ -458,7 +494,7 @@ function App() {
     }
   }, [handleOAuthCallback]);
 
-  const renderContent = () => {
+  const renderContent = (currentDisplayRole) => {
     // 비밀번호 재설정 페이지 확인
     if (window.location.pathname === '/reset-password') {
       return (
@@ -474,9 +510,9 @@ function App() {
       );
     }
 
-    if (userRole === 'CUSTOMER' || userRole === 'USER') return (
+    if (currentDisplayRole === 'CUSTOMER' || currentDisplayRole === 'USER') return (
       <CustomerView
-        userRole={userRole}
+        userRole={currentDisplayRole}
         setUserRole={setUserRole}
         isLoggedIn={isLoggedIn}
         setIsLoggedIn={setIsLoggedIn}
@@ -491,8 +527,12 @@ function App() {
         setStoreRegistrationStatus={setStoreRegistrationStatus}
         storeRegistrationStoreName={storeRegistrationStoreName}
         setStoreRegistrationStoreName={setStoreRegistrationStoreName}
+        storeRegistrationReason={storeRegistrationReason}
+        storeRegistrationHeldUntil={storeRegistrationHeldUntil}
         riderRegistrationStatus={riderRegistrationStatus}
         riderRegistrationApprovalId={riderRegistrationApprovalId}
+        riderRegistrationReason={riderRegistrationReason}
+        riderRegistrationHeldUntil={riderRegistrationHeldUntil}
         refreshRiderRegistration={refreshRiderRegistration}
         riderInfo={riderInfo}
         setRiderInfo={setRiderInfo}
@@ -504,80 +544,30 @@ function App() {
         onClearAll={handleClearAll}
       />
     );
-    if (userRole === 'STORE') return <StoreDashboard userInfo={userInfo || { userId: 2 }} />;
-    if (userRole === 'RIDER') return <RiderDashboard isResidentRider={isResidentRider} riderInfo={riderInfo} />;
-    if (userRole === 'ADMIN') return <AdminDashboard />;
+    if (currentDisplayRole === 'STORE') {
+      if (!hasRole('STORE')) return null;
+      return <StoreDashboard userInfo={userInfo || { userId: 2 }} setUserRole={setUserRole} />;
+    }
+    if (currentDisplayRole === 'RIDER') {
+      if (!hasRole('RIDER')) return null;
+      return <RiderDashboard isResidentRider={isResidentRider} riderInfo={riderInfo} setUserRole={setUserRole} />;
+    }
+    if (currentDisplayRole === 'ADMIN') {
+      if (!hasRole('ADMIN')) return null;
+      return <AdminDashboard setUserRole={setUserRole} />;
+    }
   };
 
   return (
     <ErrorBoundary>
       <div className="App">
-        <div style={{
-          position: 'fixed',
-          bottom: '20px',
-          left: '20px',
-          background: 'rgba(0,0,0,0.8)',
-          padding: '12px',
-          borderRadius: '16px',
-          zIndex: 1000,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-          backdropFilter: 'blur(8px)',
-          border: '1px solid rgba(255,255,255,0.1)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '15px' }}>
-            <span style={{ color: 'white', fontSize: '12px', fontWeight: '800' }}>Role:</span>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              {['CUSTOMER', 'STORE', 'RIDER', 'ADMIN'].map(role => (
-                <button
-                  key={role}
-                  onClick={() => setUserRole(role)}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: userRole === role ? 'var(--primary)' : '#334155',
-                    color: 'white',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: '800',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  {role}
-                </button>
-              ))}
-            </div>
-          </div>
+        {deniedRole && (
+          <AccessDeniedAnimation role={deniedRole} onComplete={() => setDeniedRole(null)} />
+        )}
 
-          {userRole === 'CUSTOMER' && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10px' }}>
-              <span style={{ color: 'white', fontSize: '12px', fontWeight: '800' }}>Auth:</span>
-              <button
-                onClick={() => setIsLoggedIn(!isLoggedIn)}
-                style={{
-                  padding: '6px 16px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  background: isLoggedIn ? '#3b82f6' : '#64748b',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontSize: '11px',
-                  fontWeight: '800',
-                  transition: 'all 0.2s ease',
-                  flexGrow: 1,
-                  marginLeft: '15px'
-                }}
-              >
-                {isLoggedIn ? 'LOGGED IN (Member)' : 'LOGGED OUT (Guest)'}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {renderContent()}
+        <RoleTransition userRole={userRole}>
+          {(displayRole) => renderContent(displayRole)}
+        </RoleTransition>
 
         <AuthModal
           isOpen={isAuthModalOpen}

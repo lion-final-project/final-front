@@ -45,7 +45,7 @@ import { getAdminRefunds, getAdminRefundDetail, approveAdminRefund, rejectAdminR
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const authHeader = () => ({});
 
-const AdminDashboard = () => {
+const AdminDashboard = ({ setUserRole }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -378,7 +378,49 @@ const AdminDashboard = () => {
       const riderPayload = await riderResponse.json();
       const storeItems = (storePayload.data || []).map(mapStoreApprovalItem);
       const riderItems = (riderPayload.data || []).map(mapRiderApprovalItem);
-      setApprovalItems([...storeItems, ...riderItems]);
+
+      // 목록 API에 연락처가 비어있는 경우 상세 API로 보강
+      const enrichedStoreItems = await Promise.all(storeItems.map(async (item) => {
+        if (item.phone) return item;
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/api/admin/stores/approvals/${item.id}`,
+            { headers: { ...authHeader() }, credentials: 'include' }
+          );
+          if (!response.ok) throw new Error(`store approval detail ${item.id} failed`);
+          const payload = await response.json();
+          const detail = payload?.data;
+          return {
+            ...item,
+            phone: detail?.store?.representativePhone || detail?.store?.phone || item.phone || ''
+          };
+        } catch (e) {
+          console.warn('Store approval phone enrich failed:', item.id, e);
+          return item;
+        }
+      }));
+
+      const enrichedRiderItems = await Promise.all(riderItems.map(async (item) => {
+        if (item.phone) return item;
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/api/admin/riders/approvals/${item.id}`,
+            { headers: { ...authHeader() }, credentials: 'include' }
+          );
+          if (!response.ok) throw new Error(`rider approval detail ${item.id} failed`);
+          const payload = await response.json();
+          const detail = payload?.data;
+          return {
+            ...item,
+            phone: detail?.rider?.userPhone || detail?.rider?.phone || item.phone || ''
+          };
+        } catch (e) {
+          console.warn('Rider approval phone enrich failed:', item.id, e);
+          return item;
+        }
+      }));
+
+      setApprovalItems([...enrichedStoreItems, ...enrichedRiderItems]);
     } catch (error) {
       if (!approvalFetchErrorShownRef.current) {
         approvalFetchErrorShownRef.current = true;
@@ -589,10 +631,18 @@ const AdminDashboard = () => {
 
   const toUserStatusLabel = (status) => {
     if (status === 'ACTIVE') return '활성';
-    if (status === 'SUSPENDED') return '정지';
-    if (status === 'INACTIVE') return '비활성';
+    if (status === 'SUSPENDED' || status === 'INACTIVE') return '비활성';
     if (status === 'PENDING') return '대기';
     return status || '-';
+  };
+
+  const parseRegionFromAddress = (addressText) => {
+    if (!addressText) return '-';
+    const parts = String(addressText).trim().split(/\s+/);
+    if (parts.length >= 3) {
+      return `${parts[1]} ${parts[2]}`;
+    }
+    return parts[0] || '-';
   };
 
   const mapUserListItem = (item) => ({
@@ -617,12 +667,15 @@ const AdminDashboard = () => {
     phone: detail.phone,
     addresses: detail.addresses || [],
     loc: (detail.addresses && detail.addresses.length > 0) ? detail.addresses[0] : '-',
+    region: parseRegionFromAddress((detail.addresses && detail.addresses.length > 0) ? detail.addresses[0] : ''),
     orders: detail.orderCount ?? 0,
     join: formatDate(detail.joinedAt),
     status: toUserStatusLabel(detail.status),
     rawStatus: detail.status,
     isActive: detail.status === 'ACTIVE',
     statusHistory: detail.statusHistory || [],
+    ownedStore: detail.ownedStore || null,
+    riderProfile: detail.riderProfile || null,
     currentStatusReason: (detail.statusHistory || []).find(
       (item) => item.afterStatus === detail.status && item.reason
     )?.reason || '',
@@ -645,14 +698,14 @@ const AdminDashboard = () => {
       setUserStats({
         total: data?.stats?.total ?? content.length,
         active: data?.stats?.active ?? content.filter((item) => item.status === 'ACTIVE').length,
-        suspended: data?.stats?.suspended ?? content.filter((item) => item.status === 'SUSPENDED').length,
+        inactive: data?.stats?.inactive ?? data?.stats?.suspended ?? content.filter((item) => item.status === 'INACTIVE' || item.status === 'SUSPENDED').length,
         newThisMonth: data?.stats?.newThisMonth ?? 0
       });
       setUserPageInfo(data?.page || { page: 0, size: itemsPerPage, totalElements: content.length, totalPages: 1, hasNext: false });
     } catch (error) {
       console.error('Failed to load users:', error);
       setUsers([]);
-      setUserStats({ total: 0, active: 0, suspended: 0, newThisMonth: 0 });
+      setUserStats({ total: 0, active: 0, inactive: 0, newThisMonth: 0 });
       setUserPageInfo({ page: 0, size: itemsPerPage, totalElements: 0, totalPages: 0, hasNext: false });
     }
   }, [currentPage, itemsPerPage, userSearchTerm]);
@@ -840,7 +893,7 @@ const AdminDashboard = () => {
   const handleToggleStatus = async (record, reason = '') => {
     if (record.type === 'USER') {
       try {
-        const nextStatus = record.isActive ? 'SUSPENDED' : 'ACTIVE';
+        const nextStatus = record.isActive ? 'INACTIVE' : 'ACTIVE';
         await updateAdminUserStatus(record.id, nextStatus, reason);
         await fetchUsers(currentPage, userSearchTerm);
       } catch (error) {
@@ -1498,6 +1551,8 @@ const AdminDashboard = () => {
         onClose={() => setSelectedRecord(null)}
         onToggleStatus={handleToggleStatus}
         reports={reports}
+        onOpenStoreDetail={handleOpenStoreDetail}
+        onOpenRiderDetail={handleOpenRiderDetail}
         onShowReports={(user) => {
           setActiveTab('reports_view');
           setSelectedRecord(null);
@@ -1684,6 +1739,14 @@ const AdminDashboard = () => {
         <div className={`nav-item ${activeTab === 'inquiry' ? 'active' : ''}`}
           onClick={() => setActiveTab('inquiry')}
           style={{ padding: '12px', borderRadius: '8px', backgroundColor: activeTab === 'inquiry' ? '#334155' : 'transparent', color: activeTab === 'inquiry' ? '#38bdf8' : 'inherit', cursor: 'pointer' }}>💬 1:1 문의</div>
+        <div style={{ height: '1px', backgroundColor: '#334155', margin: '8px 0' }} />
+        <div className="nav-item"
+          onClick={() => {
+            if (window.confirm("고객 모드로 전환하시겠습니까?")) {
+              setUserRole?.('CUSTOMER');
+            }
+          }}
+          style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'transparent', color: 'inherit', cursor: 'pointer' }}>🙋🏻‍♂️ 고객모드</div>
       </div>
 
       {/* 메인 콘텐츠 */}

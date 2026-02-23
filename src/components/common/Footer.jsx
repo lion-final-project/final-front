@@ -1,6 +1,6 @@
 import React from 'react';
 
-const Footer = ({ onTabChange }) => {
+const Footer = ({ onTabChange, userInfo, setUserRole }) => {
   return (
     <footer style={{
       backgroundColor: '#1e293b',
@@ -10,10 +10,83 @@ const Footer = ({ onTabChange }) => {
       borderTop: '1px solid #334155'
     }}>
       <div className="container" style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 20px' }}>
+        {/* Role-based Navigation Buttons */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '40px' }}>
+          {(userInfo?.roles?.includes("STORE") || userInfo?.roles?.includes("ROLE_STORE")) && (
+            <button
+              onClick={() => {
+                setUserRole?.("STORE");
+                window.scrollTo(0, 0);
+              }}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "8px",
+                border: "none",
+                background: "#fdf4ff",
+                color: "#c026d3",
+                fontSize: "13px",
+                fontWeight: "700",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px"
+              }}
+            >
+              🏪 사장님 모드
+            </button>
+          )}
+          {(userInfo?.roles?.includes("RIDER") || userInfo?.roles?.includes("ROLE_RIDER")) && (
+            <button
+              onClick={() => {
+                setUserRole?.("RIDER");
+                window.scrollTo(0, 0);
+              }}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "8px",
+                border: "none",
+                background: "#eff6ff",
+                color: "#3b82f6",
+                fontSize: "13px",
+                fontWeight: "700",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px"
+              }}
+            >
+              🛵 라이더 모드
+            </button>
+          )}
+          {(userInfo?.roles?.includes("ADMIN") || userInfo?.roles?.includes("ROLE_ADMIN")) && (
+            <button
+              onClick={() => {
+                setUserRole?.("ADMIN");
+                window.scrollTo(0, 0);
+              }}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "8px",
+                border: "none",
+                background: "#f1f5f9",
+                color: "#475569",
+                fontSize: "13px",
+                fontWeight: "700",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px"
+              }}
+            >
+              ⚙️ 관리자 모드
+            </button>
+          )}
+        </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '40px', marginBottom: '60px' }}>
           <div style={{ gridColumn: 'span 1' }}>
             <h2 style={{ fontSize: '24px', fontWeight: '900', color: 'white', marginBottom: '20px', letterSpacing: '-1px' }}>
-               <span style={{ color: 'var(--primary)' }}>동네</span>마켓
+              <span style={{ color: 'var(--primary)' }}>동네</span>마켓
             </h2>
             <p style={{ fontSize: '14px', lineHeight: '1.6', marginBottom: '24px' }}>
               우리 동네 시장의 신선함을 이웃의 손길로 문 앞까지 전달합니다. 지역 상생을 위한 가장 따뜻한 IT 서비스를 지향합니다.

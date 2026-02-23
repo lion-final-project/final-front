@@ -77,8 +77,12 @@ const CustomerView = ({
   setStoreRegistrationStatus,
   storeRegistrationStoreName,
   setStoreRegistrationStoreName,
+  storeRegistrationReason,
+  storeRegistrationHeldUntil,
   riderRegistrationStatus,
   riderRegistrationApprovalId,
+  riderRegistrationReason,
+  riderRegistrationHeldUntil,
   refreshRiderRegistration,
   riderInfo,
   setRiderInfo,
@@ -134,10 +138,10 @@ const CustomerView = ({
     isLoggedIn &&
     userInfo?.roles &&
     Array.isArray(userInfo.roles) &&
-    (userInfo.roles.includes("STORE_OWNER") ||
-      userInfo.roles.includes("ROLE_STORE_OWNER") ||
+    (userInfo.roles.includes("STORE") ||
+      userInfo.roles.includes("ROLE_STORE") ||
       userInfo.roles.some((r) =>
-        String(r).toUpperCase().endsWith("STORE_OWNER"),
+        String(r).toUpperCase().endsWith("STORE"),
       ));
 
   // 토스 페이먼츠 결제/카드 등록 완료 후 돌아왔을 때 적절한 탭으로 이동
@@ -1666,6 +1670,8 @@ const CustomerView = ({
           <StoreRegistrationView
             onBack={() => setActiveTab("partner")}
             status={storeRegistrationStatus}
+            reason={storeRegistrationReason}
+            heldUntil={storeRegistrationHeldUntil}
             setStatus={setStoreRegistrationStatus}
             setStoreRegistrationStoreName={setStoreRegistrationStoreName}
             userId={userInfo?.userId}
@@ -1760,10 +1766,14 @@ const CustomerView = ({
             paymentMethodList={paymentMethodList}
             storeRegistrationStatus={storeRegistrationStatus}
             storeRegistrationStoreName={storeRegistrationStoreName}
+            storeRegistrationReason={storeRegistrationReason}
+            storeRegistrationHeldUntil={storeRegistrationHeldUntil}
             setStoreRegistrationStatus={setStoreRegistrationStatus}
             setStoreRegistrationStoreName={setStoreRegistrationStoreName}
             riderRegistrationStatus={riderRegistrationStatus}
             riderRegistrationApprovalId={riderRegistrationApprovalId}
+            riderRegistrationReason={riderRegistrationReason}
+            riderRegistrationHeldUntil={riderRegistrationHeldUntil}
             refreshRiderRegistration={refreshRiderRegistration}
             setIsResidentRider={setIsResidentRider}
             inquiries={inquiries}
@@ -1830,9 +1840,11 @@ const CustomerView = ({
                   marginBottom: "32px",
                 }}
               >
-                <h2 style={{ fontSize: "28px", fontWeight: "800", margin: 0 }}>
-                  오늘의 추천 상점
-                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <h2 style={{ fontSize: "28px", fontWeight: "800", margin: 0 }}>
+                    오늘의 추천 상점
+                  </h2>
+                </div>
                 <div
                   style={{ display: "flex", gap: "12px", alignItems: "center" }}
                 >
@@ -2170,7 +2182,7 @@ const CustomerView = ({
           }
         `}</style>
       </div>
-      <Footer onTabChange={handleTabChange} />
+      <Footer onTabChange={handleTabChange} userInfo={userInfo} setUserRole={setUserRole} />
       {isReviewModalOpen && (
         <ReviewModal
           isOpen={isReviewModalOpen}
