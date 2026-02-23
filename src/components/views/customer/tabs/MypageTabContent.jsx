@@ -20,8 +20,10 @@ const MypageTabContent = (props) => {
     subscriptionListError, subscriptionPayments, subscriptionFilter, setSubscriptionFilter,
     expandedSubId, setExpandedSubId, addressList, paymentMethodList,
     storeRegistrationStatus, storeRegistrationStoreName,
+    storeRegistrationReason, storeRegistrationHeldUntil,
     riderRegistrationStatus,
     riderRegistrationApprovalId,
+    riderRegistrationReason, riderRegistrationHeldUntil,
     setStoreRegistrationStatus, setStoreRegistrationStoreName,
     refreshRiderRegistration,
     setIsResidentRider,
@@ -292,8 +294,12 @@ const MypageTabContent = (props) => {
             <ApplicationStatusSubTab
               storeRegistrationStatus={storeRegistrationStatus}
               storeRegistrationStoreName={storeRegistrationStoreName}
+              storeRegistrationReason={storeRegistrationReason}
+              storeRegistrationHeldUntil={storeRegistrationHeldUntil}
               riderRegistrationStatus={riderRegistrationStatus}
               riderRegistrationApprovalId={riderRegistrationApprovalId}
+              riderRegistrationReason={riderRegistrationReason}
+              riderRegistrationHeldUntil={riderRegistrationHeldUntil}
               setStoreRegistrationStatus={setStoreRegistrationStatus}
               setStoreRegistrationStoreName={setStoreRegistrationStoreName}
               refreshRiderRegistration={refreshRiderRegistration}

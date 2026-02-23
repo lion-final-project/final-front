@@ -22,6 +22,15 @@ export const getRiderApprovals = async (page = 0, size = 10) => {
     }
 };
 
+export const getRiderRegistrationStatus = async () => {
+    try {
+        const response = await api.get('/api/riders/registration');
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};
+
 // 라이더 신청 취소
 export const deleteRiderApproval = async (approvalId) => {
     try {
