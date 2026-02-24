@@ -437,15 +437,15 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode, socialSignupS
                   style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }}
                 />
               </div>
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <label style={{ fontSize: '14px', fontWeight: '600', color: '#475569' }}>비밀번호</label>
-                  <button type="button" onClick={() => setMode('forgot-password')} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '12px', cursor: 'pointer', padding: 0 }}>비밀번호를 잊으셨나요?</button>
-                </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#475569' }}>비밀번호</label>
                 <input
                   type="password" placeholder="••••••••" required value={password} onChange={(e) => setPassword(e.target.value)}
                   style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px' }}
                 />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                  <button type="button" onClick={() => setMode('forgot-password')} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '12px', cursor: 'pointer', padding: 0 }}>비밀번호를 잊으셨나요?</button>
+                </div>
               </div>
             </>
           )}
