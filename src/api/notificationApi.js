@@ -1,6 +1,5 @@
 import api from './axios';
-
-const API_BASE_URL = 'http://localhost:8080';
+import { API_BASE_URL } from '../config/api';
 
 /**
  * SSE 연결을 통한 실시간 알림 구독

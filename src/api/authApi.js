@@ -1,4 +1,4 @@
-import api from './axios';
+import api, { notifyLoginSuccess } from './axios';
 
 export const authApi = {
     // 현재 로그인한 사용자 정보 조회
@@ -32,7 +32,10 @@ export const authApi = {
     logout: () => api.post('/api/auth/logout').then(res => res.data),
 
     // 카카오 로그인 URL (프론트에서 리다이렉트용)
-    kakaoAuthorize: () => 'http://localhost:8080/oauth2/authorization/kakao',
+    kakaoAuthorize: () => {
+        const base = import.meta.env.VITE_KAKAO_OAUTH_AUTHORIZE_URL || (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080') + '/oauth2/authorization/kakao';
+        return base;
+    },
 
     // 비밀번호 재설정 요청
     requestPasswordReset: (email) => api.post('/api/auth/password-reset/request', { email }).then(res => res.data),
@@ -48,6 +51,7 @@ export const login = async (email, password) => {
     try {
         const response = await api.post('/api/auth/login', { email, password });
         // ApiResponse: { success: true, data: { ...loginResponse }, ... }
+        notifyLoginSuccess(); // 로그인 직후 pre-login 요청의 뒤늦은 refresh 실패가 세션 만료를 트리거하지 않도록 억제
         return response.data.data;
     } catch (error) {
         throw error;
