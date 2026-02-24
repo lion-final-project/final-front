@@ -33,10 +33,29 @@ api.interceptors.request.use(
     }
 );
 
-// 401 시 refresh 1회 재시도 후 실패하면 세션 만료 이벤트 발생 (보완_권장사항.md)
-let refreshPromise = null;
+// 401 시 refresh 1회 재시도 후 실패하면 세션 만료 이벤트 발생
+let isRefreshing = false;
+let failedQueue = []; // refresh 완료 대기 중인 요청들
+
+// 로그인 직후 일정 시간 동안 pre-login 요청의 뒤늦은 refresh 실패가
+// session-expired를 트리거하지 않도록 막는 플래그
+let loginJustSucceeded = false;
+
+export function notifyLoginSuccess() {
+    loginJustSucceeded = true;
+    setTimeout(() => { loginJustSucceeded = false; }, 5000);
+}
+
+function processQueue(error) {
+    failedQueue.forEach(({ resolve, reject }) => {
+        if (error) reject(error);
+        else resolve();
+    });
+    failedQueue = [];
+}
 
 function dispatchSessionExpired() {
+    if (loginJustSucceeded) return; // 로그인 직후에는 세션 만료 이벤트 무시
     try {
         window.dispatchEvent(new CustomEvent('auth:session-expired'));
     } catch (e) {
@@ -86,17 +105,34 @@ api.interceptors.response.use(
             const isRetry = config._retryByAuth === true;
 
             if (!isRefreshUrl && !isLogoutUrl && !isRetry) {
+                if (isRefreshing) {
+                    // 이미 refresh 중이면 큐에 등록하고 완료 후 재시도
+                    return new Promise((resolve, reject) => {
+                        failedQueue.push({
+                            resolve: () => { config._retryByAuth = true; resolve(api.request(config)); },
+                            reject,
+                        });
+                    });
+                }
+
+                isRefreshing = true;
                 try {
-                    if (!refreshPromise) {
-                        refreshPromise = api.post('/api/auth/refresh');
-                    }
-                    await refreshPromise;
-                    refreshPromise = null;
+                    await api.post('/api/auth/refresh');
+                    processQueue(null);
                     config._retryByAuth = true;
                     return api.request(config);
                 } catch (refreshErr) {
-                    refreshPromise = null;
+                    if (loginJustSucceeded) {
+                        // pre-login 요청의 뒤늦은 refresh 실패:
+                        // 이미 로그인 완료 상태이므로 큐와 원래 요청을 모두 재시도
+                        processQueue(null);
+                        config._retryByAuth = true;
+                        return api.request(config);
+                    }
+                    processQueue(refreshErr);
                     dispatchSessionExpired();
+                } finally {
+                    isRefreshing = false;
                 }
             } else {
                 dispatchSessionExpired();

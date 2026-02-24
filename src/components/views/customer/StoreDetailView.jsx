@@ -11,7 +11,7 @@ const DEFAULT_PRODUCT_IMG = PLACEHOLDER_PRODUCT_IMAGE;
 const resolveSubscriptionImg = (imageUrl) => {
   if (!imageUrl || typeof imageUrl !== 'string' || !imageUrl.trim()) return DEFAULT_SUBSCRIPTION_IMG;
   if (imageUrl.startsWith('/') && !imageUrl.startsWith('//')) {
-    const base = (API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
+    const base = API_BASE_URL.replace(/\/$/, '');
     return `${base}${imageUrl}`;
   }
   return imageUrl;
