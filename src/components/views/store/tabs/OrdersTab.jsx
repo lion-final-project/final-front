@@ -38,7 +38,7 @@ const OrdersTab = ({
 
   const isHandledTab = orderSubTab === 'management' && mgmtFilter === 'handled';
   const listForManagement = isHandledTab ? completedOrders : orders.filter((order) =>
-    ['신규', '준비중', '픽업 완료', '픽업가능', '배달중'].includes(order.status)
+    ['신규', '준비중', '픽업가능', '배달중'].includes(order.status)
   );
   const baseList = orderSubTab === 'history' ? historyOrders : listForManagement;
 
@@ -220,18 +220,36 @@ const OrdersTab = ({
                       <td style={{ padding: '12px' }}>{order.items}</td>
                       <td style={{ padding: '12px' }}>{order.price}</td>
                       <td style={{ padding: '12px' }}>
-                        <span
-                          style={{
-                            backgroundColor: getStatusColor(order.status).bg,
-                            color: getStatusColor(order.status).text,
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            fontWeight: '600',
-                          }}
-                        >
-                          {order.status}
-                        </span>
+                        {order.deliveryStatus === 'ACCEPTED' ? (
+                          <span
+                            style={{
+                              backgroundColor: '#e0e7ff',
+                              color: '#4338ca',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              fontWeight: '900',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <span style={{ fontSize: '14px' }}>🏍️</span> 배차 완료
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              backgroundColor: getStatusColor(order.status).bg,
+                              color: getStatusColor(order.status).text,
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                            }}
+                          >
+                            {order.status}
+                          </span>
+                        )}
                       </td>
                       <td style={{ padding: '12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

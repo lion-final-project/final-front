@@ -108,8 +108,8 @@ const CustomerView = ({
   const [checkoutCartItems, setCheckoutCartItems] = useState(null);
   const [toast, setToast] = useState(null);
   const [currentLocation, setCurrentLocation] =
-    useState("서울특별시 중구 세종대로 110");
-  const [coords, setCoords] = useState({ lat: 37.5665, lon: 126.978 }); // Default: Seoul City Hall
+    useState("서울특별시 중구 세종대로 110 (서울특별시청)");
+  const [coords, setCoords] = useState({ lat: 37.5665, lon: 126.9780 });
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
@@ -720,6 +720,15 @@ const CustomerView = ({
   useEffect(() => {
     fetchPaymentMethods();
   }, [fetchPaymentMethods]);
+
+  // 비회원/로그아웃 시 기본 주소(서울시청)로 복구
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setCurrentLocation("서울특별시 중구 세종대로 110 (서울특별시청)");
+      setCoords({ lat: 37.5665, lon: 126.9780 });
+      setAddressList([]);
+    }
+  }, [isLoggedIn]);
 
   /** API-SUB-002: 내 구독 목록 조회. 백엔드 응답을 UI 형식으로 매핑 */
   const fetchSubscriptions = useCallback(async () => {
