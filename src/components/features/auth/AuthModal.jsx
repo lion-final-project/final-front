@@ -11,9 +11,11 @@ import {
   requestPasswordReset
 } from '../../../api/authApi';
 
+import { API_BASE_URL } from '../../../config/api';
+
 // 소셜 로그인 인증 URL (백엔드 OAuth2 authorization endpoint)
-const KAKAO_OAUTH_AUTHORIZE_URL = 'http://localhost:8080/oauth2/authorization/kakao';
-const NAVER_OAUTH_AUTHORIZE_URL = 'http://localhost:8080/oauth2/authorization/naver';
+const KAKAO_OAUTH_AUTHORIZE_URL = import.meta.env.VITE_KAKAO_OAUTH_AUTHORIZE_URL || `${API_BASE_URL}/oauth2/authorization/kakao`;
+const NAVER_OAUTH_AUTHORIZE_URL = import.meta.env.VITE_NAVER_OAUTH_AUTHORIZE_URL || `${API_BASE_URL}/oauth2/authorization/naver`;
 
 const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode, socialSignupState }) => {
   /** onLoginSuccess(userData): userData = { userId, email, name, roles } (로그인/회원가입 성공 시 백엔드 data) */
@@ -211,11 +213,11 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess, initialMode, socialSignupS
         const user = await login(email, password);
         onLoginSuccess(user);
         onClose();
-} catch (err) {
+      } catch (err) {
         const msg = getErrorMessage(err, '입력 정보를 확인해주세요.');
         alert(msg);
       } finally {
-      setApiLoading(false);
+        setApiLoading(false);
       }
       return;
     }

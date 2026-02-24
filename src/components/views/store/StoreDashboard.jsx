@@ -507,7 +507,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 }, setUserRole }) => {
       const isConnectionError = /failed to fetch|network error|connection refused|err_connection_refused/i.test(msg) || e?.name === 'TypeError';
       setSubscriptionsError(
         isConnectionError
-          ? '서버에 연결할 수 없습니다. 백엔드 서버(localhost:8080)가 실행 중인지 확인해 주세요.'
+          ? '서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인해 주세요.'
           : (msg || '구독 목록을 불러오지 못했습니다.')
       );
       setSubscriptions([]);
