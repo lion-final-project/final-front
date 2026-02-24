@@ -73,7 +73,9 @@ function AddressInputSection({
   onOpenKakaoAddress,
   isSearching,
   formData,
+  setFormData,
   errors,
+  setErrors,
 }) {
   return (
     <div style={{
@@ -118,6 +120,9 @@ function AddressInputSection({
         <div style={{ padding: '16px', background: '#f0fdf4', borderRadius: '8px', marginBottom: '16px', border: '1px solid #dcfce7' }}>
           <div style={{ fontSize: '14px', color: '#166534', fontWeight: '600', marginBottom: '8px' }}>
             ✓ 선택된 주소: {formData.address}
+            {formData.postalCode && (
+              <span style={{ marginLeft: '8px', fontSize: '13px', color: '#15803d' }}>(우편번호: {formData.postalCode})</span>
+            )}
           </div>
           {formData.latitude != null && formData.longitude != null ? (
             <div style={{
@@ -143,6 +148,20 @@ function AddressInputSection({
           )}
         </div>
       )}
+      <div style={{ marginTop: '16px' }}>
+        <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#64748b' }}>
+          상세주소 <span style={{ fontSize: '12px', fontWeight: '500' }}>(선택)</span>
+        </label>
+        <input
+          type="text"
+          placeholder="동, 호수, 상세 주소 등"
+          value={formData.addressDetail ?? ''}
+          onChange={(e) => setFormData((prev) => ({ ...prev, addressDetail: e.target.value }))}
+          style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '14px', outline: 'none' }}
+          onFocus={(e) => { e.target.style.border = '2px solid var(--primary)'; }}
+          onBlur={(e) => { e.target.style.border = '1px solid #e2e8f0'; }}
+        />
+      </div>
       {errors.address && (
         <div id="error-address" style={{ color: '#ef4444', fontSize: '12px', marginTop: '8px', fontWeight: '600' }}>
           {errors.address}
@@ -165,6 +184,8 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
     businessNumber: '', // 사업자등록증 번호
     mailOrderNumber: '', // 통신 판매업 신고번호
     address: '',      // 매장 주소
+    addressDetail: '', // 상세주소 (동, 호수 등)
+    postalCode: '',   // 우편번호 (주소 검색 시 자동 입력)
     latitude: null,   // 위도
     longitude: null,  // 경도
     bankName: '',
@@ -185,6 +206,13 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
     storeName: '',
     representativeName: '',
     status: '',
+  });
+  const [registrationDetail, setRegistrationDetail] = useState(null);
+  const [heldDocumentUrls, setHeldDocumentUrls] = useState({
+    businessLicenseUrl: null,
+    telecomSalesReportUrl: null,
+    bankPassbookUrl: null,
+    storeImageUrl: null,
   });
 
   const [files, setFiles] = useState({
@@ -219,6 +247,15 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
       .catch(() => {});
   }, [status]);
 
+  useEffect(() => {
+    if (status === 'NONE') return;
+    const base = getApiBase();
+    fetch(`${base}/api/stores/registration/detail`, { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => setRegistrationDetail(json?.data || null))
+      .catch(() => setRegistrationDetail(null));
+  }, [status]);
+
   const getStoreStatusLabel = (value) => {
     if (value === 'APPROVED') return '승인';
     if (value === 'PENDING') return '심사 대기';
@@ -240,6 +277,52 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
     if (e.target.files && e.target.files[0]) {
       setFiles({ ...files, [field]: e.target.files[0] });
     }
+  };
+
+  const handleResubmitFromHeld = () => {
+    if (!registrationDetail) {
+      setStatus('NONE');
+      window.scrollTo(0, 0);
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      category: registrationDetail.storeCategory || '',
+      companyName: registrationDetail.storeOwnerName || '',
+      storeName: registrationDetail.storeName || '',
+      repName: registrationDetail.representativeName || '',
+      contact: registrationDetail.representativePhone || '',
+      martContact: registrationDetail.storePhone || '',
+      martIntro: registrationDetail.storeDescription || '',
+      businessNumber: registrationDetail.businessNumber || '',
+      mailOrderNumber: registrationDetail.telecomSalesReportNumber || '',
+      address: registrationDetail.addressLine1 || '',
+      addressDetail: registrationDetail.addressLine2 || '',
+      postalCode: registrationDetail.postalCode || '',
+      latitude: registrationDetail.latitude ?? null,
+      longitude: registrationDetail.longitude ?? null,
+      bankName: registrationDetail.settlementBankName || '',
+      accountNumber: registrationDetail.settlementBankAccount || '',
+      accountHolder: registrationDetail.settlementAccountHolder || '',
+    }));
+    setAddressSearchValue(registrationDetail.addressLine1 || '');
+    const docs = registrationDetail.documents || {};
+    setHeldDocumentUrls({
+      businessLicenseUrl: docs.BUSINESS_LICENSE || null,
+      telecomSalesReportUrl: docs.BUSINESS_REPORT || null,
+      bankPassbookUrl: docs.BANK_PASSBOOK || null,
+      storeImageUrl: registrationDetail.storeImageUrl || null,
+    });
+    setFiles({
+      businessRegistration: null,
+      bankbook: null,
+      mailOrderCertificate: null,
+      storeImage: null,
+    });
+    setErrors({});
+    setStatus('NONE');
+    window.scrollTo(0, 0);
   };
 
   // 카카오 Geocoder SDK 로드
@@ -277,10 +360,12 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
           if (data.buildingName !== '') extraAddress += (extraAddress !== '' ? ', ' + data.buildingName : data.buildingName);
         }
         const finalAddress = fullAddress + (extraAddress ? ' (' + extraAddress + ')' : '');
+        const zonecode = data.zonecode || '';
 
         setFormData(prev => ({
           ...prev,
           address: finalAddress,
+          postalCode: zonecode,
           latitude: null,
           longitude: null
         }));
@@ -294,6 +379,7 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
               setFormData(prev => ({
                 ...prev,
                 address: finalAddress,
+                postalCode: prev.postalCode || zonecode,
                 latitude: parseFloat(result[0].y),
                 longitude: parseFloat(result[0].x)
               }));
@@ -383,10 +469,18 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
       if (formData.businessNumber) newErrors.businessNumber = '사업자등록번호 형식이 올바르지 않습니다. (예: 123-45-67890)';
     }
 
-    if (!files.businessRegistration) newErrors.businessRegistration = '사업자등록증을 첨부해주세요.';
-    if (!files.bankbook) newErrors.bankbook = '통장 사본을 첨부해주세요.';
-    if (!files.mailOrderCertificate) newErrors.mailOrderCertificate = '통신판매업 신고증을 첨부해주세요.';
-    if (!files.storeImage) newErrors.storeImage = '마트 대표 사진을 첨부해주세요.';
+    if (!files.businessRegistration && !heldDocumentUrls.businessLicenseUrl) {
+      newErrors.businessRegistration = '사업자등록증을 첨부해주세요.';
+    }
+    if (!files.bankbook && !heldDocumentUrls.bankPassbookUrl) {
+      newErrors.bankbook = '통장 사본을 첨부해주세요.';
+    }
+    if (!files.mailOrderCertificate && !heldDocumentUrls.telecomSalesReportUrl) {
+      newErrors.mailOrderCertificate = '통신판매업 신고증을 첨부해주세요.';
+    }
+    if (!files.storeImage && !heldDocumentUrls.storeImageUrl) {
+      newErrors.storeImage = '마트 대표 사진을 첨부해주세요.';
+    }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -401,10 +495,18 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
 
     try {
       const [businessLicenseUrl, telecomSalesReportUrl, bankPassbookUrl, storeImageUrl] = await Promise.all([
-        uploadDocument(files.businessRegistration, DOCUMENT_TYPES.businessRegistration),
-        uploadDocument(files.mailOrderCertificate, DOCUMENT_TYPES.mailOrderCertificate),
-        uploadDocument(files.bankbook, DOCUMENT_TYPES.bankbook),
-        uploadStoreImage(files.storeImage),
+        files.businessRegistration
+          ? uploadDocument(files.businessRegistration, DOCUMENT_TYPES.businessRegistration)
+          : Promise.resolve(heldDocumentUrls.businessLicenseUrl),
+        files.mailOrderCertificate
+          ? uploadDocument(files.mailOrderCertificate, DOCUMENT_TYPES.mailOrderCertificate)
+          : Promise.resolve(heldDocumentUrls.telecomSalesReportUrl),
+        files.bankbook
+          ? uploadDocument(files.bankbook, DOCUMENT_TYPES.bankbook)
+          : Promise.resolve(heldDocumentUrls.bankPassbookUrl),
+        files.storeImage
+          ? uploadStoreImage(files.storeImage)
+          : Promise.resolve(heldDocumentUrls.storeImageUrl),
       ]);
 
       const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
@@ -425,6 +527,8 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
         storeOwnerName: formData.companyName,
         storeName: formData.storeName,
         addressLine: formData.address,
+        addressLine2: (formData.addressDetail && formData.addressDetail.trim()) ? formData.addressDetail.trim() : null,
+        postalCode: (formData.postalCode && formData.postalCode.trim()) ? formData.postalCode.trim() : null,
         latitude: formData.latitude,
         longitude: formData.longitude,
         representativeName: formData.repName,
@@ -466,6 +570,12 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
         representativeName: data?.representativeName || formData.repName || '',
         status: data?.status || 'PENDING',
       });
+      setHeldDocumentUrls({
+        businessLicenseUrl: null,
+        telecomSalesReportUrl: null,
+        bankPassbookUrl: null,
+        storeImageUrl: null,
+      });
       if (data?.storeName && setStoreRegistrationStoreName) setStoreRegistrationStoreName(data.storeName);
       window.scrollTo(0, 0);
     } catch (err) {
@@ -502,23 +612,35 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
         ) : (
           <div style={{ padding: '20px', backgroundColor: '#f8fafc', borderRadius: '12px', fontSize: '14px', color: '#475569' }}>
             <div style={{ fontWeight: '700', marginBottom: '8px' }}>신청 정보</div>
-            <div>마트이름: {registrationInfo.storeName || formData.storeName || '-'}</div>
-            <div>대표이름: {registrationInfo.representativeName || formData.repName || '-'}</div>
+            <div>마트이름: {registrationDetail?.storeName || registrationInfo.storeName || formData.storeName || '-'}</div>
+            <div>대표이름: {registrationDetail?.representativeName || registrationInfo.representativeName || formData.repName || '-'}</div>
             <div>승인상태: {getStoreStatusLabel(registrationInfo.status || status)}</div>
+            {registrationDetail?.reason && (
+              <div style={{ marginTop: '8px' }}>사유: {registrationDetail.reason}</div>
+            )}
           </div>
         )}
-        
-        {status === 'PENDING' && (
-          <div style={{ marginTop: '40px', borderTop: '1px dashed #cbd5e1', paddingTop: '20px' }}>
-            <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>[데모용 관리자 기능]</p>
-            <button 
-              onClick={() => setStatus('APPROVED')}
-              style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #16a34a', color: '#16a34a', background: 'white', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
+
+        {status === 'HELD' && (
+          <div style={{ marginTop: '16px' }}>
+            <button
+              onClick={handleResubmitFromHeld}
+              style={{
+                padding: '10px 14px',
+                borderRadius: '8px',
+                border: '1px solid #f59e0b',
+                color: '#92400e',
+                background: '#fffbeb',
+                fontSize: '13px',
+                fontWeight: '700',
+                cursor: 'pointer',
+              }}
             >
-              즉시 승인 처리하기
+              보완 후 재신청
             </button>
           </div>
         )}
+        
       </div>
       <button 
         onClick={onBack}
@@ -581,7 +703,9 @@ const StoreRegistrationView = ({ onBack, status, setStatus, setStoreRegistration
             onOpenKakaoAddress={handleOpenKakaoAddress}
             isSearching={isSearching}
             formData={formData}
+            setFormData={setFormData}
             errors={errors}
+            setErrors={setErrors}
           />
           <InputSection label="대표자명" field="repName" formData={formData} setFormData={setFormData} errors={errors} setErrors={setErrors} />
           <InputSection label="대표자 연락처" field="contact" placeholder="010-0000-0000" formData={formData} setFormData={setFormData} errors={errors} setErrors={setErrors} />

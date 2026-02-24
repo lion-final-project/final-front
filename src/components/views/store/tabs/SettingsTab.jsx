@@ -1,9 +1,12 @@
 import React from 'react';
 
-const SettingsTab = ({ storeInfo, setStoreInfo, businessHours, handleBusinessHourChange, onSaveBusinessHours, businessHoursSaving, businessHoursLoading }) => (
+const SettingsTab = ({ storeInfo, setStoreInfo, businessHours, handleBusinessHourChange, onSaveSettings, businessHoursSaving, businessHoursLoading, onSaveDescription, descriptionSaving }) => (
   <div style={{ background: 'white', padding: '40px', borderRadius: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', maxWidth: '800px' }}>
     <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '32px' }}>마트 운영 설정</h2>
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+      {/* 1번 덩어리: 기본정보 + 이미지 + 영업시간 + 운영 설정 완료 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', paddingBottom: '8px' }}>
+        <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b', marginBottom: '0', paddingBottom: '12px', borderBottom: '2px solid #e2e8f0' }}>운영 설정</h3>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
         <div>
           <label style={{ display: 'block', marginBottom: '10px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>마트 상호명</label>
@@ -61,7 +64,7 @@ const SettingsTab = ({ storeInfo, setStoreInfo, businessHours, handleBusinessHou
             <div
               key={idx}
               style={{
-                display: 'grid', gridTemplateColumns: 'minmax(80px, 1fr) 2fr 2fr 2fr 1fr', gap: '16px', alignItems: 'center',
+                display: 'grid', gridTemplateColumns: 'minmax(80px, 1fr) 2fr 2fr 1fr', gap: '16px', alignItems: 'center',
                 padding: '16px', borderRadius: '12px', border: '1px solid #f1f5f9',
                 backgroundColor: bh.isClosed ? '#fef2f2' : 'white',
                 transition: 'all 0.2s'
@@ -76,10 +79,6 @@ const SettingsTab = ({ storeInfo, setStoreInfo, businessHours, handleBusinessHou
                 <span style={{ fontSize: '11px', fontWeight: '700', color: '#94a3b8' }}>마감</span>
                 <input type="time" disabled={bh.isClosed} value={bh.close} onChange={(e) => handleBusinessHourChange(idx, 'close', e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', backgroundColor: bh.isClosed ? '#f1f5f9' : 'white', cursor: bh.isClosed ? 'not-allowed' : 'text' }} />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '11px', fontWeight: '700', color: '#8b5cf6' }}>라스트 오더</span>
-                <input type="time" disabled={bh.isClosed} value={bh.lastOrder} onChange={(e) => handleBusinessHourChange(idx, 'lastOrder', e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #8b5cf6', fontSize: '13px', backgroundColor: bh.isClosed ? '#f1f5f9' : 'white', cursor: bh.isClosed ? 'not-allowed' : 'text', color: bh.isClosed ? '#94a3b8' : '#8b5cf6' }} />
-              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
                 <input type="checkbox" id={`closed-${idx}`} checked={bh.isClosed} onChange={(e) => handleBusinessHourChange(idx, 'isClosed', e.target.checked)} style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#ef4444' }} />
                 <label htmlFor={`closed-${idx}`} style={{ fontSize: '13px', fontWeight: '700', color: bh.isClosed ? '#ef4444' : '#64748b', cursor: 'pointer' }}>휴무</label>
@@ -90,7 +89,7 @@ const SettingsTab = ({ storeInfo, setStoreInfo, businessHours, handleBusinessHou
       </div>
       <button
         type="button"
-        onClick={onSaveBusinessHours}
+        onClick={onSaveSettings}
         disabled={businessHoursSaving || businessHoursLoading}
         style={{
           marginTop: '20px',
@@ -107,6 +106,39 @@ const SettingsTab = ({ storeInfo, setStoreInfo, businessHours, handleBusinessHou
       >
         {businessHoursSaving ? '저장 중...' : '운영 설정 완료'}
       </button>
+      </div>
+
+      {/* 2번 덩어리: 마트 소개 */}
+      <div style={{ borderTop: '2px solid #e2e8f0', marginTop: '8px', paddingTop: '32px' }}>
+        <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b', marginBottom: '16px', paddingBottom: '12px', borderBottom: '2px solid #e2e8f0' }}>마트 소개</h3>
+        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#475569' }}>매장 소개글</label>
+        <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '12px' }}>고객이 가게 정보 탭에서 볼 매장 소개글입니다.</p>
+        <textarea
+          value={storeInfo.description ?? ''}
+          onChange={(e) => setStoreInfo({ ...storeInfo, description: e.target.value })}
+          placeholder="매장 소개를 입력하세요."
+          rows={6}
+          style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '15px', resize: 'vertical', fontFamily: 'inherit' }}
+        />
+        <button
+          type="button"
+          onClick={() => onSaveDescription && onSaveDescription(storeInfo.description)}
+          disabled={descriptionSaving}
+          style={{
+            marginTop: '12px',
+            padding: '12px 24px',
+            borderRadius: '10px',
+            background: descriptionSaving ? '#94a3b8' : '#64748b',
+            color: 'white',
+            border: 'none',
+            fontWeight: '700',
+            fontSize: '14px',
+            cursor: descriptionSaving ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {descriptionSaving ? '저장 중...' : '마트 소개 저장'}
+        </button>
+      </div>
     </div>
   </div>
 );

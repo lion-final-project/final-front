@@ -1,16 +1,32 @@
-﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getNotices, createNotice, updateNotice, deleteNotice } from '../../../api/noticeApi';
 import { getBanners, createBanner, updateBanner, deleteBanner, updateBannerOrder } from '../../../api/bannerApi';
 import { getFaqsForAdmin, createFaq, updateFaq, deleteFaq } from '../../../api/faqApi';
 import { getAdminInquiries, getAdminInquiryDetail, answerInquiry } from '../../../api/inquiryApi';
 import { getAdminUsers, getAdminUserDetail, updateAdminUserStatus } from '../../../api/adminUserApi';
 import { getAdminReports, getAdminReportDetail, resolveAdminReport, getAdminBroadcastHistory, createAdminBroadcast } from '../../../api/adminModerationApi';
+import {
+  getAdminOverviewStats,
+  getAdminTransactionTrend,
+  getAdminPaymentSummary,
+  getAdminRiderSettlementSummary,
+  getAdminRiderSettlementTrend,
+  getAdminStoreSettlementSummary,
+  getAdminStoreSettlementTrend,
+  executeAdminRiderSettlement,
+  executeAdminRiderSettlementSingle,
+  getAdminStoreSettlements,
+  getAdminRiderSettlements,
+  executeAdminStoreSettlement,
+  executeAdminStoreSettlementSingle
+} from '../../../api/adminFinanceApi';
 import { formatDate, formatDateLocale, mapStoreApprovalItem, mapRiderApprovalItem, extractDocument } from './utils/adminDashboardUtils';
 import RecordDetailModal from './modals/RecordDetailModal';
 import ApprovalDetailModal from './modals/ApprovalDetailModal';
 import NoticeModal from './modals/NoticeModal';
 import FaqModal from './modals/FaqModal';
 import BannerModal from './modals/BannerModal';
+import RefundDetailModal from './modals/RefundDetailModal';
 import Pagination from '../../ui/Pagination';
 import OverviewTab from './tabs/OverviewTab';
 import StoresTab from './tabs/StoresTab';
@@ -23,11 +39,13 @@ import SettlementsTab from './tabs/SettlementsTab';
 import ApprovalsTab from './tabs/ApprovalsTab';
 import NotificationsTab from './tabs/NotificationsTab';
 import ReportsTab from './tabs/ReportsTab';
+import RefundsTab from './tabs/RefundsTab';
+import { getAdminRefunds, getAdminRefundDetail, approveAdminRefund, rejectAdminRefund } from '../../../api/adminRefundApi';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const authHeader = () => ({});
 
-const AdminDashboard = () => {
+const AdminDashboard = ({ setUserRole }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -53,6 +71,7 @@ const AdminDashboard = () => {
 
 
   const [reports, setReports] = useState([]);
+  const [overviewReports, setOverviewReports] = useState([]);
 
   const [riders, setRiders] = useState([]);
   const [riderStats, setRiderStats] = useState({ total: 0, operating: 0, unavailable: 0, idCardPending: 0 });
@@ -82,12 +101,120 @@ const AdminDashboard = () => {
   const [detailedSettlements, setDetailedSettlements] = useState([]);
 
   const [riderSettlements, setRiderSettlements] = useState([]);
+  const [settlementPageInfo, setSettlementPageInfo] = useState({ page: 0, size: itemsPerPage, totalElements: 0, totalPages: 0, hasNext: false });
 
   const [paymentHistory, setPaymentHistory] = useState([]);
+  const [paymentSummary, setPaymentSummary] = useState({
+    grossPaymentAmount: 0,
+    platformFeeRevenue: 0,
+    refundAmount: 0,
+    netRevenue: 0,
+    paymentCount: 0,
+    refundRequestedCount: 0,
+    refundApprovedCount: 0,
+    refundRejectedCount: 0,
+    refundRequestedAmount: 0,
+    refundApprovedAmount: 0,
+    refundRejectedAmount: 0,
+    regularSalesAmount: 0,
+    subscriptionSalesAmount: 0
+  });
+  const [overviewStats, setOverviewStats] = useState({
+    totalUsers: 0,
+    approvedStores: 0,
+    deliveringRiders: 0,
+    pendingStoreSettlements: 0,
+    pendingReports: 0,
+    pendingInquiries: 0
+  });
+  const [transactionTrend, setTransactionTrend] = useState({ xLabels: [], yValues: [], maxY: 0 });
+  const [settlementSummary, setSettlementSummary] = useState({
+    totalTargets: 0,
+    completedTargets: 0,
+    pendingTargets: 0,
+    failedTargets: 0,
+    totalSettlementAmount: 0,
+    completedRate: 0
+  });
+  const [settlementTrend, setSettlementTrend] = useState({ xLabels: [], yValues: [], totalAmount: 0, changeRate: 0 });
+  const [riderSettlementSummary, setRiderSettlementSummary] = useState({
+    totalTargets: 0,
+    completedTargets: 0,
+    pendingTargets: 0,
+    failedTargets: 0,
+    totalSettlementAmount: 0,
+    completedRate: 0
+  });
+  const [riderSettlementTrend, setRiderSettlementTrend] = useState({ xLabels: [], yValues: [], totalAmount: 0, changeRate: 0 });
+
+  const [refunds, setRefunds] = useState([]);
+  const [refundPageInfo, setRefundPageInfo] = useState({ page: 0, size: itemsPerPage, totalElements: 0, totalPages: 0, hasNext: false });
+  const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
+  const [currentRefund, setCurrentRefund] = useState(null);
+  const [refundStatusFilter, setRefundStatusFilter] = useState('ALL');
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, approvalFilter, approvalStatusFilter, reportsFilter, settlementFilter, userSearch, inquiryFilter]);
+  }, [activeTab, approvalFilter, approvalStatusFilter, reportsFilter, settlementFilter, userSearch, inquiryFilter, refundStatusFilter]);
+
+  const fetchRefunds = useCallback(async (page = currentPage, filterStatus = refundStatusFilter) => {
+    try {
+      const response = await getAdminRefunds(Math.max(page - 1, 0), itemsPerPage, filterStatus);
+      const data = response?.data?.data || response?.data || response;
+      const content = Array.isArray(data?.content) ? data.content : [];
+      setRefunds(content);
+      setRefundPageInfo({
+        page: data?.number !== undefined ? data.number : (data?.page || 0),
+        size: data?.size || itemsPerPage,
+        totalElements: data?.totalElements || content.length,
+        totalPages: data?.totalPages || 1,
+        hasNext: data?.hasNext !== undefined ? data.hasNext : false
+      });
+    } catch (error) {
+      console.error('Failed to load refunds:', error);
+    }
+  }, [currentPage, itemsPerPage, refundStatusFilter]);
+
+  useEffect(() => {
+    if (activeTab === 'refunds') {
+      fetchRefunds(currentPage, refundStatusFilter);
+    }
+  }, [activeTab, currentPage, refundStatusFilter, fetchRefunds]);
+
+  const handleOpenRefundDetail = async (refundId) => {
+    try {
+      const detailResponse = await getAdminRefundDetail(refundId);
+      setCurrentRefund(detailResponse.data);
+      setIsRefundModalOpen(true);
+    } catch (error) {
+      console.error("Failed to fetch refund detail:", error);
+      alert('환불 상세 정보를 불러오는 데 실패했습니다.');
+    }
+  };
+
+  const handleApproveRefund = async (refundId, amount, responsibility) => {
+    try {
+      await approveAdminRefund(refundId, amount, responsibility);
+      alert('환불 승인이 완료되었습니다.');
+      setIsRefundModalOpen(false);
+      fetchRefunds(currentPage);
+    } catch (error) {
+      console.error("Failed to approve refund:", error);
+      alert('환불 승인에 실패했습니다.');
+    }
+  };
+
+  const handleRejectRefund = async (refundId) => {
+    try {
+      await rejectAdminRefund(refundId);
+      alert('환불이 거절되었습니다.');
+      setIsRefundModalOpen(false);
+      fetchRefunds(currentPage);
+    } catch (error) {
+      console.error("Failed to reject refund:", error);
+      alert('환불 거절에 실패했습니다.');
+    }
+  };
 
 
   const [selectedReport, setSelectedReport] = useState(null);
@@ -231,7 +358,7 @@ const AdminDashboard = () => {
   const [broadcastTitle, setBroadcastTitle] = useState('');
   const [broadcastContent, setBroadcastContent] = useState('');
 
-  
+
   const fetchApprovals = async () => {
     try {
       const [storeResponse, riderResponse] = await Promise.all([
@@ -251,7 +378,49 @@ const AdminDashboard = () => {
       const riderPayload = await riderResponse.json();
       const storeItems = (storePayload.data || []).map(mapStoreApprovalItem);
       const riderItems = (riderPayload.data || []).map(mapRiderApprovalItem);
-      setApprovalItems([...storeItems, ...riderItems]);
+
+      // 목록 API에 연락처가 비어있는 경우 상세 API로 보강
+      const enrichedStoreItems = await Promise.all(storeItems.map(async (item) => {
+        if (item.phone) return item;
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/api/admin/stores/approvals/${item.id}`,
+            { headers: { ...authHeader() }, credentials: 'include' }
+          );
+          if (!response.ok) throw new Error(`store approval detail ${item.id} failed`);
+          const payload = await response.json();
+          const detail = payload?.data;
+          return {
+            ...item,
+            phone: detail?.store?.representativePhone || detail?.store?.phone || item.phone || ''
+          };
+        } catch (e) {
+          console.warn('Store approval phone enrich failed:', item.id, e);
+          return item;
+        }
+      }));
+
+      const enrichedRiderItems = await Promise.all(riderItems.map(async (item) => {
+        if (item.phone) return item;
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/api/admin/riders/approvals/${item.id}`,
+            { headers: { ...authHeader() }, credentials: 'include' }
+          );
+          if (!response.ok) throw new Error(`rider approval detail ${item.id} failed`);
+          const payload = await response.json();
+          const detail = payload?.data;
+          return {
+            ...item,
+            phone: detail?.rider?.userPhone || detail?.rider?.phone || item.phone || ''
+          };
+        } catch (e) {
+          console.warn('Rider approval phone enrich failed:', item.id, e);
+          return item;
+        }
+      }));
+
+      setApprovalItems([...enrichedStoreItems, ...enrichedRiderItems]);
     } catch (error) {
       if (!approvalFetchErrorShownRef.current) {
         approvalFetchErrorShownRef.current = true;
@@ -462,10 +631,18 @@ const AdminDashboard = () => {
 
   const toUserStatusLabel = (status) => {
     if (status === 'ACTIVE') return '활성';
-    if (status === 'SUSPENDED') return '정지';
-    if (status === 'INACTIVE') return '비활성';
+    if (status === 'SUSPENDED' || status === 'INACTIVE') return '비활성';
     if (status === 'PENDING') return '대기';
     return status || '-';
+  };
+
+  const parseRegionFromAddress = (addressText) => {
+    if (!addressText) return '-';
+    const parts = String(addressText).trim().split(/\s+/);
+    if (parts.length >= 3) {
+      return `${parts[1]} ${parts[2]}`;
+    }
+    return parts[0] || '-';
   };
 
   const mapUserListItem = (item) => ({
@@ -490,12 +667,15 @@ const AdminDashboard = () => {
     phone: detail.phone,
     addresses: detail.addresses || [],
     loc: (detail.addresses && detail.addresses.length > 0) ? detail.addresses[0] : '-',
+    region: parseRegionFromAddress((detail.addresses && detail.addresses.length > 0) ? detail.addresses[0] : ''),
     orders: detail.orderCount ?? 0,
     join: formatDate(detail.joinedAt),
     status: toUserStatusLabel(detail.status),
     rawStatus: detail.status,
     isActive: detail.status === 'ACTIVE',
     statusHistory: detail.statusHistory || [],
+    ownedStore: detail.ownedStore || null,
+    riderProfile: detail.riderProfile || null,
     currentStatusReason: (detail.statusHistory || []).find(
       (item) => item.afterStatus === detail.status && item.reason
     )?.reason || '',
@@ -518,14 +698,14 @@ const AdminDashboard = () => {
       setUserStats({
         total: data?.stats?.total ?? content.length,
         active: data?.stats?.active ?? content.filter((item) => item.status === 'ACTIVE').length,
-        suspended: data?.stats?.suspended ?? content.filter((item) => item.status === 'SUSPENDED').length,
+        inactive: data?.stats?.inactive ?? data?.stats?.suspended ?? content.filter((item) => item.status === 'INACTIVE' || item.status === 'SUSPENDED').length,
         newThisMonth: data?.stats?.newThisMonth ?? 0
       });
       setUserPageInfo(data?.page || { page: 0, size: itemsPerPage, totalElements: content.length, totalPages: 1, hasNext: false });
     } catch (error) {
       console.error('Failed to load users:', error);
       setUsers([]);
-      setUserStats({ total: 0, active: 0, suspended: 0, newThisMonth: 0 });
+      setUserStats({ total: 0, active: 0, inactive: 0, newThisMonth: 0 });
       setUserPageInfo({ page: 0, size: itemsPerPage, totalElements: 0, totalPages: 0, hasNext: false });
     }
   }, [currentPage, itemsPerPage, userSearchTerm]);
@@ -607,37 +787,37 @@ const AdminDashboard = () => {
       const detail = await fetchApprovalDetail(item.category, item.id);
       const documents = detail.documents || [];
       const formData = item.category === 'STORE'
-          ? {
-            storeName: detail.store?.storeName,
-            category: detail.store?.categoryName,
-            companyName: detail.store?.businessOwnerName,
-            businessNumber: detail.store?.businessNumber,
-            mailOrderNumber: detail.store?.telecomSalesReportNumber,
-            repName: detail.store?.representativeName,
-            contact: detail.store?.representativePhone,
-            martContact: detail.store?.representativePhone,
-            martIntro: detail.store?.addressLine1,
-            addressLine2: detail.store?.addressLine2,
-            postalCode: detail.store?.postalCode,
-            bankName: detail.store?.settlementBankName,
-            accountNumber: detail.store?.settlementBankAccount,
-            accountHolder: detail.store?.settlementAccountHolder,
-            reason: detail.reason,
-            businessRegistrationFile: extractDocument(documents, 'BUSINESS_LICENSE'),
-            mailOrderFile: extractDocument(documents, 'BUSINESS_REPORT'),
-            bankbookFile: extractDocument(documents, 'BANK_PASSBOOK'),
-            identityFile: extractDocument(documents, 'ID_CARD')
-          }
+        ? {
+          storeName: detail.store?.storeName,
+          category: detail.store?.categoryName,
+          companyName: detail.store?.businessOwnerName,
+          businessNumber: detail.store?.businessNumber,
+          mailOrderNumber: detail.store?.telecomSalesReportNumber,
+          repName: detail.store?.representativeName,
+          contact: detail.store?.representativePhone,
+          martContact: detail.store?.representativePhone,
+          martIntro: detail.store?.addressLine1,
+          addressLine2: detail.store?.addressLine2,
+          postalCode: detail.store?.postalCode,
+          bankName: detail.store?.settlementBankName,
+          accountNumber: detail.store?.settlementBankAccount,
+          accountHolder: detail.store?.settlementAccountHolder,
+          reason: detail.reason,
+          businessRegistrationFile: extractDocument(documents, 'BUSINESS_LICENSE'),
+          mailOrderFile: extractDocument(documents, 'BUSINESS_REPORT'),
+          bankbookFile: extractDocument(documents, 'BANK_PASSBOOK'),
+          identityFile: extractDocument(documents, 'ID_CARD')
+        }
         : {
-            name: detail.rider?.userName,
-            contact: detail.rider?.userPhone,
-            bankName: detail.rider?.bankName,
-            accountNumber: detail.rider?.bankAccount,
-            accountHolder: detail.rider?.accountHolder,
-            reason: detail.reason,
-            identityFile: extractDocument(documents, 'ID_CARD'),
-            bankbookFile: extractDocument(documents, 'BANK_PASSBOOK')
-          };
+          name: detail.rider?.userName,
+          contact: detail.rider?.userPhone,
+          bankName: detail.rider?.bankName,
+          accountNumber: detail.rider?.bankAccount,
+          accountHolder: detail.rider?.accountHolder,
+          reason: detail.reason,
+          identityFile: extractDocument(documents, 'ID_CARD'),
+          bankbookFile: extractDocument(documents, 'BANK_PASSBOOK')
+        };
       setSelectedApproval({ ...item, formData, focusSection });
     } catch (error) {
       alert('승인 상세 정보를 불러오는 데 실패했습니다.');
@@ -690,7 +870,7 @@ const AdminDashboard = () => {
         try {
           const errorBody = await response.json();
           if (errorBody?.message) message = errorBody.message;
-        } catch (_) {}
+        } catch (_) { }
         alert(message);
         return;
       }
@@ -713,7 +893,7 @@ const AdminDashboard = () => {
   const handleToggleStatus = async (record, reason = '') => {
     if (record.type === 'USER') {
       try {
-        const nextStatus = record.isActive ? 'SUSPENDED' : 'ACTIVE';
+        const nextStatus = record.isActive ? 'INACTIVE' : 'ACTIVE';
         await updateAdminUserStatus(record.id, nextStatus, reason);
         await fetchUsers(currentPage, userSearchTerm);
       } catch (error) {
@@ -826,6 +1006,21 @@ const AdminDashboard = () => {
     }
   }, [currentPage, itemsPerPage, reportsFilter, reportsSearch]);
 
+  const fetchOverviewReports = useCallback(async () => {
+    try {
+      const data = await getAdminReports({
+        page: 0,
+        size: 20,
+        keyword: null,
+        status: null
+      });
+      setOverviewReports((data?.content || []).map(toUiReport));
+    } catch (error) {
+      console.error('전체현황 신고 데이터 조회 실패:', error);
+      setOverviewReports([]);
+    }
+  }, []);
+
   const fetchReportDetail = useCallback(async (reportId) => {
     try {
       const data = await getAdminReportDetail(reportId);
@@ -908,51 +1103,267 @@ const AdminDashboard = () => {
     }
   }, [activeTab, fetchBroadcastHistory]);
 
-  const handleExecuteSettlement = (type) => {
-    const list = type === 'STORE' ? detailedSettlements : riderSettlements;
-    const setter = type === 'STORE' ? setDetailedSettlements : setRiderSettlements;
-    const targetItems = list.filter(
-      s => s.status === '확인 대기' || s.status === '지급 처리중' || s.status === '지급 실패'
-    );
+  const toSettlementStatusLabel = (status) => {
+    if (status === 'COMPLETED') return '지급 완료';
+    if (status === 'PENDING') return '지급 처리중';
+    if (status === 'FAILED') return '지급 실패';
+    return '확인 대기';
+  };
 
-    if (targetItems.length === 0) {
-      alert('정산 실행 대상이 없습니다.');
+  const toSettlementStatusColor = (statusLabel) => {
+    if (statusLabel === '지급 완료') return '#10b981';
+    if (statusLabel === '지급 처리중') return '#38bdf8';
+    if (statusLabel === '지급 실패') return '#ef4444';
+    return '#f59e0b';
+  };
+
+  const toSettlementApiStatus = (statusLabel) => {
+    if (statusLabel === '지급 완료') return 'COMPLETED';
+    if (statusLabel === '지급 처리중' || statusLabel === '확인 대기') return 'PENDING';
+    if (statusLabel === '지급 실패') return 'FAILED';
+    return undefined;
+  };
+
+  const fetchFinanceOverview = useCallback(async () => {
+    try {
+      const stats = await getAdminOverviewStats();
+      setOverviewStats(stats || {});
+    } catch (error) {
+      console.error('전체현황 요약 조회 실패:', error);
+    }
+
+    try {
+      const trend = await getAdminTransactionTrend(chartPeriod);
+      setTransactionTrend(trend || { xLabels: [], yValues: [], maxY: 0 });
+    } catch (error) {
+      console.error('거래액 추이 조회 실패:', error);
+      setTransactionTrend({ xLabels: [], yValues: [], maxY: 0 });
+    }
+  }, [chartPeriod]);
+
+  const fetchSettlementDashboard = useCallback(async () => {
+    if (settlementFilter === 'STORE') {
+      try {
+        const summary = await getAdminStoreSettlementSummary(settlementMonthFilter);
+        setSettlementSummary(summary || {});
+      } catch (error) {
+        console.error('정산 요약 조회 실패:', error);
+      }
+
+      try {
+        const trend = await getAdminStoreSettlementTrend(6, settlementMonthFilter);
+        setSettlementTrend(trend || { xLabels: [], yValues: [], totalAmount: 0, changeRate: 0 });
+      } catch (error) {
+        console.error('정산 추이 조회 실패:', error);
+        setSettlementTrend({ xLabels: [], yValues: [], totalAmount: 0, changeRate: 0 });
+      }
       return;
     }
 
-    if (!confirm(`${type === 'STORE' ? '마트' : '배달원'} 정산 업무를 실행하시겠습니까?\n대상: ${targetItems.length}건`)) return;
+    try {
+      const summary = await getAdminRiderSettlementSummary(settlementMonthFilter);
+      setRiderSettlementSummary(summary || {});
+    } catch (error) {
+      console.error('라이더 정산 요약 조회 실패:', error);
+    }
 
-    // 정산 재시도 및 부분 성공 시나리오 모의 처리
-    let successCount = 0;
-    let retryCount = 0;
-    
-    // 실제 서비스에서는 비동기 API 호출로 처리
-    targetItems.forEach(item => {
-      // 일부 건은 최초 실패 후 재시도에서 성공하도록 모의 처리
-      const random = Math.random();
-      if (random > 0.1) { // 성공 확률 90%
-        successCount++;
-      } else {
-        // 재시도 로직: 최대 3회
-        for(let i=1; i<=3; i++) {
-          retryCount++;
-          if (Math.random() > 0.2) { // 재시도 시 성공 확률 80%
-            successCount++;
-            break;
+    try {
+      const trend = await getAdminRiderSettlementTrend(6, settlementMonthFilter);
+      setRiderSettlementTrend(trend || { xLabels: [], yValues: [], totalAmount: 0, changeRate: 0 });
+    } catch (error) {
+      console.error('라이더 정산 추이 조회 실패:', error);
+      setRiderSettlementTrend({ xLabels: [], yValues: [], totalAmount: 0, changeRate: 0 });
+    }
+  }, [settlementFilter, settlementMonthFilter]);
+
+  const fetchSettlementList = useCallback(async () => {
+    if (settlementFilter === 'STORE') {
+      try {
+        const response = await getAdminStoreSettlements({
+          yearMonth: settlementMonthFilter,
+          status: settlementStatusFilter === 'ALL' ? undefined : toSettlementApiStatus(settlementStatusFilter),
+          keyword: settlementSearch,
+          page: Math.max(currentPage - 1, 0),
+          size: itemsPerPage
+        });
+
+        const content = Array.isArray(response?.content) ? response.content : [];
+        const mapped = content.map((item) => {
+          const status = toSettlementStatusLabel(item.status);
+          return {
+            id: item.settlementId,
+            id_code: item.idCode || `STORE-${item.storeId}`,
+            name: item.storeName || '-',
+            region: item.region || '미상',
+            amount: item.amount || 0,
+            date: item.settlementPeriodEnd || item.settledAt || '-',
+            periodStart: item.settlementPeriodStart || null,
+            periodEnd: item.settlementPeriodEnd || null,
+            settledAt: item.settledAt || null,
+            contact: '-',
+            status,
+            color: toSettlementStatusColor(status)
+          };
+        });
+        setDetailedSettlements(mapped);
+        setSettlementPageInfo(response?.page || { page: 0, size: itemsPerPage, totalElements: content.length, totalPages: 1, hasNext: false });
+      } catch (error) {
+        console.error('마트 정산 목록 조회 실패:', error);
+        setDetailedSettlements([]);
+        setSettlementPageInfo({ page: 0, size: itemsPerPage, totalElements: 0, totalPages: 0, hasNext: false });
+      }
+      return;
+    }
+
+    try {
+      const response = await getAdminRiderSettlements({
+        yearMonth: settlementMonthFilter,
+        status: settlementStatusFilter === 'ALL' ? undefined : toSettlementApiStatus(settlementStatusFilter),
+        keyword: settlementSearch,
+        page: Math.max(currentPage - 1, 0),
+        size: itemsPerPage
+      });
+
+      const content = Array.isArray(response?.content) ? response.content : [];
+      const mapped = content.map((item) => {
+        const status = toSettlementStatusLabel(item.status);
+        return {
+          id: item.settlementId,
+          id_code: item.idCode || `RIDER-${item.riderId}`,
+          name: item.riderName || '-',
+          region: item.region || '전국',
+          amount: item.amount || 0,
+          date: item.settlementPeriodEnd || item.settledAt || '-',
+          periodStart: item.settlementPeriodStart || null,
+          periodEnd: item.settlementPeriodEnd || null,
+          settledAt: item.settledAt || null,
+          contact: item.riderPhone || '-',
+          status,
+          color: toSettlementStatusColor(status)
+        };
+      });
+      setRiderSettlements(mapped);
+      setSettlementPageInfo(response?.page || { page: 0, size: itemsPerPage, totalElements: content.length, totalPages: 1, hasNext: false });
+    } catch (error) {
+      console.error('라이더 정산 목록 조회 실패:', error);
+      setRiderSettlements([]);
+      setSettlementPageInfo({ page: 0, size: itemsPerPage, totalElements: 0, totalPages: 0, hasNext: false });
+    }
+  }, [settlementFilter, settlementMonthFilter, settlementStatusFilter, settlementSearch, currentPage, itemsPerPage]);
+
+  const fetchPaymentHistory = useCallback(async () => {
+    try {
+      const [summary, listResponse] = await Promise.all([
+        getAdminPaymentSummary(paymentMonthFilter),
+        (async () => {
+          const params = new URLSearchParams();
+          params.set('yearMonth', paymentMonthFilter);
+          params.set('page', String(Math.max(currentPage - 1, 0)));
+          params.set('size', String(itemsPerPage));
+          if (paymentSearch?.trim()) params.set('keyword', paymentSearch.trim());
+
+          const response = await fetch(`${API_BASE_URL}/api/admin/finance/payments?${params.toString()}`, {
+            headers: { ...authHeader() },
+            credentials: 'include'
+          });
+          if (!response.ok) {
+            throw new Error('Failed to load payments');
           }
-        }
-      }
-    });
+          return response.json();
+        })()
+      ]);
 
-    setter(prev => prev.map(item => {
-      if (item.status === '확인 대기' || item.status === '지급 처리중' || item.status === '지급 실패') {
-        // 모의 처리 단순화를 위해 성공 건은 지급 완료로 반영
-        return { ...item, status: '지급 완료', color: '#10b981' };
-      }
-      return item;
-    }));
+      setPaymentSummary(summary || {});
+      const content = Array.isArray(listResponse?.data?.content) ? listResponse.data.content : [];
+      setPaymentHistory(content.map((item) => ({
+        region: item.region || '미상',
+        category: item.category || '미분류',
+        mart: item.mart || '-',
+        amount: item.amount || 0,
+        commission: item.commission || 0,
+        refundAmount: item.refundAmount || 0,
+        status: item.status || '확인 대기'
+      })));
+    } catch (error) {
+      console.error('결제 내역 조회 실패:', error);
+      setPaymentSummary({
+        grossPaymentAmount: 0,
+        platformFeeRevenue: 0,
+        refundAmount: 0,
+        netRevenue: 0,
+        paymentCount: 0,
+        refundRequestedCount: 0,
+        refundApprovedCount: 0,
+        refundRejectedCount: 0,
+        refundRequestedAmount: 0,
+        refundApprovedAmount: 0,
+        refundRejectedAmount: 0,
+        regularSalesAmount: 0,
+        subscriptionSalesAmount: 0
+      });
+      setPaymentHistory([]);
+    }
+  }, [paymentMonthFilter, currentPage, itemsPerPage, paymentSearch]);
 
-    alert(`정산 실행 완료\n\n- 성공: ${successCount}건\n- 자동 재시도 횟수: ${retryCount}회\n\n실패 건도 재시도 후 최종적으로 '지급 완료'로 업데이트했습니다.`);
+  useEffect(() => {
+    if (activeTab === 'overview') {
+      fetchFinanceOverview();
+      fetchOverviewReports();
+    }
+  }, [activeTab, fetchFinanceOverview, fetchOverviewReports]);
+
+  useEffect(() => {
+    if (activeTab === 'settlements') {
+      fetchSettlementDashboard();
+      fetchSettlementList();
+    }
+  }, [activeTab, fetchSettlementDashboard, fetchSettlementList]);
+
+  useEffect(() => {
+    if (activeTab === 'payments') {
+      fetchPaymentHistory();
+    }
+  }, [activeTab, fetchPaymentHistory]);
+
+  const handleExecuteSettlement = (type) => {
+    const isStore = type === 'STORE';
+    const targetItems = (isStore ? detailedSettlements : riderSettlements).filter(
+      (s) => s.status === '확인 대기' || s.status === '지급 처리중' || s.status === '지급 실패'
+    );
+    if (!confirm(`${isStore ? '마트' : '라이더'} 정산 업무를 실행하시겠습니까?\n대상: ${targetItems.length}건`)) {
+      return;
+    }
+
+    const execute = isStore ? executeAdminStoreSettlement : executeAdminRiderSettlement;
+    execute(settlementMonthFilter)
+      .then((result) => {
+        alert(`정산 실행이 완료되었습니다.\n완료 건수: ${result?.completedCount ?? 0}건`);
+        fetchSettlementDashboard();
+        fetchSettlementList();
+      })
+      .catch((error) => {
+        console.error('정산 실행 실패:', error);
+        alert(error?.message || '정산 실행에 실패했습니다.');
+      });
+  };
+
+  const handleExecuteSingleSettlement = (type, settlementId) => {
+    const isStore = type === 'STORE';
+    if (!confirm(`${isStore ? '마트' : '라이더'} 개별 정산을 실행하시겠습니까?`)) {
+      return;
+    }
+
+    const execute = isStore ? executeAdminStoreSettlementSingle : executeAdminRiderSettlementSingle;
+    execute(settlementId)
+      .then(() => {
+        alert('개별 정산이 완료되었습니다.');
+        fetchSettlementDashboard();
+        fetchSettlementList();
+      })
+      .catch((error) => {
+        console.error('개별 정산 실행 실패:', error);
+        alert(error?.message || '개별 정산 실행에 실패했습니다.');
+      });
   };
 
   const handleInquiryAnswerSubmit = async (inquiry, answer, refresh) => {
@@ -979,7 +1390,7 @@ const AdminDashboard = () => {
   const renderActiveView = () => {
     switch (activeTab) {
       case 'overview':
-        return <OverviewTab chartPeriod={chartPeriod} setChartPeriod={setChartPeriod} setActiveTab={setActiveTab} detailedSettlements={detailedSettlements} riderSettlements={riderSettlements} reports={reports} approvalItems={approvalItems} inquiryList={inquiryList} />;
+        return <OverviewTab chartPeriod={chartPeriod} setChartPeriod={setChartPeriod} setActiveTab={setActiveTab} detailedSettlements={detailedSettlements} riderSettlements={riderSettlements} reports={overviewReports} approvalItems={approvalItems} inquiryList={inquiryList} overviewStats={overviewStats} transactionTrend={transactionTrend} />;
       case 'stores':
         return (
           <StoresTab
@@ -1080,9 +1491,9 @@ const AdminDashboard = () => {
           />
         );
       case 'payments':
-        return <PaymentsTab paymentMonthFilter={paymentMonthFilter} setPaymentMonthFilter={setPaymentMonthFilter} paymentHistory={paymentHistory} paymentSearch={paymentSearch} paymentRegionFilter={paymentRegionFilter} setPaymentSearch={setPaymentSearch} setPaymentRegionFilter={setPaymentRegionFilter} />;
+        return <PaymentsTab paymentMonthFilter={paymentMonthFilter} setPaymentMonthFilter={setPaymentMonthFilter} paymentHistory={paymentHistory} paymentSearch={paymentSearch} paymentRegionFilter={paymentRegionFilter} setPaymentSearch={setPaymentSearch} setPaymentRegionFilter={setPaymentRegionFilter} paymentSummary={paymentSummary} />;
       case 'settlements':
-        return <SettlementsTab settlementFilter={settlementFilter} setSettlementFilter={setSettlementFilter} detailedSettlements={detailedSettlements} riderSettlements={riderSettlements} settlementMonthFilter={settlementMonthFilter} setSettlementMonthFilter={setSettlementMonthFilter} settlementSearch={settlementSearch} settlementStatusFilter={settlementStatusFilter} setSettlementSearch={setSettlementSearch} setSettlementStatusFilter={setSettlementStatusFilter} handleExecuteSettlement={handleExecuteSettlement} />;
+        return <SettlementsTab settlementFilter={settlementFilter} setSettlementFilter={setSettlementFilter} detailedSettlements={detailedSettlements} riderSettlements={riderSettlements} settlementMonthFilter={settlementMonthFilter} setSettlementMonthFilter={setSettlementMonthFilter} settlementSearch={settlementSearch} settlementStatusFilter={settlementStatusFilter} setSettlementSearch={setSettlementSearch} setSettlementStatusFilter={setSettlementStatusFilter} handleExecuteSettlement={handleExecuteSettlement} handleExecuteSingleSettlement={handleExecuteSingleSettlement} settlementSummary={settlementSummary} settlementTrend={settlementTrend} riderSettlementSummary={riderSettlementSummary} riderSettlementTrend={riderSettlementTrend} pageInfo={settlementPageInfo} currentPage={currentPage} itemsPerPage={itemsPerPage} setCurrentPage={setCurrentPage} />;
       case 'approvals':
         return <ApprovalsTab approvalItems={approvalItems} approvalFilter={approvalFilter} approvalStatusFilter={approvalStatusFilter} setApprovalFilter={setApprovalFilter} setApprovalStatusFilter={setApprovalStatusFilter} handleOpenApproval={handleOpenApproval} currentPage={currentPage} itemsPerPage={itemsPerPage} setCurrentPage={setCurrentPage} />;
       case 'notifications':
@@ -1117,28 +1528,49 @@ const AdminDashboard = () => {
             onOpenReport={fetchReportDetail}
           />
         );
+      case 'refunds':
+        return (
+          <RefundsTab
+            refunds={refunds}
+            pageInfo={refundPageInfo}
+            refundStatusFilter={refundStatusFilter}
+            setRefundStatusFilter={setRefundStatusFilter}
+            onPageChange={(page) => setCurrentPage(page)}
+            onOpenDetail={handleOpenRefundDetail}
+          />
+        );
       default:
-        return <OverviewTab chartPeriod={chartPeriod} setChartPeriod={setChartPeriod} setActiveTab={setActiveTab} detailedSettlements={detailedSettlements} riderSettlements={riderSettlements} reports={reports} approvalItems={approvalItems} inquiryList={inquiryList} />;
+        return <OverviewTab chartPeriod={chartPeriod} setChartPeriod={setChartPeriod} setActiveTab={setActiveTab} detailedSettlements={detailedSettlements} riderSettlements={riderSettlements} reports={overviewReports} approvalItems={approvalItems} inquiryList={inquiryList} overviewStats={overviewStats} transactionTrend={transactionTrend} />;
     }
   };
 
   return (
     <div className="admin-dashboard" style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#0f172a', color: 'white' }}>
-      <RecordDetailModal 
-        record={selectedRecord} 
-        onClose={() => setSelectedRecord(null)} 
+      <RecordDetailModal
+        record={selectedRecord}
+        onClose={() => setSelectedRecord(null)}
         onToggleStatus={handleToggleStatus}
         reports={reports}
+        onOpenStoreDetail={handleOpenStoreDetail}
+        onOpenRiderDetail={handleOpenRiderDetail}
         onShowReports={(user) => {
-           setActiveTab('reports_view');
-           setSelectedRecord(null);
+          setActiveTab('reports_view');
+          setSelectedRecord(null);
         }}
       />
 
-      <ApprovalDetailModal 
+      <ApprovalDetailModal
         item={selectedApproval}
         onClose={() => setSelectedApproval(null)}
         onAction={handleApprovalAction}
+      />
+
+      <RefundDetailModal
+        isOpen={isRefundModalOpen}
+        onClose={() => setIsRefundModalOpen(false)}
+        refund={currentRefund}
+        onApprove={handleApproveRefund}
+        onReject={handleRejectRefund}
       />
 
       {selectedReport && (
@@ -1268,42 +1700,53 @@ const AdminDashboard = () => {
         top: 0,
         height: '100vh'
       }}>
-        <div 
+        <div
           onClick={() => setActiveTab('overview')}
           style={{ fontSize: '24px', fontWeight: '800', marginBottom: '30px', color: '#38bdf8', cursor: 'pointer' }}>동네마켓 Admin</div>
-        <div className={`nav-item ${activeTab === 'overview' ? 'active' : ''}`} 
+        <div className={`nav-item ${activeTab === 'overview' ? 'active' : ''}`}
           onClick={() => setActiveTab('overview')}
           style={{ padding: '12px', borderRadius: '8px', backgroundColor: activeTab === 'overview' ? '#334155' : 'transparent', color: activeTab === 'overview' ? '#38bdf8' : 'inherit', cursor: 'pointer' }}>📊 전체 현황</div>
-        <div className={`nav-item ${activeTab === 'approvals' ? 'active' : ''}`} 
+        <div className={`nav-item ${activeTab === 'approvals' ? 'active' : ''}`}
           onClick={() => setActiveTab('approvals')}
           style={{ padding: '12px', borderRadius: '8px', backgroundColor: activeTab === 'approvals' ? '#334155' : 'transparent', color: activeTab === 'approvals' ? '#38bdf8' : 'inherit', cursor: 'pointer' }}>📋 신청 관리</div>
-        <div className={`nav-item ${activeTab === 'stores' ? 'active' : ''}`} 
+        <div className={`nav-item ${activeTab === 'stores' ? 'active' : ''}`}
           onClick={() => setActiveTab('stores')}
           style={{ padding: '12px', borderRadius: '8px', backgroundColor: activeTab === 'stores' ? '#334155' : 'transparent', color: activeTab === 'stores' ? '#38bdf8' : 'inherit', cursor: 'pointer' }}>🏪 마트 관리</div>
-        <div className={`nav-item ${activeTab === 'users' ? 'active' : ''}`} 
+        <div className={`nav-item ${activeTab === 'users' ? 'active' : ''}`}
           onClick={() => setActiveTab('users')}
           style={{ padding: '12px', borderRadius: '8px', backgroundColor: activeTab === 'users' ? '#334155' : 'transparent', color: activeTab === 'users' ? '#38bdf8' : 'inherit', cursor: 'pointer' }}>👥 사용자 관리</div>
-        <div className={`nav-item ${activeTab === 'riders' ? 'active' : ''}`} 
+        <div className={`nav-item ${activeTab === 'riders' ? 'active' : ''}`}
           onClick={() => setActiveTab('riders')}
           style={{ padding: '12px', borderRadius: '8px', backgroundColor: activeTab === 'riders' ? '#334155' : 'transparent', color: activeTab === 'riders' ? '#38bdf8' : 'inherit', cursor: 'pointer' }}>🛵 배달원 관리</div>
-        <div className={`nav-item ${activeTab === 'cms' ? 'active' : ''}`} 
+        <div className={`nav-item ${activeTab === 'cms' ? 'active' : ''}`}
           onClick={() => setActiveTab('cms')}
           style={{ padding: '12px', borderRadius: '8px', backgroundColor: activeTab === 'cms' ? '#334155' : 'transparent', color: activeTab === 'cms' ? '#38bdf8' : 'inherit', cursor: 'pointer' }}>🧩 콘텐츠 관리</div>
-        <div className={`nav-item ${activeTab === 'payments' ? 'active' : ''}`} 
+        <div className={`nav-item ${activeTab === 'payments' ? 'active' : ''}`}
           onClick={() => setActiveTab('payments')}
           style={{ padding: '12px', borderRadius: '8px', backgroundColor: activeTab === 'payments' ? '#334155' : 'transparent', color: activeTab === 'payments' ? '#38bdf8' : 'inherit', cursor: 'pointer' }}>💳 결제 관리</div>
-        <div className={`nav-item ${activeTab === 'settlements' ? 'active' : ''}`} 
+        <div className={`nav-item ${activeTab === 'refunds' ? 'active' : ''}`}
+          onClick={() => setActiveTab('refunds')}
+          style={{ padding: '12px', borderRadius: '8px', backgroundColor: activeTab === 'refunds' ? '#334155' : 'transparent', color: activeTab === 'refunds' ? '#38bdf8' : 'inherit', cursor: 'pointer' }}>💸 환불 관리</div>
+        <div className={`nav-item ${activeTab === 'settlements' ? 'active' : ''}`}
           onClick={() => setActiveTab('settlements')}
           style={{ padding: '12px', borderRadius: '8px', backgroundColor: activeTab === 'settlements' ? '#334155' : 'transparent', color: activeTab === 'settlements' ? '#38bdf8' : 'inherit', cursor: 'pointer' }}>💰 정산 내역</div>
-        <div className={`nav-item ${activeTab === 'reports' || activeTab === 'reports_view' ? 'active' : ''}`} 
+        <div className={`nav-item ${activeTab === 'reports' || activeTab === 'reports_view' ? 'active' : ''}`}
           onClick={() => setActiveTab('reports')}
           style={{ padding: '12px', borderRadius: '8px', backgroundColor: (activeTab === 'reports' || activeTab === 'reports_view') ? '#334155' : 'transparent', color: (activeTab === 'reports' || activeTab === 'reports_view') ? '#38bdf8' : 'inherit', cursor: 'pointer' }}>🚨 신고 / 분쟁</div>
-        <div className={`nav-item ${activeTab === 'notifications' ? 'active' : ''}`} 
+        <div className={`nav-item ${activeTab === 'notifications' ? 'active' : ''}`}
           onClick={() => setActiveTab('notifications')}
           style={{ padding: '12px', borderRadius: '8px', backgroundColor: activeTab === 'notifications' ? '#334155' : 'transparent', color: activeTab === 'notifications' ? '#38bdf8' : 'inherit', cursor: 'pointer' }}>📢 알림 발송</div>
-        <div className={`nav-item ${activeTab === 'inquiry' ? 'active' : ''}`} 
+        <div className={`nav-item ${activeTab === 'inquiry' ? 'active' : ''}`}
           onClick={() => setActiveTab('inquiry')}
           style={{ padding: '12px', borderRadius: '8px', backgroundColor: activeTab === 'inquiry' ? '#334155' : 'transparent', color: activeTab === 'inquiry' ? '#38bdf8' : 'inherit', cursor: 'pointer' }}>💬 1:1 문의</div>
+        <div style={{ height: '1px', backgroundColor: '#334155', margin: '8px 0' }} />
+        <div className="nav-item"
+          onClick={() => {
+            if (window.confirm("고객 모드로 전환하시겠습니까?")) {
+              setUserRole?.('CUSTOMER');
+            }
+          }}
+          style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'transparent', color: 'inherit', cursor: 'pointer' }}>🙋🏻‍♂️ 고객모드</div>
       </div>
 
       {/* 메인 콘텐츠 */}
@@ -1311,16 +1754,17 @@ const AdminDashboard = () => {
         <header style={{ marginBottom: '40px' }}>
           <h1 style={{ fontSize: '32px', fontWeight: '700' }}>
             {activeTab === 'overview' ? '실시간 전체 현황' :
-             activeTab === 'approvals' ? '신규 신청 관리' :
-             activeTab === 'stores' ? '마트 관리' :
-             activeTab === 'users' ? '사용자 관리' :
-             activeTab === 'riders' ? '배달원 관리' :
-             activeTab === 'payments' ? '결제 관리 센터' :
-             activeTab === 'settlements' ? '마트 정산 현황' :
-             activeTab === 'cms' ? '콘텐츠 관리' :
-             activeTab === 'reports' || activeTab === 'reports_view' ? '신고 및 분쟁 관리' :
-             activeTab === 'notifications' ? '알림 발송 센터' :
-             activeTab === 'inquiry' ? '1:1 문의 고객응대' : '관리자 대시보드'}
+              activeTab === 'approvals' ? '신규 신청 관리' :
+                activeTab === 'stores' ? '마트 관리' :
+                  activeTab === 'users' ? '사용자 관리' :
+                    activeTab === 'riders' ? '배달원 관리' :
+                      activeTab === 'payments' ? '결제 관리 센터' :
+                        activeTab === 'refunds' ? '환불 관리 센터' :
+                          activeTab === 'settlements' ? '정산 현황' :
+                            activeTab === 'cms' ? '콘텐츠 관리' :
+                              activeTab === 'reports' || activeTab === 'reports_view' ? '신고 및 분쟁 관리' :
+                                activeTab === 'notifications' ? '알림 발송 센터' :
+                                  activeTab === 'inquiry' ? '1:1 문의 고객응대' : '관리자 대시보드'}
           </h1>
           <p style={{ color: '#94a3b8', marginTop: '4px' }}>2026년 1월 22일 기준</p>
         </header>
@@ -1408,61 +1852,61 @@ const AdminDashboard = () => {
         {selectedPromotion && (
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 2200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
             <div style={{ background: '#1e293b', width: '100%', maxWidth: '800px', borderRadius: '24px', padding: '0', border: '1px solid #334155', overflow: 'hidden', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
-               <div style={{ height: '240px', backgroundImage: `url(${selectedPromotion.bannerImg})`, backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative' }}>
-                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent, rgba(15,23,42,0.9))' }} />
-                  <button 
-                    onClick={() => setSelectedPromotion(null)}
-                    style={{ position: 'absolute', top: '20px', right: '20px', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', fontSize: '24px', width: '40px', height: '40px', borderRadius: '50%', cursor: 'pointer', zIndex: 10 }}>횞</button>
-                  <div style={{ position: 'absolute', bottom: '32px', left: '32px' }}>
-                    <div style={{ color: '#38bdf8', fontSize: '14px', fontWeight: '800', marginBottom: '8px' }}>기획전 상세 내역</div>
-                    <h2 style={{ fontSize: '32px', fontWeight: '900', color: 'white', margin: 0 }}>{selectedPromotion.title}</h2>
-                  </div>
-               </div>
-               
-               <div style={{ padding: '32px', overflowY: 'auto', flex: 1 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '32px' }}>
-                    <div>
-                      <h4 style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '16px', fontWeight: '700' }}>진행 정보</h4>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                        <div>
-                          <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>진행 기간</div>
-                          <div style={{ fontWeight: '600', color: '#cbd5e1' }}>{selectedPromotion.period}</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>상태</div>
-                          <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '800', backgroundColor: '#064e3b', color: '#34d399' }}>{selectedPromotion.status}</span>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>설명</div>
-                          <div style={{ fontSize: '14px', color: '#94a3b8', lineHeight: '1.6' }}>{selectedPromotion.description}</div>
-                        </div>
+              <div style={{ height: '240px', backgroundImage: `url(${selectedPromotion.bannerImg})`, backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative' }}>
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent, rgba(15,23,42,0.9))' }} />
+                <button
+                  onClick={() => setSelectedPromotion(null)}
+                  style={{ position: 'absolute', top: '20px', right: '20px', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', fontSize: '24px', width: '40px', height: '40px', borderRadius: '50%', cursor: 'pointer', zIndex: 10 }}>횞</button>
+                <div style={{ position: 'absolute', bottom: '32px', left: '32px' }}>
+                  <div style={{ color: '#38bdf8', fontSize: '14px', fontWeight: '800', marginBottom: '8px' }}>기획전 상세 내역</div>
+                  <h2 style={{ fontSize: '32px', fontWeight: '900', color: 'white', margin: 0 }}>{selectedPromotion.title}</h2>
+                </div>
+              </div>
+
+              <div style={{ padding: '32px', overflowY: 'auto', flex: 1 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '32px' }}>
+                  <div>
+                    <h4 style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '16px', fontWeight: '700' }}>진행 정보</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>진행 기간</div>
+                        <div style={{ fontWeight: '600', color: '#cbd5e1' }}>{selectedPromotion.period}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>상태</div>
+                        <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '800', backgroundColor: '#064e3b', color: '#34d399' }}>{selectedPromotion.status}</span>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>설명</div>
+                        <div style={{ fontSize: '14px', color: '#94a3b8', lineHeight: '1.6' }}>{selectedPromotion.description}</div>
                       </div>
                     </div>
-                    
-                    <div>
-                      <h4 style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '16px', fontWeight: '700' }}>참여 상품 ({selectedPromotion.products.length})</h4>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {selectedPromotion.products.map((product, idx) => (
-                          <div key={idx} style={{ padding: '16px', backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div>
-                              <div style={{ fontWeight: '700', fontSize: '15px' }}>{product.name}</div>
-                              <div style={{ fontSize: '13px', color: '#38bdf8', marginTop: '4px' }}>{product.price}</div>
-                            </div>
-                            <div style={{ textAlign: 'right' }}>
-                              <div style={{ fontSize: '13px', color: '#94a3b8' }}>재고: {product.stock}개</div>
-                              <div style={{ fontSize: '13px', color: '#10b981', fontWeight: '700' }}>누적 판매: {product.sales}건</div>
-                            </div>
+                  </div>
+
+                  <div>
+                    <h4 style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '16px', fontWeight: '700' }}>참여 상품 ({selectedPromotion.products.length})</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {selectedPromotion.products.map((product, idx) => (
+                        <div key={idx} style={{ padding: '16px', backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ fontWeight: '700', fontSize: '15px' }}>{product.name}</div>
+                            <div style={{ fontSize: '13px', color: '#38bdf8', marginTop: '4px' }}>{product.price}</div>
                           </div>
-                        ))}
-                      </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '13px', color: '#94a3b8' }}>재고: {product.stock}개</div>
+                            <div style={{ fontSize: '13px', color: '#10b981', fontWeight: '700' }}>누적 판매: {product.sales}건</div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-               </div>
-               
-               <div style={{ padding: '24px 32px', backgroundColor: '#1e293b', borderTop: '1px solid #334155', display: 'flex', gap: '12px' }}>
-                  <button onClick={() => setSelectedPromotion(null)} style={{ flex: 1, padding: '16px', borderRadius: '12px', background: '#334155', color: 'white', border: 'none', fontWeight: '800', cursor: 'pointer' }}>닫기</button>
-                  <button onClick={() => alert('수정 모드로 이동')} style={{ flex: 2, padding: '16px', borderRadius: '12px', background: '#38bdf8', color: '#0f172a', border: 'none', fontWeight: '900', cursor: 'pointer' }}>기획전 정보 수정</button>
-               </div>
+                </div>
+              </div>
+
+              <div style={{ padding: '24px 32px', backgroundColor: '#1e293b', borderTop: '1px solid #334155', display: 'flex', gap: '12px' }}>
+                <button onClick={() => setSelectedPromotion(null)} style={{ flex: 1, padding: '16px', borderRadius: '12px', background: '#334155', color: 'white', border: 'none', fontWeight: '800', cursor: 'pointer' }}>닫기</button>
+                <button onClick={() => alert('수정 모드로 이동')} style={{ flex: 2, padding: '16px', borderRadius: '12px', background: '#38bdf8', color: '#0f172a', border: 'none', fontWeight: '900', cursor: 'pointer' }}>기획전 정보 수정</button>
+              </div>
             </div>
           </div>
         )}

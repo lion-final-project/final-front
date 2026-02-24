@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatCurrency } from '../utils/storeDashboardUtils';
 
 const DashboardTab = ({
   orders,
@@ -16,18 +17,26 @@ const DashboardTab = ({
   completingOrderId = null,
   handleOpenRejectModal,
   toggleSoldOut,
+  todaySales = 0,
+  dayOverDayRate = 0,
 }) => {
   const activeOrders = orders.filter(o => ['신규', '준비중', '배차 완료', '픽업가능', '픽업 완료', '배달중'].includes(o.status));
   const pendingOrders = orders.filter(o => ['신규', '준비중', '배차 완료', '픽업가능', '픽업 완료'].includes(o.status));
   const lowStockProducts = products.filter(p => p.stock < lowStockThreshold);
+
+  const dayOverDaySub = dayOverDayRate > 0
+    ? `↑ 어제보다 ${dayOverDayRate}% 상승`
+    : dayOverDayRate < 0
+      ? `↓ 어제보다 ${Math.abs(dayOverDayRate)}% 하락`
+      : '어제와 동일';
 
   return (
     <>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', marginBottom: '40px' }}>
         <div className="stat-card" style={{ padding: '24px', background: 'white', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', borderLeft: '4px solid #38bdf8' }}>
           <div style={{ color: '#64748b', fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>오늘의 총 매출</div>
-          <div style={{ fontSize: '28px', fontWeight: '800' }}>1,245,000원</div>
-          <div style={{ color: '#10b981', fontSize: '12px', marginTop: '8px', fontWeight: '700' }}>↑ 어제보다 12.4% 상승</div>
+          <div style={{ fontSize: '28px', fontWeight: '800' }}>{formatCurrency(todaySales)}</div>
+          <div style={{ color: dayOverDayRate >= 0 ? '#10b981' : '#ef4444', fontSize: '12px', marginTop: '8px', fontWeight: '700' }}>{dayOverDaySub}</div>
         </div>
         <div className="stat-card" style={{ padding: '24px', background: 'white', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', borderLeft: '4px solid #10b981' }}>
           <div style={{ color: '#64748b', fontSize: '14px', marginBottom: '8px', fontWeight: '600' }}>대응 필요 주문</div>
@@ -58,7 +67,7 @@ const DashboardTab = ({
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <div style={{ fontSize: '15px', fontWeight: '700' }}>{order.orderNumber || order.id}</div>
-                        {order.status === '배차 완료' && <span style={{ fontSize: '11px', fontWeight: '800', backgroundColor: '#e0e7ff', color: '#4338ca', padding: '2px 6px', borderRadius: '4px' }}>배달원 매칭 완료</span>}
+                        {order.status === '배차 완료' && <span style={{ fontSize: '11px', fontWeight: '800', backgroundColor: '#e0e7ff', color: '#4338ca', padding: '2px 6px', borderRadius: '4px' }}>배차 완료</span>}
                       </div>
                       <div style={{ fontSize: '14px', color: '#64748b', marginTop: '4px' }}>{order.items}</div>
                       {order.status === '거절됨' && <div style={{ fontSize: '12px', color: '#ef4444', fontWeight: '700', marginTop: '4px' }}>사유: {order.rejectionReason}</div>}
@@ -118,7 +127,7 @@ const DashboardTab = ({
                       </button>
                     )}
                     {order.status === '픽업가능' && <button disabled style={{ padding: '14px 28px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', border: '1px solid #38bdf8', fontWeight: '800', cursor: 'wait', fontSize: '15px' }}>배차 진행중...</button>}
-                    {order.status === '배차 완료' && <button disabled style={{ padding: '14px 28px', borderRadius: '12px', background: '#e0e7ff', color: '#4338ca', border: 'none', fontWeight: '800', cursor: 'default', fontSize: '15px' }}>픽업 완료</button>}
+                    {order.status === '배차 완료' && <button disabled style={{ padding: '14px 28px', borderRadius: '12px', background: '#e0e7ff', color: '#4338ca', border: 'none', fontWeight: '800', cursor: 'default', fontSize: '15px' }}>배차 완료</button>}
                     {order.status === '신규' && <button onClick={() => handleOpenRejectModal(order.id)} style={{ padding: '14px 24px', borderRadius: '12px', background: 'white', border: '1px solid #cbd5e1', color: '#64748b', fontWeight: '800', cursor: 'pointer', fontSize: '15px' }}>거절</button>}
                   </div>
                 </div>

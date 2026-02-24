@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../../config/api';
 import { DELIVERY_TIME_SLOTS } from '../../../constants/deliveryTimeSlots';
+import { PLACEHOLDER_PRODUCT_IMAGE } from '../../../constants/placeholderImage';
 import * as reviewApi from '../../../api/reviewApi';
 
-/** 구독 상품 이미지 URL 해석: 상대 경로면 API_BASE_URL 붙임, 없으면 기본 이미지 */
+/** 구독 상품 이미지: 외부 URL 사용 (resolveSubscriptionImg에서 fallback 처리) */
 const DEFAULT_SUBSCRIPTION_IMG = 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80';
+/** 상품 이미지 없을 때: 이미지 준비중 플레이스홀더 (같은 크기, 깨짐 방지) */
+const DEFAULT_PRODUCT_IMG = PLACEHOLDER_PRODUCT_IMAGE;
 const resolveSubscriptionImg = (imageUrl) => {
   if (!imageUrl || typeof imageUrl !== 'string' || !imageUrl.trim()) return DEFAULT_SUBSCRIPTION_IMG;
   if (imageUrl.startsWith('/') && !imageUrl.startsWith('//')) {
-    const base = (API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
+    const base = API_BASE_URL.replace(/\/$/, '');
     return `${base}${imageUrl}`;
   }
   return imageUrl;
@@ -23,6 +26,11 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
   /** 마트 일반 상품 목록 (메뉴 탭) */
   const [storeProducts, setStoreProducts] = useState([]);
   const [storeProductsLoading, setStoreProductsLoading] = useState(false);
+  /** 상품 정렬: RECOMMENDED | NEWEST | SALES | PRICE_ASC | PRICE_DESC */
+  const [productSort, setProductSort] = useState('RECOMMENDED');
+  /** 가게 정보 탭용 상세 (API) */
+  const [storeDetailInfo, setStoreDetailInfo] = useState(null);
+  const [storeDetailInfoLoading, setStoreDetailInfoLoading] = useState(false);
   /** 현재 로그인한 고객이 이미 구독 중인 구독 상품 ID 목록 (재구독 방지용) */
   const [mySubscriptionProductIds, setMySubscriptionProductIds] = useState([]);
 
@@ -78,11 +86,36 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
     if (activeSubTab === 'reviews' && store?.id) {
       fetchReviews();
     }
-  }, [activeSubTab, store?.id, reviewSort]); // Also refetch on sort change if backend supports it
+  }, [activeSubTab, store?.id, reviewSort]);
+
+  // 가게 정보 탭: 상점 상세 API 조회
+  useEffect(() => {
+    const storeId = store?.id;
+    if (activeSubTab !== 'info' || storeId == null || typeof storeId !== 'number') {
+      return;
+    }
+    setStoreDetailInfoLoading(true);
+    fetch(`${API_BASE_URL}/api/stores/${storeId}`, { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const data = json?.data ?? json;
+        setStoreDetailInfo(data || null);
+      })
+      .catch(() => setStoreDetailInfo(null))
+      .finally(() => setStoreDetailInfoLoading(false));
+  }, [activeSubTab, store?.id]);
 
   const deliveryTimeSlots = DELIVERY_TIME_SLOTS.map((s) => s.value);
 
-  // 마트 일반 상품 목록 조회 (메뉴 탭)
+  const PRODUCT_SORT_OPTIONS = [
+    { label: '상품명순', value: 'RECOMMENDED' },
+    { label: '신상품순', value: 'NEWEST' },
+    { label: '판매량순', value: 'SALES' },
+    { label: '낮은가격순', value: 'PRICE_ASC' },
+    { label: '높은가격순', value: 'PRICE_DESC' },
+  ];
+
+  // 마트 일반 상품 목록 조회 (메뉴 탭, 정렬 반영)
   useEffect(() => {
     const storeId = store?.id;
     if (storeId == null || typeof storeId !== 'number') {
@@ -90,7 +123,8 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
       return;
     }
     setStoreProductsLoading(true);
-    fetch(`${API_BASE_URL}/api/stores/${storeId}/products`, { credentials: 'include' })
+    const sortParam = productSort && productSort !== 'RECOMMENDED' ? `?sort=${productSort}` : '';
+    fetch(`${API_BASE_URL}/api/stores/${storeId}/products${sortParam}`, { credentials: 'include' })
       .then((res) => (res.ok ? res.json() : null))
       .then((json) => {
         const list = json?.data ?? json ?? [];
@@ -100,7 +134,7 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
             id: p.productId ?? p.id,
             name: p.productName ?? p.name ?? '',
             price: p.salePrice ?? p.price ?? 0,
-            img: p.productImageUrl ?? p.product_image_url ?? p.img ?? 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=400&q=80',
+            img: p.productImageUrl ?? p.product_image_url ?? p.img ?? DEFAULT_PRODUCT_IMG,
             category: p.categoryName ?? p.category ?? '기타',
             stock: p.stock ?? 0,
             description: p.description ?? '',
@@ -112,7 +146,7 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
       })
       .catch(() => setStoreProducts([]))
       .finally(() => setStoreProductsLoading(false));
-  }, [store?.id]);
+  }, [store?.id, productSort]);
 
   useEffect(() => {
     const storeId = store?.id;
@@ -229,9 +263,13 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div style={{ display: 'flex', gap: '12px' }}>
-                {['추천순', '신상품순', '판매량순', '낮은가격순', '높은가격순'].map((sort, i) => (
-                  <span key={sort} style={{ fontSize: '14px', color: i === 0 ? '#1e293b' : '#94a3b8', fontWeight: i === 0 ? '700' : '400', cursor: 'pointer' }}>
-                    {sort} {i !== 4 && <span style={{ color: '#e2e8f0', margin: '0 6px' }}>|</span>}
+                {PRODUCT_SORT_OPTIONS.map((opt, i) => (
+                  <span
+                    key={opt.value}
+                    onClick={() => setProductSort(opt.value)}
+                    style={{ fontSize: '14px', color: productSort === opt.value ? '#1e293b' : '#94a3b8', fontWeight: productSort === opt.value ? '700' : '400', cursor: 'pointer' }}
+                  >
+                    {opt.label} {i !== PRODUCT_SORT_OPTIONS.length - 1 && <span style={{ color: '#e2e8f0', margin: '0 6px' }}>|</span>}
                   </span>
                 ))}
               </div>
@@ -327,7 +365,12 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
                         onClick={() => !isOutOfStock && setSelectedProductForDetail(product)}
                         style={{ position: 'relative', marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', cursor: isOutOfStock ? 'default' : 'pointer' }}
                       >
-                        <img src={product.img} alt={product.name} style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', transition: 'transform 0.3s', filter: isOutOfStock ? 'grayscale(100%)' : 'none' }} />
+                        <img
+                          src={product.img || DEFAULT_PRODUCT_IMG}
+                          alt={product.name}
+                          onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_PRODUCT_IMG; }}
+                          style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', transition: 'transform 0.3s', filter: isOutOfStock ? 'grayscale(100%)' : 'none', backgroundColor: '#e2e8f0' }}
+                        />
 
                         {isOutOfStock && (
                           <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -510,78 +553,69 @@ const StoreDetailView = ({ store, onBack, onAddToCart, onSubscribeCheckout }) =>
             )}
           </div>
         );
-      case 'info':
-        // Extended mock data for the info tab
-        const storeInfo = {
-          ...store,
-          businessNo: '123-45-67890',
-          owner: '김사장',
-          address: '서울시 강남구 테헤란로 123-45 (역삼동) 1층',
-          safeNumber: '0507-1234-5678',
-          intro: `안녕하세요! ${store.name}입니다.\n매일 새벽 경매시장에서 직접 공수해온 신선한 재료만을 고집합니다.\n항상 우리 가족이 먹는다는 생각으로 정성을 다해 준비하겠습니다.\n많은 이용 부탁드립니다! 감사합니다.`
-        };
+      case 'info': {
+        const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+        if (storeDetailInfoLoading) {
+          return <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>가게 정보를 불러오는 중...</div>;
+        }
+        const info = storeDetailInfo || {};
+        const addressFull = [info.addressLine1, info.addressLine2].filter(Boolean).join(' ') || store?.addressLine1 || store?.addressLine2 || '-';
 
         return (
           <div style={{ background: 'white', padding: '40px', borderRadius: '24px', border: '1px solid var(--border)' }}>
             <h3 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '32px', color: '#1e293b' }}>가게 정보</h3>
 
-            {/* 1. Basic Info Section */}
             <div style={{ marginBottom: '40px' }}>
               <h4 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px', color: '#334155', borderBottom: '2px solid #f1f5f9', paddingBottom: '12px' }}>기본 정보</h4>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '15px' }}>
                 <tbody>
                   <tr style={{ borderBottom: '1px solid #f8fafc' }}>
                     <td style={{ width: '120px', padding: '12px 0', color: '#64748b', fontWeight: '500' }}>상호명</td>
-                    <td style={{ padding: '12px 0', color: '#333', fontWeight: '700' }}>{storeInfo.name}</td>
+                    <td style={{ padding: '12px 0', color: '#333', fontWeight: '700' }}>{info.storeName || store?.name || '-'}</td>
                   </tr>
                   <tr style={{ borderBottom: '1px solid #f8fafc' }}>
                     <td style={{ padding: '12px 0', color: '#64748b', fontWeight: '500' }}>사업자번호</td>
-                    <td style={{ padding: '12px 0', color: '#333' }}>{storeInfo.businessNo}</td>
+                    <td style={{ padding: '12px 0', color: '#333' }}>{info.businessNumber || '-'}</td>
                   </tr>
                   <tr style={{ borderBottom: '1px solid #f8fafc' }}>
                     <td style={{ padding: '12px 0', color: '#64748b', fontWeight: '500' }}>대표자명</td>
-                    <td style={{ padding: '12px 0', color: '#333' }}>{storeInfo.owner}</td>
+                    <td style={{ padding: '12px 0', color: '#333' }}>{info.representativeName || '-'}</td>
                   </tr>
                   <tr style={{ borderBottom: '1px solid #f8fafc' }}>
                     <td style={{ padding: '12px 0', color: '#64748b', fontWeight: '500' }}>주소지</td>
-                    <td style={{ padding: '12px 0', color: '#333' }}>{storeInfo.address}</td>
+                    <td style={{ padding: '12px 0', color: '#333' }}>{addressFull}</td>
                   </tr>
                   <tr>
-                    <td style={{ padding: '12px 0', color: '#64748b', fontWeight: '500' }}>안심번호</td>
-                    <td style={{ padding: '12px 0', color: '#333', fontWeight: '700' }}>{storeInfo.safeNumber}</td>
+                    <td style={{ padding: '12px 0', color: '#64748b', fontWeight: '500' }}>연락처</td>
+                    <td style={{ padding: '12px 0', color: '#333', fontWeight: '700' }}>{info.phone || '-'}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
 
-            {/* 2. Operating Hours */}
-            <div style={{ marginBottom: '40px' }}>
-              <h4 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px', color: '#334155', borderBottom: '2px solid #f1f5f9', paddingBottom: '12px' }}>영업 시간</h4>
-              <div style={{ backgroundColor: '#f8fafc', padding: '24px', borderRadius: '16px', color: '#475569', fontSize: '15px', lineHeight: '1.8' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', maxWidth: '300px', marginBottom: '8px' }}>
-                  <span style={{ fontWeight: '600' }}>평일</span>
-                  <span>09:00 - 21:00</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', maxWidth: '300px', marginBottom: '8px', color: '#ef4444' }}>
-                  <span style={{ fontWeight: '600' }}>주말/공휴일</span>
-                  <span>10:00 - 20:00</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', maxWidth: '300px' }}>
-                  <span style={{ fontWeight: '600' }}>휴무일</span>
-                  <span>연중무휴</span>
+            {(info.businessHours && info.businessHours.length > 0) && (
+              <div style={{ marginBottom: '40px' }}>
+                <h4 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px', color: '#334155', borderBottom: '2px solid #f1f5f9', paddingBottom: '12px' }}>영업 시간</h4>
+                <div style={{ backgroundColor: '#f8fafc', padding: '24px', borderRadius: '16px', color: '#475569', fontSize: '15px', lineHeight: '1.8' }}>
+                  {info.businessHours.map((bh) => (
+                    <div key={bh.dayOfWeek} style={{ display: 'flex', justifyContent: 'space-between', maxWidth: '320px', marginBottom: '8px', color: bh.isClosed ? '#94a3b8' : 'inherit' }}>
+                      <span style={{ fontWeight: '600' }}>{dayNames[bh.dayOfWeek] ?? `요일 ${bh.dayOfWeek}`}</span>
+                      <span>{bh.isClosed ? '휴무' : (bh.openTime && bh.closeTime ? `${bh.openTime} - ${bh.closeTime}` : '-')}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* 3. Store Introduction */}
             <div>
               <h4 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px', color: '#334155', borderBottom: '2px solid #f1f5f9', paddingBottom: '12px' }}>매장 소개</h4>
               <div style={{ fontSize: '16px', lineHeight: '1.8', color: '#475569', whiteSpace: 'pre-line' }}>
-                {storeInfo.intro}
+                {info.description && info.description.trim() ? info.description : '등록된 소개가 없습니다.'}
               </div>
             </div>
           </div>
         );
+      }
       case 'subscription':
         return (
           <div style={{ border: '1px solid #fce7f3', padding: '40px', borderRadius: '24px', background: 'linear-gradient(to bottom, #fff, #fff5f8)' }}>
@@ -785,8 +819,13 @@ const ProductDetailModal = ({ product, store, onClose, onAddToCart }) => {
       }} onClick={e => e.stopPropagation()}>
         <button onClick={onClose} style={{ position: 'absolute', top: '24px', right: '24px', border: 'none', background: 'white', width: '40px', height: '40px', borderRadius: '50%', fontSize: '20px', cursor: 'pointer', color: '#94a3b8', zIndex: 1, boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>✕</button>
 
-        <div style={{ width: '100%', aspectRatio: '1/1', overflow: 'hidden' }}>
-          <img src={product.img} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <div style={{ width: '100%', aspectRatio: '1/1', overflow: 'hidden', backgroundColor: '#e2e8f0' }}>
+          <img
+            src={product.img || DEFAULT_PRODUCT_IMG}
+            alt={product.name}
+            onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_PRODUCT_IMG; }}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
         </div>
 
         <div style={{ padding: '40px', display: 'flex', flexDirection: 'column' }}>

@@ -2,7 +2,7 @@ import React from 'react';
 import MapSimulator from '../MapSimulator';
 import RiderMap from '../components/RiderMap';
 
-const MainTab = ({ earnings, activeDeliveries, deliveryRequests, setShowMsgModal, nextStep, handleAcceptRequest, currentLocation, lastSyncTime }) => {
+const MainTab = ({ earnings, activeDeliveries, deliveryRequests, isLoadingRequests, setShowMsgModal, nextStep, handleAcceptRequest, currentLocation, lastSyncTime }) => {
   return (
     <div style={{ padding: '20px' }}>
       {/* 수익 요약 카드 */}
@@ -90,26 +90,40 @@ const MainTab = ({ earnings, activeDeliveries, deliveryRequests, setShowMsgModal
         <>
           <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '16px' }}>주변 배달 요청</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {deliveryRequests.filter(req => !activeDeliveries.some(d => d.id === req.id)).map((req) => (
-              <div key={req.id} style={{ backgroundColor: '#1e293b', borderRadius: '16px', overflow: 'hidden', border: '1px solid #334155' }}>
-                <div style={{ padding: '4px' }}><MapSimulator status="preview" /></div>
-                <div style={{ padding: '20px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                    <div>
-                      <div style={{ fontWeight: '800', fontSize: '16px', marginBottom: '4px' }}>{req.store}</div>
-                      <div style={{ fontSize: '13px', color: '#38bdf8', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ fontSize: '14px' }}>🏬</span> {req.storeAddress}</div>
-                      <div style={{ fontSize: '13px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ fontSize: '14px' }}>📍</span> {req.destination}</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ color: '#38bdf8', fontWeight: '900', fontSize: '18px' }}>{req.fee.toLocaleString()}원</div>
-                      <div style={{ fontSize: '12px', color: '#64748b' }}>{req.distance}</div>
-                    </div>
-                  </div>
-                  <button onClick={() => handleAcceptRequest(req)} style={{ width: '100%', padding: '14px', borderRadius: '10px', backgroundColor: '#38bdf8', color: 'white', border: 'none', fontWeight: '800', cursor: 'pointer' }}>배달 수락</button>
-                </div>
+            {isLoadingRequests ? (
+              <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+                <div style={{ width: '32px', height: '32px', border: '3px solid #334155', borderTopColor: '#38bdf8', borderRadius: '50%', margin: '0 auto 12px', animation: 'spin 0.8s linear infinite' }} />
+                <div style={{ color: '#94a3b8', fontSize: '14px' }}>주변 배달 요청을 불러오는 중...</div>
               </div>
-            ))}
-          </div>
+            ) : deliveryRequests.filter(req => !activeDeliveries.some(d => d.id === req.id)).length === 0 ? (
+              <div style={{ padding: '40px 20px', backgroundColor: '#1e293b', borderRadius: '24px', textAlign: 'center', border: '1px solid #334155' }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>📭</div>
+                <div style={{ color: '#94a3b8', fontWeight: '700', fontSize: '16px' }}>현재 주변에 배달 요청이 없습니다</div>
+                <div style={{ color: '#64748b', fontSize: '13px', marginTop: '8px' }}>새로운 배달 요청이 들어오면<br />자동으로 표시됩니다.</div>
+              </div>
+            ) : (
+              deliveryRequests.filter(req => !activeDeliveries.some(d => d.id === req.id)).map((req) => (
+                <div key={req.id} style={{ backgroundColor: '#1e293b', borderRadius: '16px', overflow: 'hidden', border: '1px solid #334155' }}>
+                  <div style={{ padding: '4px' }}><MapSimulator status="preview" /></div>
+                  <div style={{ padding: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                      <div>
+                        <div style={{ fontWeight: '800', fontSize: '16px', marginBottom: '4px' }}>{req.store}</div>
+                        <div style={{ fontSize: '13px', color: '#38bdf8', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ fontSize: '14px' }}>🏬</span> {req.storeAddress}</div>
+                        <div style={{ fontSize: '13px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ fontSize: '14px' }}>📍</span> {req.destination}</div>
+                        {req.orderSummary && <div style={{ fontSize: '13px', color: '#e2e8f0', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ fontSize: '14px' }}>📦</span> {req.orderSummary}</div>}
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ color: '#38bdf8', fontWeight: '900', fontSize: '18px' }}>{req.fee?.toLocaleString()}원</div>
+                        {req.distance && <div style={{ fontSize: '12px', color: '#64748b' }}>{req.distance}</div>}
+                      </div>
+                    </div>
+                    <button onClick={() => handleAcceptRequest(req)} style={{ width: '100%', padding: '14px', borderRadius: '10px', backgroundColor: '#38bdf8', color: 'white', border: 'none', fontWeight: '800', cursor: 'pointer' }}>배달 수락</button>
+                  </div>
+                </div>
+              ))
+            )}
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style></div>
         </>
       ) : (
         <div style={{ padding: '40px 20px', backgroundColor: '#1e293b', borderRadius: '24px', textAlign: 'center', border: '1px solid #f59e0b' }}>
