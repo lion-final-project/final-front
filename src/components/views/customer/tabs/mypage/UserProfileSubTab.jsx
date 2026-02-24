@@ -14,6 +14,22 @@ function getWithdrawalBlockAlertMessages(check) {
   return reasons.map((r) => r.message || r.code).filter(Boolean);
 }
 
+/** API의 joinedAt(ISO 문자열) 또는 joinDate를 가입일 표시용으로 포맷 (예: 2026. 02. 16.) */
+function formatJoinDate(joinedAt, joinDate) {
+  const raw = joinedAt ?? joinDate;
+  if (!raw) return '';
+  try {
+    const d = typeof raw === 'string' ? new Date(raw) : raw;
+    if (Number.isNaN(d.getTime())) return '';
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}. ${m}. ${day}.`;
+  } catch {
+    return raw;
+  }
+}
+
 const UserProfileSubTab = ({ userInfo = {}, subscriptionList, onLogout }) => {
   const handleWithdraw = async () => {
     try {
@@ -60,11 +76,10 @@ const UserProfileSubTab = ({ userInfo = {}, subscriptionList, onLogout }) => {
       <h3 style={{ fontSize: "18px", fontWeight: "800", marginBottom: "24px" }}>내 정보 관리</h3>
       <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
         {[
-          { label: "이름", value: userInfo.name },
-          { label: "이메일", value: userInfo.email },
-          { label: "연락처", value: userInfo.phone },
-          { label: "생년월일", value: userInfo.birth },
-          { label: "가입일", value: userInfo.joinDate },
+          { label: "이름", value: userInfo.name ?? '' },
+          { label: "이메일", value: userInfo.email ?? '' },
+          { label: "연락처", value: userInfo.phone ?? '' },
+          { label: "가입일", value: formatJoinDate(userInfo.joinedAt, userInfo.joinDate) },
         ].map((item, i) => (
           <div
             key={i}

@@ -18,6 +18,7 @@ export const mapApiToSub = (d) => ({
   deliveryDays: (d.daysOfWeek ?? []).map((n) => NUM_TO_KO[n]).filter(Boolean),
   selectedProducts: (d.items ?? []).map((i) => ({ id: String(i.productId), qty: i.quantity ?? 1, productName: i.productName })),
   description: d.description ?? '',
+  imageUrl: d.imageUrl ?? null,
 });
 
 export const getSubscriptionHeaders = () => ({ 'Content-Type': 'application/json' });
@@ -73,6 +74,13 @@ export const mapStoreOrderToDisplay = (d) => {
   const acceptedAt = d.acceptedAt ? new Date(d.acceptedAt) : null;
   const prepMins = d.prepTime ?? 10;
   const readyAt = acceptedAt ? acceptedAt.getTime() + prepMins * 60 * 1000 : null;
+
+  // 주문 상태 결정: READY 상태이면서 배달이 수락(ACCEPTED)된 경우 '배차 완료'로 표시
+  let displayStatus = STORE_ORDER_STATUS_TO_KO[d.status] ?? d.status ?? '신규';
+  if (d.status === 'READY' && d.deliveryStatus && d.deliveryStatus === 'ACCEPTED') {
+    displayStatus = '배차 완료';
+  }
+
   return {
     id: d.storeOrderId,
     orderNumber: d.orderNumber ?? String(d.storeOrderId),
@@ -80,7 +88,7 @@ export const mapStoreOrderToDisplay = (d) => {
     items: d.orderTitle ?? '',
     itemsList,
     price: formatCurrency(d.finalPrice ?? d.productPrice ?? 0),
-    status: STORE_ORDER_STATUS_TO_KO[d.status] ?? d.status ?? '신규',
+    status: displayStatus,
     date: orderedAt ? orderedAt.toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '',
     prepTime: prepMins,
     createdAt: orderedAt ? orderedAt.getTime() : null,

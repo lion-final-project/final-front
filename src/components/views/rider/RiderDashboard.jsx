@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { getRiderInfo, updateRiderStatus, updateRiderLocation, getRiderLocation, removeRiderLocation, getMyDeliveries, acceptDelivery as acceptDeliveryApi, pickUpDelivery, startDelivery, completeDelivery as completeDeliveryApi } from '../../../api/riderApi';
-import { mapToLocalDelivery } from './utils/riderDashboardUtils';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { getRiderInfo, updateRiderStatus, updateRiderLocation, getRiderLocation, removeRiderLocation, completeDelivery, getMyDeliveries, acceptDeliveryRequest, pickUpDelivery as pickUpDeliveryApi, startDelivery as startDeliveryApi } from '../../../api/riderApi';
+import { uploadDeliveryPhoto } from '../../../api/storageApi';
 import MainTab from './tabs/MainTab';
 import EarningsTab from './tabs/EarningsTab';
 import HistoryTab from './tabs/HistoryTab';
 import AccountTab from './tabs/AccountTab';
-import LoginTab from './tabs/LoginTab';
 import MessageTemplatesModal from './modals/MessageTemplatesModal';
 import PhotoUploadModal from './modals/PhotoUploadModal';
 import ReceiptModal from './modals/ReceiptModal';
@@ -14,7 +13,7 @@ import ReportModal from './modals/ReportModal';
 import StatusPopup from './modals/StatusPopup';
 import CompletionNotification from './modals/CompletionNotification';
 
-const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
+const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo, setUserRole }) => {
   const [activeTab, setActiveTab] = useState('main');
   const [isOnline, setIsOnline] = useState(false); // Default false until loaded
   const [riderData, setRiderData] = useState(initialRiderInfo); // Manage local rider data
@@ -27,11 +26,9 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
     const fetchInfo = async () => {
       try {
         const response = await getRiderInfo();
-        if (response) {
-          setRiderData(response);
-          // ONLINE 또는 DELIVERING 상태일 때 온라인으로 간주
-          const status = response['operation-status'];
-          setIsOnline(status === 'ONLINE' || status === 'DELIVERING');
+        if (response && response.data) {
+          setRiderData(response.data);
+          setIsOnline(response.data['operation-status'] === 'ONLINE' || response.data['operation-status'] === 'DELIVERING');
         }
       } catch (error) {
         console.error('Failed to fetch rider info:', error);
@@ -39,37 +36,127 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
     };
     fetchInfo();
   }, []);
-
-  const [deliveryRequests, setDeliveryRequests] = useState([]);
   const [activeDeliveries, setActiveDeliveries] = useState([]); // Array of { ...req, status }
-
-  // Fetch Active Deliveries
-  const fetchActiveDeliveries = async () => {
-    try {
-      const response = await getMyDeliveries();
-      if (response && response.content) {
-        const ongoing = response.content
-          .filter(d => !['DELIVERED', 'CANCELLED'].includes(d.status))
-          .map(mapToLocalDelivery);
-        setActiveDeliveries(ongoing);
-      }
-    } catch (error) {
-      console.error('Failed to fetch active deliveries:', error);
-    }
-  };
-
-  useEffect(() => {
-    if (isOnline) {
-      fetchActiveDeliveries();
-    }
-  }, [isOnline]);
-
+  const [deliveryRequests, setDeliveryRequests] = useState([]); // SSE로 수신한 주변 배달 요청
+  const [isLoadingRequests, setIsLoadingRequests] = useState(false);
+  const deliveryRequestsRef = useRef([]); // SSE 콜백 내 최신 상태 참조
   const [earnings, setEarnings] = useState({ today: 48500, weekly: 342000 });
   const [showMsgModal, setShowMsgModal] = useState(false);
   const [completionNotification, setCompletionNotification] = useState(null); // { fee: 3500 }
   const [showPhotoUploadModal, setShowPhotoUploadModal] = useState(false);
   const [uploadingDeliveryId, setUploadingDeliveryId] = useState(null);
   const [deliveryPhoto, setDeliveryPhoto] = useState(null);
+  const [deliveryPhotoFile, setDeliveryPhotoFile] = useState(null);
+  const [isCompletingDelivery, setIsCompletingDelivery] = useState(false);
+
+  // deliveryRequests ref 동기화
+  useEffect(() => {
+    deliveryRequestsRef.current = deliveryRequests;
+  }, [deliveryRequests]);
+
+  // 마운트 시 기존 배달 목록 불러오기 (배정된 배달 중 진행 중인 것)
+  useEffect(() => {
+    const fetchExistingDeliveries = async () => {
+      try {
+        // ACCEPTED, PICKED_UP, DELIVERING 상태의 배달을 각각 호출하여 병합
+        const statuses = ['ACCEPTED', 'PICKED_UP', 'DELIVERING'];
+        const responses = await Promise.all(
+          statuses.map(status => getMyDeliveries(status).catch(() => null))
+        );
+
+        const allDeliveries = responses
+          .filter(Boolean)
+          .flatMap(res => res?.data?.content || res?.data || []);
+
+        if (allDeliveries.length > 0) {
+          const mapped = allDeliveries.map(d => ({
+            id: d.id,
+            store: d['store-name'] || d.storeName || '알 수 없음',
+            storeAddress: d['pickup-address'] || d.pickupAddress || '',
+            destination: d['delivery-address'] || d.deliveryAddress || '',
+            distance: '',
+            fee: d['delivery-fee'] || d.deliveryFee || 0,
+            status: d.status === 'ACCEPTED' ? 'accepted' : d.status === 'PICKED_UP' ? 'pickup' : 'delivering',
+            orderNumber: d.orderNumber || d.id
+          }));
+          setActiveDeliveries(mapped);
+        }
+      } catch (error) {
+        console.error('기존 배달 목록 불러오기 실패:', error);
+      }
+    };
+    fetchExistingDeliveries();
+  }, []);
+
+  // SSE에서 받은 배달 페이로드로 UI 객체 생성
+  const createRequestFromPayload = useCallback((payload) => {
+    // payload가 객체인 경우 enriched data 사용, 아닌 경우 fallback
+    if (typeof payload === 'object' && payload !== null) {
+      return {
+        id: payload.deliveryId || payload.id || payload,
+        store: payload.storeName || '새 배달 요청',
+        storeAddress: '',
+        destination: payload.deliveryAddress || '',
+        distance: payload.distanceKm ? `${payload.distanceKm}km` : '',
+        fee: payload.deliveryFee || 0,
+        orderSummary: payload.orderSummary || '',
+        orderNumber: null,
+      };
+    }
+    // fallback: ID만 있는 경우
+    return {
+      id: payload,
+      store: '새 배달 요청',
+      storeAddress: '',
+      destination: '',
+      distance: '',
+      fee: 0,
+      orderNumber: null,
+    };
+  }, []);
+
+  // SSE 이벤트 처리: nearby-deliveries (전체 목록 갱신 — 배달 상세 정보 배열)
+  useEffect(() => {
+    const handleNearbyDeliveries = (e) => {
+      const deliveryList = e.detail; // 배달 상세 정보 배열
+      if (!Array.isArray(deliveryList)) return;
+
+      const requests = deliveryList.map(d => createRequestFromPayload(d));
+      setDeliveryRequests(requests);
+      setIsLoadingRequests(false);
+    };
+
+    // SSE 이벤트: new-delivery (단건 추가 — 배달 상세 정보 객체)
+    const handleNewDelivery = (e) => {
+      const payload = e.detail;
+      if (!payload) return;
+
+      const deliveryId = typeof payload === 'object' ? (payload.deliveryId || payload.id) : payload;
+      if (!deliveryId) return;
+
+      // 이미 목록에 있으면 무시
+      if (deliveryRequestsRef.current.some(r => String(r.id) === String(deliveryId))) return;
+
+      const req = createRequestFromPayload(payload);
+      setDeliveryRequests(prev => [...prev, req]);
+    };
+
+    // SSE 이벤트: delivery-matched (해당 건 제거)
+    const handleDeliveryMatched = (e) => {
+      const deliveryId = e.detail;
+      setDeliveryRequests(prev => prev.filter(r => String(r.id) !== String(deliveryId)));
+    };
+
+    window.addEventListener('nearby-deliveries', handleNearbyDeliveries);
+    window.addEventListener('new-delivery', handleNewDelivery);
+    window.addEventListener('delivery-matched', handleDeliveryMatched);
+
+    return () => {
+      window.removeEventListener('nearby-deliveries', handleNearbyDeliveries);
+      window.removeEventListener('new-delivery', handleNewDelivery);
+      window.removeEventListener('delivery-matched', handleDeliveryMatched);
+    };
+  }, [createRequestFromPayload]);
 
   const [verificationStatus /* , setVerificationStatus */] = useState('verified'); // unverified, pending, verified
   const [vehicleInfo, setVehicleInfo] = useState({
@@ -103,10 +190,10 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
 
                   // 2. Read position from server (GET) to ensure sync
                   const response = await getRiderLocation(`rider${riderData.id}`);
-                  if (response) {
+                  if (response && response.data) {
                     setCurrentLocation({
-                      latitude: response.latitude,
-                      longitude: response.longitude
+                      latitude: response.data.latitude,
+                      longitude: response.data.longitude
                     });
                     setLastSyncTime(new Date().toLocaleTimeString('ko-KR', { hour12: false }));
                   }
@@ -181,9 +268,9 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
 
     try {
       const response = await updateRiderStatus(newStatus);
-      if (response) {
-        setRiderData(response);
-        const nextIsOnline = response['operation-status'] === 'ONLINE';
+      if (response && response.data) {
+        setRiderData(response.data);
+        const nextIsOnline = response.data['operation-status'] === 'ONLINE' || response.data['operation-status'] === 'DELIVERING';
         setIsOnline(nextIsOnline);
 
         // 운행 종료(OFFLINE) 시 Redis에서 위치 정보 삭제
@@ -221,56 +308,16 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
     }
   };
 
-  // Listen for NEW_DELIVERY SSE event
-  useEffect(() => {
-    const handleNearbyDeliveries = (event) => {
-      const deliveryIds = event.detail;
-      console.log('[Rider] 주변 신규 배송건 수신:', deliveryIds);
-      if (Array.isArray(deliveryIds)) {
-        setDeliveryRequests(prev => {
-          // 1. 고유 ID 추출 및 현재 진행 중인 배달 제외
-          const uniqueIds = [...new Set(deliveryIds.map(id => String(id)))];
-          const validIds = uniqueIds.filter(id =>
-            !activeDeliveries.some(d => String(d.id) === id)
-          );
-
-          // 2. 기존 목록 중 서버 목록에 여전히 있는 것들 유지
-          const existing = prev.filter(p => validIds.includes(String(p.id)));
-
-          // 3. 신규 추가된 것들 생성
-          const newlyAdded = validIds
-            .filter(id => !existing.some(e => String(e.id) === id))
-            .map(id => ({
-              id,
-              store: '실시간 신규 마트',
-              storeAddress: '인근 지역',
-              destination: '지정됨',
-              distance: '실시간 측정 중',
-              fee: 3500
-            }));
-
-          return [...newlyAdded, ...existing];
-        });
-      }
-    };
-
-    window.addEventListener('nearby-deliveries', handleNearbyDeliveries);
-    return () => window.removeEventListener('nearby-deliveries', handleNearbyDeliveries);
-  }, [activeDeliveries]);
-
-  const deliveryRequests_old = [
-    { id: 'REQ001', storeName: '무림 정육점', pickupAddress: '강남구 삼성동 15-5', deliveryAddress: '삼성동 빌라 302호', distance: '1.2km', fee: 3500 },
-    { id: 'REQ002', storeName: '행복 마트 강남점', pickupAddress: '역삼동 823-1', deliveryAddress: '논현동 원룸 201호', distance: '0.8km', fee: 3000 }
-  ];
-
   const handleAcceptRequest = async (req) => {
-    if (activeDeliveries.some(d => String(d.id) === String(req.id))) return;
+    if (activeDeliveries.some(d => d.id === req.id)) return;
     try {
-      await acceptDeliveryApi(req.id);
-      fetchActiveDeliveries();
+      await acceptDeliveryRequest(req.id);
+      // 수락 성공 → 진행 중 배달 목록에 추가, 요청 목록에서 제거
+      setActiveDeliveries(prev => [...prev, { ...req, status: 'accepted' }]);
+      setDeliveryRequests(prev => prev.filter(r => r.id !== req.id));
     } catch (error) {
-      console.error('Failed to accept delivery:', error);
-      alert('배달 수락에 실패했습니다.');
+      console.error('배달 수락 실패:', error);
+      alert('배달 수락에 실패했습니다. 이미 다른 라이더가 수락했을 수 있습니다.');
     }
   };
 
@@ -280,46 +327,58 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
 
     try {
       if (delivery.status === 'accepted') {
-        await pickUpDelivery(id);
+        await pickUpDeliveryApi(id);
+        setActiveDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: 'pickup' } : d));
       } else if (delivery.status === 'pickup') {
-        await startDelivery(id);
+        await startDeliveryApi(id);
+        setActiveDeliveries(prev => prev.map(d => d.id === id ? { ...d, status: 'delivering' } : d));
       } else if (delivery.status === 'delivering') {
+        // 사진 증빙 필요
         setUploadingDeliveryId(id);
         setShowPhotoUploadModal(true);
-        return;
       }
-      fetchActiveDeliveries();
     } catch (error) {
-      console.error('Failed to proceed next step:', error);
-      alert('상태 변경에 실패했습니다.');
+      console.error('배달 상태 변경 실패:', error);
+      alert('상태 변경에 실패했습니다. 다시 시도해주세요.');
     }
   };
 
   const handleCompleteDelivery = async () => {
-    if (!uploadingDeliveryId) return;
+    if (!uploadingDeliveryId || !deliveryPhotoFile) return;
+    setIsCompletingDelivery(true);
 
     try {
-      await completeDeliveryApi(uploadingDeliveryId);
       const delivery = activeDeliveries.find(d => d.id === uploadingDeliveryId);
-      if (delivery) {
-        setEarnings(e => ({ ...e, today: e.today + delivery.fee }));
-        setCompletionNotification({ fee: delivery.fee });
-        setTimeout(() => setCompletionNotification(null), 4000);
-      }
-      fetchActiveDeliveries();
-    } catch (error) {
-      console.error('Failed to complete delivery:', error);
-      alert('배송 완료 처리에 실패했습니다.');
-    }
+      if (!delivery) return;
 
-    setUploadingDeliveryId(null);
-    setShowPhotoUploadModal(false);
-    setDeliveryPhoto(null);
+      // 1. 증빙 사진 업로드 → URL 획득
+      const orderNumber = delivery.orderNumber || delivery.id;
+      const photoUrl = await uploadDeliveryPhoto(deliveryPhotoFile, orderNumber, uploadingDeliveryId);
+
+      // 2. 배달 완료 API 호출 (photoUrl 필수)
+      await completeDelivery(uploadingDeliveryId, photoUrl);
+
+      // 3. 로컬 상태 반영
+      setActiveDeliveries(prev => prev.filter(d => d.id !== uploadingDeliveryId));
+      setEarnings(e => ({ ...e, today: e.today + (delivery.fee || 0) }));
+      setCompletionNotification({ fee: delivery.fee || 0 });
+      setTimeout(() => setCompletionNotification(null), 4000);
+    } catch (error) {
+      console.error('배달 완료 처리 실패:', error);
+      alert('배달 완료 처리에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsCompletingDelivery(false);
+      setUploadingDeliveryId(null);
+      setShowPhotoUploadModal(false);
+      setDeliveryPhoto(null);
+      setDeliveryPhotoFile(null);
+    }
   };
 
   const handlePhotoSelect = (e) => {
     const file = e.target.files[0];
     if (file) {
+      setDeliveryPhotoFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setDeliveryPhoto(reader.result);
@@ -336,15 +395,6 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
   };
 
   const renderActiveView = () => {
-    if (!isOnline && activeTab === 'main') {
-      return (
-        <div style={{ padding: '60px 20px', textAlign: 'center', opacity: 0.6 }}>
-          <div style={{ fontSize: '80px', marginBottom: '20px' }}>💤</div>
-          <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '12px' }}>현재 '운행 불가' 상태입니다</h2>
-          <p style={{ color: '#94a3b8', fontSize: '15px' }}>배달을 시작하려면 상단의 버튼을 활성화해주세요.</p>
-        </div>
-      );
-    }
 
     switch (activeTab) {
       case 'earnings':
@@ -358,8 +408,6 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
       case 'history':
         return (
           <HistoryTab
-            historyFilter={historyFilter}
-            setHistoryFilter={setHistoryFilter}
             expandedHistoryItems={expandedHistoryItems}
             toggleHistoryExpand={toggleHistoryExpand}
             setSelectedReceipt={setSelectedReceipt}
@@ -369,6 +417,7 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
       case 'account':
         return (
           <AccountTab
+            userInfo={riderData}
             verificationStatus={verificationStatus}
             registeredVehicles={registeredVehicles}
             activeVehicleId={activeVehicleId}
@@ -377,14 +426,13 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
             handleDeleteVehicle={handleDeleteVehicle}
           />
         );
-      case 'login':
-        return <LoginTab onLoginSuccess={() => setActiveTab('main')} />;
       default:
         return (
           <MainTab
             earnings={earnings}
             activeDeliveries={activeDeliveries}
             deliveryRequests={deliveryRequests}
+            isLoadingRequests={isLoadingRequests}
             setShowMsgModal={setShowMsgModal}
             nextStep={nextStep}
             handleAcceptRequest={handleAcceptRequest}
@@ -480,7 +528,8 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
           deliveryPhoto={deliveryPhoto}
           onPhotoSelect={handlePhotoSelect}
           onSubmit={handleCompleteDelivery}
-          onClose={() => { setShowPhotoUploadModal(false); setDeliveryPhoto(null); setUploadingDeliveryId(null); }}
+          onClose={() => { setShowPhotoUploadModal(false); setDeliveryPhoto(null); setDeliveryPhotoFile(null); setUploadingDeliveryId(null); }}
+          isUploading={isCompletingDelivery}
         />
       )}
 
@@ -515,11 +564,19 @@ const RiderDashboard = ({ isResidentRider, riderInfo: initialRiderInfo }) => {
           { icon: '📋', label: '히스토리', tab: 'history' },
           { icon: '💰', label: '정산', tab: 'earnings' },
           { icon: '👤', label: '마이페이지', tab: 'account' },
-          { icon: '🔐', label: '로그인', tab: 'login' }
+          { icon: '🙋🏻‍♂️', label: '고객모드', tab: 'customer' }
         ].map(item => (
           <div
             key={item.tab}
-            onClick={() => setActiveTab(item.tab)}
+            onClick={() => {
+              if (item.tab === 'customer') {
+                if (window.confirm("고객 모드로 전환하시겠습니까?")) {
+                  setUserRole('CUSTOMER');
+                }
+              } else {
+                setActiveTab(item.tab);
+              }
+            }}
             className="rider-nav-item"
             style={{
               textAlign: 'center',

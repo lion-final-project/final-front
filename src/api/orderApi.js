@@ -1,6 +1,40 @@
 import api from './axios';
 
 /**
+ * 주문 목록 조회 (마이페이지용)
+ * @param {number} page - 페이지 번호 (기본값: 0)
+ * @param {number} size - 페이지 크기 (기본값: 10)
+ * @param {string} startDate - 시작 날짜 (ISO 형식, 선택)
+ * @param {string} endDate - 종료 날짜 (ISO 형식, 선택)
+ * @param {string} searchTerm - 검색어 (상품명, 선택)
+ * @returns {Promise<{ orders, totalPages, totalElements, currentPage, size }>}
+ */
+export const getOrderList = async (page = 0, size = 10, startDate = null, endDate = null, searchTerm = null) => {
+  try {
+    const params = { page, size };
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+    if (searchTerm && searchTerm.trim()) params.searchTerm = searchTerm.trim();
+
+    const response = await api.get('/api/orders', { params });
+    console.log('API 응답 전체:', response);
+    console.log('response.data:', response.data);
+    const data = response.data?.data ?? response.data;
+    console.log('추출된 data:', data);
+    return data;
+  } catch (error) {
+    console.error('주문 목록 조회 오류:', error);
+    return {
+      storeOrders: [],
+      totalPages: 0,
+      totalElements: 0,
+      currentPage: 0,
+      size: 10
+    };
+  }
+};
+
+/**
  * 주문 상세 조회 (결제 완료 화면/영수증용)
  * @param {number} orderId - 주문 ID
  * @returns {Promise<{ order, storeOrders, payment }>}
@@ -29,4 +63,64 @@ export const createOrder = async (payload) => {
   });
   const data = response.data?.data ?? response.data;
   return data;
+};
+
+/**
+ * 스토어 주문 상세 조회 (단건, 마이페이지용)
+ * @param {number} storeOrderId - 스토어 주문 ID
+ * @returns {Promise<{ storeOrder, order, payment, products }>}
+ */
+export const getStoreOrderDetail = async (storeOrderId) => {
+  const response = await api.get(`/api/orders/store/${storeOrderId}`);
+  const data = response.data?.data ?? response.data;
+  return data;
+};
+/**
+ * 스토어 주문 취소 요청
+ * @param {number} storeOrderId - 스토어 주문 ID
+ * @param {string} reason - 취소 사유
+ * @returns {Promise<void>}
+ */
+export const cancelStoreOrder = async (storeOrderId, reason) => {
+  await api.post(`/api/store-orders/${storeOrderId}/cancel`, { reason });
+};
+
+/**
+ * 스토어 주문 환불 요청
+ * @param {number} storeOrderId - 스토어 주문 ID
+ * @param {string} reason - 환불 사유
+ * @returns {Promise<void>}
+ */
+export const requestRefund = async (storeOrderId, reason) => {
+  await api.post(`/api/store-orders/${storeOrderId}/refund`, { reason });
+};
+
+/**
+ * 고객 배달 추적 목록 조회 (진행중 주문)
+ */
+export const getDeliveryTrackingList = async (page = 0, size = 10) => {
+  const response = await api.get('/api/deliveries/tracking', {
+    params: { page, size, sort: 'id,desc' },
+  });
+  return response.data?.data ?? response.data;
+};
+
+/**
+ * 고객 배달 추적 상세 조회
+ */
+export const getDeliveryTrackingDetail = async (deliveryId) => {
+  const response = await api.get(`/api/deliveries/tracking/${deliveryId}`);
+  return response.data?.data ?? response.data;
+};
+
+/**
+ * 배달 이력 조회 (완료/취소된 배달, 최신순)
+ * @param {number} page - 페이지 번호 (기본값: 0)
+ * @param {number} size - 페이지 크기 (기본값: 10)
+ */
+export const getDeliveryHistory = async (page = 0, size = 10) => {
+  const response = await api.get('/api/deliveries/history', {
+    params: { page, size },
+  });
+  return response.data?.data ?? response.data;
 };

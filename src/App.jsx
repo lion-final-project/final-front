@@ -6,13 +6,14 @@ import CustomerView from './components/views/customer/CustomerView';
 import StoreDashboard from './components/views/store/StoreDashboard';
 import RiderDashboard from './components/views/rider/RiderDashboard';
 import AdminDashboard from './components/views/admin/AdminDashboard';
-import NotificationPanel from './components/common/NotificationPanel';
 import AuthModal from './components/features/auth/AuthModal';
+import PasswordResetView from './components/features/auth/PasswordResetView';
 import { Agentation } from "agentation";
+import RoleTransition, { AccessDeniedAnimation } from './components/common/RoleTransition';
 
-import { checkAuth, logout } from './api/authApi';
+import { checkAuth, logout, clearAuthCookies } from './api/authApi';
 import { subscribeNotifications, getUnreadNotifications, markAllAsRead, markAsRead } from './api/notificationApi';
-import { API_BASE_URL } from './config/api';
+import api from './api/axios';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -43,17 +44,45 @@ class ErrorBoundary extends React.Component {
 }
 
 function App() {
-  const [userRole, setUserRole] = useState('CUSTOMER'); // CUSTOMER, STORE, RIDER, ADMIN
+  const [userRole, _setUserRole] = useState('CUSTOMER'); // CUSTOMER, STORE, RIDER, ADMIN
+  const [deniedRole, setDeniedRole] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userInfo, setUserInfo] = useState(null); // 사용자 정보 저장
+
+  const hasRole = useCallback((role) => {
+    if (!userInfo?.roles) return false;
+    return userInfo.roles.includes(role) || userInfo.roles.includes(`ROLE_${role}`);
+  }, [userInfo]);
+
+  const setUserRole = useCallback((role) => {
+    if (role === 'STORE' && !hasRole('STORE')) {
+      setDeniedRole('STORE');
+      return;
+    }
+    if (role === 'RIDER' && !hasRole('RIDER')) {
+      setDeniedRole('RIDER');
+      return;
+    }
+    if (role === 'ADMIN' && !hasRole('ADMIN')) {
+      setDeniedRole('ADMIN');
+      return;
+    }
+    _setUserRole(role);
+  }, [hasRole]);
+
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalInitialMode, setAuthModalInitialMode] = useState(null); // 'social-extra' | null
+  const [socialSignupState, setSocialSignupState] = useState(null); // 소셜 추가 가입용 state JWT (세션 대신)
 
   const [isResidentRider, setIsResidentRider] = useState(false);
   const [storeRegistrationStatus, setStoreRegistrationStatus] = useState('NONE'); // NONE, PENDING, APPROVED
   const [storeRegistrationStoreName, setStoreRegistrationStoreName] = useState(null); // 입점 신청한 상호명
+  const [storeRegistrationReason, setStoreRegistrationReason] = useState(null);
+  const [storeRegistrationHeldUntil, setStoreRegistrationHeldUntil] = useState(null);
   const [riderRegistrationStatus, setRiderRegistrationStatus] = useState('NONE');
   const [riderRegistrationApprovalId, setRiderRegistrationApprovalId] = useState(null);
+  const [riderRegistrationReason, setRiderRegistrationReason] = useState(null);
+  const [riderRegistrationHeldUntil, setRiderRegistrationHeldUntil] = useState(null);
   const [riderInfo, setRiderInfo] = useState(null);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -145,15 +174,26 @@ function App() {
               console.error('[SSE] 알림 목록 조회 실패:', error);
             });
         }
+      } else if (eventName === 'CONNECTED') {
+        console.log('[SSE] 연결됨:', data);
       } else if (eventName === 'STORE_ORDER_CREATED') {
         // 스토어 신규 주문 알림 → 대시보드 목록 갱신용 커스텀 이벤트 (백엔드는 스토어 오너에게만 전송)
         window.dispatchEvent(new CustomEvent('store-order-created', { detail: data }));
+      } else if (eventName === 'STORE_ORDER_UPDATED') {
+        // TTL 기반 상태 변경(자동 거절/준비완료) 후 목록 갱신 요청
+        window.dispatchEvent(new CustomEvent('store-order-updated', { detail: data }));
+      } else if (eventName === 'NEW_DELIVERY') {
+        // 라이더 주변 새 배달 요청
+        window.dispatchEvent(new CustomEvent('new-delivery', { detail: data }));
       } else if (eventName === 'NEARBY_DELIVERIES') {
-        // 주변 배달 알림 → 라이더 대시보드 목록 갱신용 커스텀 이벤트 (백엔드는 인근 온라인 라이더에게만 전송)
+        // 라이더 주변 배달 목록 전체 갱신
         window.dispatchEvent(new CustomEvent('nearby-deliveries', { detail: data }));
       } else if (eventName === 'DELIVERY_MATCHED') {
-        // 배송 매칭 완료 (배차 완료) → 상점 대시보드 목록 갱신용 커스텀 이벤트
+        // 다른 라이더가 배달 수락 → 목록에서 제거
         window.dispatchEvent(new CustomEvent('delivery-matched', { detail: data }));
+      } else if (eventName === 'DELIVERY_STATUS_CHANGED') {
+        // 배달 상태 변경 알림
+        window.dispatchEvent(new CustomEvent('delivery-status-changed', { detail: data }));
       }
     };
 
@@ -209,50 +249,52 @@ function App() {
     }
   }, [isNotificationOpen, isLoggedIn]);
 
-  // 마트 입점 신청 현황 조회 (로그인 사용자)
+  // 마트 입점 신청 현황 조회 (로그인 사용자) — axios 사용으로 쿠키/프록시 일관
   const fetchStoreRegistration = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/stores/registration`, { credentials: 'include' });
-      if (res.ok) {
-        const json = await res.json();
-        const data = json?.data;
-        if (data?.status) {
-          setStoreRegistrationStatus(data.status === 'APPROVED' ? 'APPROVED' : 'PENDING');
-          setStoreRegistrationStoreName(data.storeName || null);
-        }
+      const res = await api.get('/api/stores/registration');
+      const data = res?.data?.data;
+      if (data?.status && data.status !== 'NONE') {
+        setStoreRegistrationStatus(data.status);
+        setStoreRegistrationStoreName(data.storeName || null);
+        setStoreRegistrationReason(data.reason || null);
+        setStoreRegistrationHeldUntil(data.heldUntil || null);
       } else {
         setStoreRegistrationStatus('NONE');
         setStoreRegistrationStoreName(null);
+        setStoreRegistrationReason(null);
+        setStoreRegistrationHeldUntil(null);
       }
     } catch {
       setStoreRegistrationStatus('NONE');
       setStoreRegistrationStoreName(null);
+      setStoreRegistrationReason(null);
+      setStoreRegistrationHeldUntil(null);
     }
   };
   const fetchRiderRegistration = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/riders/registration`, { credentials: 'include' });
-      if (res.ok) {
-        const json = await res.json();
-        const data = json?.data;
-        if (data?.status) {
-          setRiderRegistrationStatus(data.status);
-          setIsResidentRider(data.status === 'APPROVED');
-          setRiderRegistrationApprovalId(data.approvalId ?? null);
-        } else {
-          setRiderRegistrationStatus('NONE');
-          setIsResidentRider(false);
-          setRiderRegistrationApprovalId(null);
-        }
+      const res = await api.get('/api/riders/registration');
+      const data = res?.data?.data;
+      if (data?.status) {
+        setRiderRegistrationStatus(data.status);
+        setIsResidentRider(data.status === 'APPROVED');
+        setRiderRegistrationApprovalId(data.approvalId ?? null);
+        setRiderRegistrationReason(data.reason || null);
+        setRiderRegistrationHeldUntil(data.heldUntil || null);
       } else {
         setRiderRegistrationStatus('NONE');
         setIsResidentRider(false);
         setRiderRegistrationApprovalId(null);
+        setRiderRegistrationReason(null);
+        setRiderRegistrationHeldUntil(null);
       }
     } catch {
       setRiderRegistrationStatus('NONE');
       setIsResidentRider(false);
       setRiderRegistrationApprovalId(null);
+      setRiderRegistrationReason(null);
+      setRiderRegistrationHeldUntil(null);
     }
   };
 
@@ -306,19 +348,20 @@ function App() {
   };
 
   const handleLogout = async () => {
+    setIsLoggedIn(false);
+    setUserInfo(null);
+    setUserRole('CUSTOMER');
     try {
       await logout();
-      setIsLoggedIn(false);
-      setUserInfo(null);
-      setUserRole('CUSTOMER'); // Default back to customer view as guest
-      alert('로그아웃되었습니다.');
     } catch (error) {
       console.error('Logout failed', error);
-      // 강제 로그아웃 처리
-      setIsLoggedIn(false);
-      setUserInfo(null);
-      setUserRole('CUSTOMER');
     }
+    try {
+      await clearAuthCookies();
+      await new Promise((r) => setTimeout(r, 150));
+    } catch (_) { /* 무시 */ }
+    alert('로그아웃되었습니다.');
+    window.location.replace(window.location.pathname || '/');
   };
 
   const [cartRefreshTrigger, setCartRefreshTrigger] = useState(0);
@@ -327,51 +370,149 @@ function App() {
     setIsLoggedIn(true);
     setUserInfo(userData);
     setCartRefreshTrigger((t) => t + 1); // 로그인 직후 장바구니 refetch 유도
-    const roles = userData.roles;
-    // STORE 역할 유저는 메인 페이지(CUSTOMER)를 먼저 보여주고, 헤더의 사장님 버튼으로 전환
-    const role = Array.isArray(roles) && roles.length > 0 ? roles[0] : 'CUSTOMER';
-    const normalizedRole = typeof role === 'string' ? role.replace('ROLE_', '') : role;
-    setUserRole(normalizedRole === 'STORE' ? 'CUSTOMER' : normalizedRole);
+    // 역할에 상관없이 모든 유저는 로그인 직후 메인 페이지(CUSTOMER)를 보여주도록 변경
+    setUserRole('CUSTOMER');
     fetchStoreRegistration();
     fetchRiderRegistration();
   };
 
-  // 카카오 로그인 콜백 후 5173으로 리다이렉트된 경우: URL 쿼리 처리 후 /me로 로그인 상태 반영
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const kakao = params.get('kakao');
-    const message = params.get('message');
-    if (kakao === 'error') {
-      if (message) alert(message);
+  // 소셜 로그인(카카오/네이버) 콜백 후 5173으로 리다이렉트된 경우: URL 쿼리 처리 후 JWT/state 반영
+  const handleOAuthCallback = useCallback((status, errorMessage, stateToken) => {
+    if (status === 'error') {
+      if (errorMessage) alert(errorMessage);
       window.history.replaceState({}, '', window.location.pathname || '/');
       return;
     }
-    if (kakao === 'success') {
-      checkAuth()
-        .then(async (user) => {
-          if (user) {
-            handleLoginSuccess(user);
-            await fetchStoreRegistration();
-            await fetchRiderRegistration();
-          }
-        })
-        .catch(() => { })
-        .finally(() => {
-          window.history.replaceState({}, '', window.location.pathname || '/');
-        });
+    if (status === 'success') {
+      setIsAuthModalOpen(false);
+      setSocialSignupState(null);
+      setAuthModalInitialMode(null);
+      window.history.replaceState({}, '', window.location.pathname || '/');
+      // 리다이렉트 직후 쿠키가 아직 반영되지 않을 수 있어, 짧은 간격으로 재시도
+      const applyLogin = async (user) => {
+        if (user) {
+          handleLoginSuccess(user);
+          await fetchStoreRegistration();
+          await fetchRiderRegistration();
+        }
+      };
+      const tryCheckAuth = (attempt = 0) => {
+        const maxAttempts = 4;
+        const delayMs = attempt === 0 ? 0 : 300 * attempt;
+        const doTry = () =>
+          checkAuth()
+            .then(async (user) => {
+              if (user) return applyLogin(user);
+              if (attempt < maxAttempts - 1) setTimeout(() => tryCheckAuth(attempt + 1), 300);
+            })
+            .catch(() => {
+              if (attempt < maxAttempts - 1) setTimeout(() => tryCheckAuth(attempt + 1), 300);
+            });
+        if (delayMs > 0) setTimeout(doTry, delayMs);
+        else doTry();
+      };
+      tryCheckAuth();
       return;
     }
-    if (kakao === 'signup_required') {
+    if (status === 'signup_required') {
+      setSocialSignupState(stateToken || null);
       setIsAuthModalOpen(true);
       setAuthModalInitialMode('social-extra');
       window.history.replaceState({}, '', window.location.pathname || '/');
     }
+  }, [handleLoginSuccess, fetchStoreRegistration, fetchRiderRegistration]);
+
+  const handleOAuthCallbackRef = useRef(handleOAuthCallback);
+  handleOAuthCallbackRef.current = handleOAuthCallback;
+
+  const isLoggedInRef = useRef(false);
+  useEffect(() => {
+    isLoggedInRef.current = isLoggedIn;
+  }, [isLoggedIn]);
+
+  // 401 → refresh 실패 시 세션 만료: 로그인 상태 초기화. (이미 로그인된 상태에서 만료된 경우에만 로그인 모달 오픈)
+  useEffect(() => {
+    const onSessionExpired = () => {
+      const wasLoggedIn = isLoggedInRef.current;
+      setIsLoggedIn(false);
+      setUserInfo(null);
+      setUserRole('CUSTOMER');
+      setSocialSignupState(null);
+      setAuthModalInitialMode(null);
+      if (wasLoggedIn) setIsAuthModalOpen(true);
+    };
+    window.addEventListener('auth:session-expired', onSessionExpired);
+    return () => window.removeEventListener('auth:session-expired', onSessionExpired);
   }, []);
 
-  const renderContent = () => {
-    if (userRole === 'CUSTOMER' || userRole === 'USER') return (
+  // 팝업에서 소셜 로그인 완료 시 postMessage로 부모 창에 알림 → 부모(5173)에서 로그인 상태 반영
+  useEffect(() => {
+    const onMessage = (event) => {
+      if (event.origin !== window.location.origin) return;
+      const d = event.data;
+      if (d?.type === 'oauth_callback') {
+        handleOAuthCallbackRef.current(d.status, d.message, d.state);
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const kakao = params.get('kakao');
+    const naver = params.get('naver');
+    const message = params.get('message');
+    const isPopup = !!window.opener;
+
+    if (kakao === 'error' || naver === 'error') {
+      if (isPopup) {
+        window.opener.postMessage({ type: 'oauth_callback', status: 'error', message: message || undefined }, window.location.origin);
+        window.close();
+      } else {
+        handleOAuthCallback('error', message || undefined);
+      }
+      return;
+    }
+    if (kakao === 'success' || naver === 'success') {
+      if (isPopup) {
+        window.opener.postMessage({ type: 'oauth_callback', status: 'success' }, window.location.origin);
+        window.close();
+      } else {
+        handleOAuthCallback('success');
+      }
+      return;
+    }
+    if (kakao === 'signup_required' || naver === 'signup_required') {
+      const stateParam = params.get('state');
+      if (isPopup) {
+        window.opener.postMessage({ type: 'oauth_callback', status: 'signup_required', state: stateParam || undefined }, window.location.origin);
+        window.close();
+      } else {
+        handleOAuthCallback('signup_required', undefined, stateParam || undefined);
+      }
+    }
+  }, [handleOAuthCallback]);
+
+  const renderContent = (currentDisplayRole) => {
+    // 비밀번호 재설정 페이지 확인
+    if (window.location.pathname === '/reset-password') {
+      return (
+        <PasswordResetView
+          onResetSuccess={() => {
+            window.history.pushState({}, '', '/');
+            setIsLoggedIn(false);
+            setUserInfo(null);
+            setUserRole('CUSTOMER');
+            setIsAuthModalOpen(true);
+          }}
+        />
+      );
+    }
+
+    if (currentDisplayRole === 'CUSTOMER' || currentDisplayRole === 'USER') return (
       <CustomerView
-        userRole={userRole}
+        userRole={currentDisplayRole}
         setUserRole={setUserRole}
         isLoggedIn={isLoggedIn}
         setIsLoggedIn={setIsLoggedIn}
@@ -386,8 +527,12 @@ function App() {
         setStoreRegistrationStatus={setStoreRegistrationStatus}
         storeRegistrationStoreName={storeRegistrationStoreName}
         setStoreRegistrationStoreName={setStoreRegistrationStoreName}
+        storeRegistrationReason={storeRegistrationReason}
+        storeRegistrationHeldUntil={storeRegistrationHeldUntil}
         riderRegistrationStatus={riderRegistrationStatus}
         riderRegistrationApprovalId={riderRegistrationApprovalId}
+        riderRegistrationReason={riderRegistrationReason}
+        riderRegistrationHeldUntil={riderRegistrationHeldUntil}
         refreshRiderRegistration={refreshRiderRegistration}
         riderInfo={riderInfo}
         setRiderInfo={setRiderInfo}
@@ -399,86 +544,37 @@ function App() {
         onClearAll={handleClearAll}
       />
     );
-    if (userRole === 'STORE') return <StoreDashboard userInfo={userInfo || { userId: 2 }} />;
-    if (userRole === 'RIDER') return <RiderDashboard isResidentRider={isResidentRider} riderInfo={riderInfo} />;
-    if (userRole === 'ADMIN') return <AdminDashboard />;
+    if (currentDisplayRole === 'STORE') {
+      if (!hasRole('STORE')) return null;
+      return <StoreDashboard userInfo={userInfo || { userId: 2 }} setUserRole={setUserRole} />;
+    }
+    if (currentDisplayRole === 'RIDER') {
+      if (!hasRole('RIDER')) return null;
+      return <RiderDashboard isResidentRider={isResidentRider} riderInfo={riderInfo} setUserRole={setUserRole} />;
+    }
+    if (currentDisplayRole === 'ADMIN') {
+      if (!hasRole('ADMIN')) return null;
+      return <AdminDashboard setUserRole={setUserRole} />;
+    }
   };
 
   return (
     <ErrorBoundary>
       <div className="App">
-        <div style={{
-          position: 'fixed',
-          bottom: '20px',
-          left: '20px',
-          background: 'rgba(0,0,0,0.8)',
-          padding: '12px',
-          borderRadius: '16px',
-          zIndex: 1000,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-          backdropFilter: 'blur(8px)',
-          border: '1px solid rgba(255,255,255,0.1)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '15px' }}>
-            <span style={{ color: 'white', fontSize: '12px', fontWeight: '800' }}>Role:</span>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              {['CUSTOMER', 'STORE', 'RIDER', 'ADMIN'].map(role => (
-                <button
-                  key={role}
-                  onClick={() => setUserRole(role)}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: userRole === role ? 'var(--primary)' : '#334155',
-                    color: 'white',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: '800',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  {role}
-                </button>
-              ))}
-            </div>
-          </div>
+        {deniedRole && (
+          <AccessDeniedAnimation role={deniedRole} onComplete={() => setDeniedRole(null)} />
+        )}
 
-          {userRole === 'CUSTOMER' && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10px' }}>
-              <span style={{ color: 'white', fontSize: '12px', fontWeight: '800' }}>Auth:</span>
-              <button
-                onClick={() => setIsLoggedIn(!isLoggedIn)}
-                style={{
-                  padding: '6px 16px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  background: isLoggedIn ? '#3b82f6' : '#64748b',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontSize: '11px',
-                  fontWeight: '800',
-                  transition: 'all 0.2s ease',
-                  flexGrow: 1,
-                  marginLeft: '15px'
-                }}
-              >
-                {isLoggedIn ? 'LOGGED IN (Member)' : 'LOGGED OUT (Guest)'}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {renderContent()}
+        <RoleTransition userRole={userRole}>
+          {(displayRole) => renderContent(displayRole)}
+        </RoleTransition>
 
         <AuthModal
           isOpen={isAuthModalOpen}
-          onClose={() => { setIsAuthModalOpen(false); setAuthModalInitialMode(null); }}
+          onClose={() => { setIsAuthModalOpen(false); setAuthModalInitialMode(null); setSocialSignupState(null); }}
           onLoginSuccess={handleLoginSuccess}
           initialMode={authModalInitialMode}
+          socialSignupState={socialSignupState}
         />
         {import.meta.env.DEV && <Agentation />}
       </div>

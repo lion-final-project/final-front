@@ -14,8 +14,8 @@ import {
   mapStoreOrderToDisplay,
   mapCompletedStoreOrderToDisplay,
 } from './utils/storeDashboardUtils';
-import { subscribeNotifications } from '../../../api/notificationApi';
-import { getNewOrders, getCompletedOrders, getOrderHistory, acceptOrder, completePreparation, rejectOrder } from '../../../api/storeOrderApi';
+import { getNewOrders, getCompletedOrders, getOrderHistory, acceptOrder, completePreparation, rejectOrder, getMonthlySales } from '../../../api/storeOrderApi';
+import { getBusinessHours, updateBusinessHours, updateDeliveryAvailable, updateStoreImage, updateStoreDescription } from '../../../api/storeApi';
 import OrdersTab from './tabs/OrdersTab';
 import DashboardTab from './tabs/DashboardTab';
 import SettlementsTab from './tabs/SettlementsTab';
@@ -30,7 +30,10 @@ import SubscriptionModal from './modals/SubscriptionModal';
 import RejectModal from './modals/RejectModal';
 import ReportModal from './modals/ReportModal';
 
-const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
+const DAY_NAMES = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+const FRONTEND_DAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // 프론트 표시 순서: 월~일 → dayOfWeek
+
+const StoreDashboard = ({ userInfo = { userId: 2 }, setUserRole }) => {
   const createEmptyProductForm = () => ({
     name: '',
     price: '',
@@ -45,6 +48,13 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   });
   const [activeTab, setActiveTab] = useState('dashboard');
   const [productsLoading, setProductsLoading] = useState(false);
+  const [storeInfo, setStoreInfo] = useState({
+    id: null,
+    name: '상점',
+    category: '',
+    img: null,
+    description: ''
+  });
   const [inventoryStats, setInventoryStats] = useState(null);
   const [inventoryHistory, setInventoryHistory] = useState([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
@@ -62,8 +72,26 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   const [selectedSettlement, setSelectedSettlement] = useState(null);
   const [popularProductTab, setPopularProductTab] = useState('ordered'); // 'ordered' or 'subscription'
   const [currentTime, setCurrentTime] = useState(Date.now());
-  const [selectedSettlementPeriod, setSelectedSettlementPeriod] = useState('2026년 1월');
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const settlementPeriodLabel = (y, m) => `${y}년 ${m}월`;
+  const defaultPeriod = settlementPeriodLabel(currentYear, currentMonth);
+  const [selectedSettlementPeriod, setSelectedSettlementPeriod] = useState(defaultPeriod);
   const [isPeriodSelectorOpen, setIsPeriodSelectorOpen] = useState(false);
+  const [salesData, setSalesData] = useState(null);
+  const [salesLoading, setSalesLoading] = useState(false);
+  const [salesError, setSalesError] = useState(null);
+  const [dashboardTodaySales, setDashboardTodaySales] = useState(null);
+  const [dashboardDayOverDayRate, setDashboardDayOverDayRate] = useState(null);
+  const settlementPeriodOptions = (() => {
+    const list = [];
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(currentYear, currentMonth - 1 - i, 1);
+      list.push(settlementPeriodLabel(d.getFullYear(), d.getMonth() + 1));
+    }
+    return list;
+  })();
   const [stockAdjustValues, setStockAdjustValues] = useState({});
 
   // --- Restored Missing States ---
@@ -86,7 +114,17 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   const [deliverySchedule, setDeliverySchedule] = useState(null);
   const [deliveryScheduleLoading, setDeliveryScheduleLoading] = useState(false);
   const [editingSubscription, setEditingSubscription] = useState(null);
-  const [subscriptionForm, setSubscriptionForm] = useState({ name: '', price: '', weeklyFreq: 1, monthlyTotal: 4, deliveryDays: [], description: '', selectedProducts: [] });
+  const [subscriptionForm, setSubscriptionForm] = useState({
+    name: '',
+    price: '',
+    weeklyFreq: 1,
+    monthlyTotal: 4,
+    deliveryDays: [],
+    description: '',
+    selectedProducts: [],
+    imageFile: null,
+    imagePreview: null,
+  });
   const [expandedSubscriptions, setExpandedSubscriptions] = useState(new Set());
 
   const [userSubscriptions, setUserSubscriptions] = useState([
@@ -96,11 +134,8 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     { id: 4, userName: '최지우', productName: '다이어트 샐러드 팩', startDate: '2026-01-25', status: 'REJECTED', deliveryStatus: '-', nextDelivery: '-' },
   ]);
 
-  const [reviews, setReviews] = useState([
-    { id: 1, userName: '김철수', rating: 5, content: '배송이 정말 빨라요! 우유도 아주 신선합니다.', date: '2026-01-20', productName: '유기농 우유 1L', reply: null },
-    { id: 2, userName: '이영희', rating: 4, content: '채소들이 싱싱해서 좋아요. 다음에도 이용할게요.', date: '2026-01-18', productName: '대추토마토 500g', reply: '구매해주셔서 감사합니다! 항상 신선한 상품으로 보답하겠습니다.' },
-    { id: 3, userName: '박민수', rating: 3, content: '달걀 하나가 살짝 금이 가 있었어요. 주의 부탁드려요.', date: '2026-01-15', productName: '신선란 10구', reply: null },
-  ]);
+  const [reviews, setReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
   const [replyInput, setReplyInput] = useState({});
 
   const mapProductFromApi = (p) => {
@@ -272,35 +307,6 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     fetchMyProducts();
     fetchCategories();
     fetchCanEditProduct();
-
-    // SSE 연결 및 이벤트 리스너 등록
-    let eventSource = null;
-    const connectSSE = () => {
-      try {
-        eventSource = subscribeNotifications((type, data) => {
-          console.log(`[Store] SSE Event Received: ${type}`, data);
-          if (type === 'NEW_ORDER' || type === 'DELIVERY_MATCHED' || type === 'store-order-created' || type === 'DELIVERY_STATUS_CHANGED') {
-            console.log('Order update required, fetching new orders...');
-            fetchNewOrders();
-            // 배차 완료/픽업 완료 등 상태 변경 시 완료된 주문 목록도 갱신 필요할 수 있음
-            if (type === 'DELIVERY_MATCHED' || type === 'DELIVERY_STATUS_CHANGED') {
-              fetchCompletedOrders();
-            }
-          }
-        });
-        console.log('SSE Connected for Store');
-      } catch (error) {
-        console.error('SSE Connection Failed:', error);
-      }
-    };
-    connectSSE();
-
-    return () => {
-      if (eventSource) {
-        eventSource.close();
-        console.log('SSE Disconnected');
-      }
-    };
   }, []);
 
   useEffect(() => {
@@ -310,7 +316,17 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
       .then(json => {
         const d = json?.data;
         if (d?.storeName != null) {
-          setStoreInfo(prev => ({ ...prev, name: d.storeName, category: d.categoryName || prev.category }));
+          setStoreInfo(prev => ({
+            ...prev,
+            id: d.storeId,
+            name: d.storeName,
+            category: d.categoryName || prev.category,
+            img: d.storeImage ?? prev.img,
+            description: d.description ?? prev.description ?? '',
+          }));
+        }
+        if (d?.isDeliveryAvailable !== undefined) {
+          setIsStoreOpen(!!d.isDeliveryAvailable);
         }
       })
       .catch(() => { });
@@ -341,6 +357,74 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     }
   }, [activeTab, orderSubTab]);
 
+  const fetchMonthlySales = React.useCallback(async () => {
+    const match = selectedSettlementPeriod && selectedSettlementPeriod.match(/(\d+)\s*년\s*(\d+)\s*월/);
+    if (!match) return;
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    setSalesLoading(true);
+    setSalesError(null);
+    try {
+      const data = await getMonthlySales(year, month);
+      setSalesData(data);
+    } catch (err) {
+      console.error('월별 매출 조회 실패:', err);
+      setSalesError(err?.response?.data?.error?.message || err?.message || '매출 정보를 불러오지 못했습니다.');
+      setSalesData(null);
+    } finally {
+      setSalesLoading(false);
+    }
+  }, [selectedSettlementPeriod]);
+
+  useEffect(() => {
+    if (activeTab === 'settlements') {
+      fetchMonthlySales();
+    }
+  }, [activeTab, fetchMonthlySales]);
+
+  useEffect(() => {
+    if (activeTab !== 'dashboard') return;
+    let cancelled = false;
+    getMonthlySales(currentYear, currentMonth)
+      .then((data) => {
+        if (!cancelled && data) {
+          setDashboardTodaySales(data.todaySales ?? 0);
+          setDashboardDayOverDayRate(data.dayOverDayRate ?? 0);
+        }
+      })
+      .catch(() => { if (!cancelled) setDashboardTodaySales(0); setDashboardDayOverDayRate(0); })
+      .finally(() => { });
+    return () => { cancelled = true; };
+  }, [activeTab, currentYear, currentMonth]);
+
+  const fetchReviews = async () => {
+    if (!storeInfo.id) return;
+    setReviewsLoading(true);
+    try {
+      const data = await reviewApi.getStoreReviews(storeInfo.id, { page: 0, size: 50 });
+      const mapped = (data.reviews?.content || []).map(r => ({
+        id: r.reviewId,
+        userName: r.writerNickname,
+        rating: r.rating,
+        content: r.content,
+        date: r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '',
+        reply: r.ownerReply,
+        productName: (r.products || []).map(p => p.productName).join(', ')
+      }));
+      setReviews(mapped);
+    } catch (e) {
+      console.error('리뷰 조회 실패:', e);
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'reviews' && storeInfo.id) {
+      fetchReviews();
+    }
+  }, [activeTab, storeInfo.id]);
+
   // currentTime만 갱신 (자동 거절 / 준비시간 카운트다운 표시용). 실제 자동 거절은 백엔드 스케줄러에서 처리.
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
@@ -354,11 +438,30 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     const handler = () => {
       fetchNewOrdersRef.current();
     };
+
+    // delivery-matched: 라이더 수락 → 주문 목록 재조회하여 배차 완료 반영
+    const deliveryMatchedHandler = () => {
+      fetchNewOrdersRef.current();
+    };
+
     window.addEventListener('store-order-created', handler);
-    window.addEventListener('delivery-matched', handler);
+    window.addEventListener('store-order-updated', handler);
+    window.addEventListener('delivery-matched', deliveryMatchedHandler);
+
+    // delivery-status-changed: 라이더 픽업 완료 등 배달 상태 변경 시 주문 목록 즉시 갱신
+    const deliveryStatusChangedHandler = (e) => {
+      const data = e.detail;
+      if (data && (data.status === 'PICKED_UP' || data.status === 'DELIVERING' || data.status === 'DELIVERED')) {
+        fetchNewOrdersRef.current();
+      }
+    };
+    window.addEventListener('delivery-status-changed', deliveryStatusChangedHandler);
+
     return () => {
       window.removeEventListener('store-order-created', handler);
-      window.removeEventListener('delivery-matched', handler);
+      window.removeEventListener('store-order-updated', handler);
+      window.removeEventListener('delivery-matched', deliveryMatchedHandler);
+      window.removeEventListener('delivery-status-changed', deliveryStatusChangedHandler);
     };
   }, []);
 
@@ -404,7 +507,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
       const isConnectionError = /failed to fetch|network error|connection refused|err_connection_refused/i.test(msg) || e?.name === 'TypeError';
       setSubscriptionsError(
         isConnectionError
-          ? '서버에 연결할 수 없습니다. 백엔드 서버(localhost:8080)가 실행 중인지 확인해 주세요.'
+          ? '서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인해 주세요.'
           : (msg || '구독 목록을 불러오지 못했습니다.')
       );
       setSubscriptions([]);
@@ -446,19 +549,104 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     { day: '토요일', open: '09:00', close: '22:00', lastOrder: '21:30', isClosed: false },
     { day: '일요일', open: '09:00', close: '22:00', lastOrder: '21:30', isClosed: true },
   ]);
+  const [businessHoursLoading, setBusinessHoursLoading] = useState(false);
+  const [businessHoursSaving, setBusinessHoursSaving] = useState(false);
+
+  useEffect(() => {
+    if (activeTab !== 'settings') return;
+    let cancelled = false;
+    setBusinessHoursLoading(true);
+    getBusinessHours()
+      .then((list) => {
+        if (cancelled || !Array.isArray(list) || list.length === 0) return;
+        const byDay = list.reduce((acc, bh) => {
+          acc[bh.dayOfWeek] = bh;
+          return acc;
+        }, {});
+        const ordered = FRONTEND_DAY_ORDER.map((dayOfWeek) => {
+          const bh = byDay[dayOfWeek];
+          const dayName = DAY_NAMES[dayOfWeek];
+          if (!bh) return { day: dayName, open: '09:00', close: '22:00', lastOrder: '21:30', isClosed: false };
+          return {
+            day: dayName,
+            open: bh.openTime || '09:00',
+            close: bh.closeTime || '22:00',
+            lastOrder: '21:30',
+            isClosed: bh.isClosed ?? false,
+          };
+        });
+        setBusinessHours(ordered);
+      })
+      .catch(() => { if (!cancelled) setBusinessHours([]); })
+      .finally(() => { if (!cancelled) setBusinessHoursLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeTab]);
 
   const handleBusinessHourChange = (index, field, value) => {
     const updated = [...businessHours];
-    updated[index][field] = value;
+    updated[index] = { ...updated[index], [field]: value };
     setBusinessHours(updated);
   };
 
+  const handleSaveBusinessHours = async () => {
+    setBusinessHoursSaving(true);
+    try {
+      const payload = businessHours.map((bh, idx) => ({
+        dayOfWeek: FRONTEND_DAY_ORDER[idx],
+        openTime: bh.open || '09:00',
+        closeTime: bh.close || '22:00',
+        isClosed: bh.isClosed ?? false,
+      }));
+      await updateBusinessHours(payload);
+      alert('영업시간이 저장되었습니다.');
+    } catch (e) {
+      const msg = e?.response?.data?.error?.message ?? e?.message ?? '영업시간 저장에 실패했습니다.';
+      alert(msg);
+    } finally {
+      setBusinessHoursSaving(false);
+    }
+  };
 
-  const [storeInfo, setStoreInfo] = useState({
-    name: '상점',
-    category: '',
-    img: null
-  });
+  /** data URL을 File로 변환 */
+  const dataUrlToFile = (dataUrl, filename = 'store.png') => {
+    return fetch(dataUrl).then((r) => r.blob()).then((blob) => new File([blob], filename));
+  };
+
+  /** 운영설정 완료: 대표 이미지 저장 후 영업시간 저장 */
+  const handleSaveSettings = async () => {
+    setBusinessHoursSaving(true);
+    try {
+      let urlToSave = storeInfo.img;
+      if (storeInfo.img?.startsWith?.('data:')) {
+        const file = await dataUrlToFile(storeInfo.img);
+        urlToSave = await uploadStoreImage(file);
+      }
+      await updateStoreImage(urlToSave ?? '');
+      setStoreInfo((prev) => ({ ...prev, img: urlToSave || null }));
+      await handleSaveBusinessHours();
+    } catch (e) {
+      const msg = e?.response?.data?.error?.message ?? e?.message ?? '저장에 실패했습니다.';
+      alert(msg);
+    } finally {
+      setBusinessHoursSaving(false);
+    }
+  };
+
+  const [descriptionSaving, setDescriptionSaving] = useState(false);
+  /** 마트 소개만 저장 */
+  const handleSaveDescription = async (description) => {
+    setDescriptionSaving(true);
+    try {
+      await updateStoreDescription(description ?? storeInfo.description ?? '');
+      setStoreInfo((prev) => ({ ...prev, description: description ?? prev.description ?? '' }));
+      alert('마트 소개가 저장되었습니다.');
+    } catch (e) {
+      const msg = e?.response?.data?.error?.message ?? e?.message ?? '저장에 실패했습니다.';
+      alert(msg);
+    } finally {
+      setDescriptionSaving(false);
+    }
+  };
 
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [orders, setOrders] = useState([]);
@@ -470,47 +658,23 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   const [historyTotalPages, setHistoryTotalPages] = useState(0);
   const [historyTotalElements, setHistoryTotalElements] = useState(0);
 
-  const completedPrepIdsRef = React.useRef(new Set());
-  const autoRejectedIdsRef = React.useRef(new Set());
+  // TTL 기반: 상태 변경은 백엔드에서 처리. 카운트다운 0 되면 목록만 재조회(오차 보정)
+  const countdownZeroFetchedRef = React.useRef(new Set());
   useEffect(() => {
     if (activeTab !== 'dashboard') return;
     const now = Date.now();
-
-    const toComplete = orders.filter(
-      (o) => o.status === '준비중' && o.readyAt != null && o.readyAt <= now && !completedPrepIdsRef.current.has(o.id)
-    );
-    if (toComplete.length > 0) {
-      toComplete.forEach((o) => completedPrepIdsRef.current.add(o.id));
-      (async () => {
-        for (const order of toComplete) {
-          try {
-            await completePreparation(order.id);
-          } catch (e) {
-            completedPrepIdsRef.current.delete(order.id);
-            console.error('준비 완료 처리 실패:', e);
-          }
-        }
-        await fetchNewOrders();
-      })();
-      return;
+    let shouldFetch = false;
+    for (const o of orders) {
+      const alreadyFetched = countdownZeroFetchedRef.current.has(o.id);
+      const rejectDeadline = o.status === '신규' && o.createdAt != null && o.createdAt + 5 * 60 * 1000 <= now;
+      const readyDeadline = o.status === '준비중' && o.readyAt != null && o.readyAt <= now;
+      if ((rejectDeadline || readyDeadline) && !alreadyFetched) {
+        countdownZeroFetchedRef.current.add(o.id);
+        shouldFetch = true;
+      }
     }
-
-    const expiredOrders = orders.filter(
-      (o) => o.status === '신규' && o.createdAt != null && o.createdAt + 5 * 60 * 1000 <= now && !autoRejectedIdsRef.current.has(o.id)
-    );
-    if (expiredOrders.length > 0) {
-      expiredOrders.forEach((o) => autoRejectedIdsRef.current.add(o.id));
-      (async () => {
-        for (const order of expiredOrders) {
-          try {
-            await rejectOrder(order.id, '자동 거절 (미응답)');
-          } catch (e) {
-            autoRejectedIdsRef.current.delete(order.id);
-            console.error('자동 거절 처리 실패:', e);
-          }
-        }
-        await fetchNewOrders();
-      })();
+    if (shouldFetch) {
+      fetchNewOrdersRef.current();
     }
   }, [activeTab, orders, currentTime]);
 
@@ -645,6 +809,24 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     return json.data;
   };
 
+  /** 스토어 대표 이미지 업로드 (운영설정용, type=PROFILE) */
+  const uploadStoreImage = async (file) => {
+    const base = getApiBase();
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${base}/api/storage/store/image?type=PROFILE`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      const message = json?.error?.message || json?.message || json?.data?.message || '이미지 업로드 실패';
+      throw new Error(message);
+    }
+    return json.data;
+  };
+
   const handleSaveProduct = async (e) => {
     e.preventDefault();
     if (editingProduct && !canEditProduct) {
@@ -684,7 +866,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
           credentials: 'include',
         });
         const json = await res.json();
-        if (!res.ok) throw new Error(json.message || json.code || '상품 수정 실패');
+        if (!res.ok) throw new Error(json.error?.message || json.message || json.error?.code || '상품 수정 실패');
         await fetchMyProducts();
         setIsProductModalOpen(false);
       } catch (err) {
@@ -785,10 +967,24 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
   const handleOpenSubscriptionModal = (sub = null) => {
     if (sub) {
       setEditingSubscription(sub);
-      setSubscriptionForm({ ...sub });
+      setSubscriptionForm({
+        ...sub,
+        imageFile: null,
+        imagePreview: sub.imageUrl ?? null,
+      });
     } else {
       setEditingSubscription(null);
-      setSubscriptionForm({ name: '', price: '', weeklyFreq: 1, monthlyTotal: 4, deliveryDays: [], description: '', selectedProducts: [] });
+      setSubscriptionForm({
+        name: '',
+        price: '',
+        weeklyFreq: 1,
+        monthlyTotal: 4,
+        deliveryDays: [],
+        description: '',
+        selectedProducts: [],
+        imageFile: null,
+        imagePreview: null,
+      });
     }
     setIsSubscriptionModalOpen(true);
   };
@@ -806,6 +1002,20 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     }
     const deliveryDays = subscriptionForm.deliveryDays || [];
     const daysOfWeek = deliveryDays.map((d) => KO_TO_NUM[d]).filter((n) => n !== undefined);
+
+    // 이미지 업로드 처리
+    let imageUrl = '';
+    if (subscriptionForm.imageFile) {
+      try {
+        imageUrl = await uploadProductImage(subscriptionForm.imageFile);
+      } catch (err) {
+        alert(err.message || '이미지 업로드에 실패했습니다.');
+        return;
+      }
+    } else if (editingSubscription && subscriptionForm.imagePreview && subscriptionForm.imagePreview.startsWith('http')) {
+      imageUrl = subscriptionForm.imagePreview;
+    }
+
     const body = {
       name: subscriptionForm.name,
       description: subscriptionForm.description || '',
@@ -813,6 +1023,7 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
       totalDeliveryCount: (subscriptionForm.weeklyFreq ?? (subscriptionForm.deliveryDays || []).length ?? 0) * 4 || 4,
       items,
       daysOfWeek,
+      imageUrl,
     };
     try {
       const url = editingSubscription
@@ -928,13 +1139,19 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
     }
   };
 
-  const handleReplyReview = (reviewId) => {
+  const handleReplyReview = async (reviewId) => {
     const reply = replyInput[reviewId];
     if (!reply || !reply.trim()) return;
 
-    setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, reply } : r));
-    setReplyInput(prev => ({ ...prev, [reviewId]: '' }));
-    alert('답변이 등록되었습니다.');
+    try {
+      await reviewApi.addOwnerReply(reviewId, reply);
+      alert('답변이 등록되었습니다.');
+      setReplyInput(prev => ({ ...prev, [reviewId]: '' }));
+      fetchReviews();
+    } catch (e) {
+      const msg = e?.response?.data?.error?.message ?? e?.message ?? '답변 등록에 실패했습니다.';
+      alert(msg);
+    }
   };
 
   // Delivery Completion Simulation: '배달중' -> '배달완료'
@@ -981,6 +1198,10 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
             setSelectedSettlementPeriod={setSelectedSettlementPeriod}
             isPeriodSelectorOpen={isPeriodSelectorOpen}
             setIsPeriodSelectorOpen={setIsPeriodSelectorOpen}
+            periodOptions={settlementPeriodOptions}
+            sales={salesData}
+            salesLoading={salesLoading}
+            salesError={salesError}
           />
         );
       case 'products':
@@ -1040,12 +1261,18 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
             setStoreInfo={setStoreInfo}
             businessHours={businessHours}
             handleBusinessHourChange={handleBusinessHourChange}
+            onSaveSettings={handleSaveSettings}
+            businessHoursSaving={businessHoursSaving}
+            businessHoursLoading={businessHoursLoading}
+            onSaveDescription={handleSaveDescription}
+            descriptionSaving={descriptionSaving}
           />
         );
       case 'reviews':
         return (
           <ReviewsTab
             reviews={reviews}
+            isLoading={reviewsLoading}
             replyInput={replyInput}
             setReplyInput={setReplyInput}
             handleReplyReview={handleReplyReview}
@@ -1069,6 +1296,8 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
             completingOrderId={completingOrderId}
             handleOpenRejectModal={handleOpenRejectModal}
             toggleSoldOut={toggleSoldOut}
+            todaySales={dashboardTodaySales ?? 0}
+            dayOverDayRate={dashboardDayOverDayRate ?? 0}
           />
         );
     }
@@ -1103,28 +1332,43 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
           { id: 'subscriptions', label: '구독 관리', icon: '💎' },
           { id: 'settlements', label: '매출 및 정산', icon: '📈' },
           { id: 'reviews', label: '리뷰 관리', icon: '⭐' },
-          { id: 'settings', label: '운영 설정', icon: '⚙️' }
-        ].map((item) => (
-          <div
-            key={item.id}
-            className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(item.id)}
-            style={{
-              padding: '14px 18px',
-              borderRadius: '12px',
-              backgroundColor: activeTab === item.id ? '#334155' : 'transparent',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              fontSize: '15px',
-              fontWeight: activeTab === item.id ? '700' : '500',
-              color: activeTab === item.id ? '#38bdf8' : '#94a3b8',
-              transition: 'all 0.2s'
-            }}>
-            <span>{item.icon}</span> {item.label}
-          </div>
-        ))}
+          { id: 'settings', label: '운영 설정', icon: '⚙️' },
+          { id: 'divider', isDivider: true },
+          { id: 'customer', label: '고객모드', icon: '🙋🏻‍♂️' }
+        ].map((item, idx) => {
+          if (item.isDivider) {
+            return <div key={`div-${idx}`} style={{ height: '1px', backgroundColor: '#334155', margin: '8px 0' }} />;
+          }
+          return (
+            <div
+              key={item.id}
+              className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
+              onClick={() => {
+                if (item.id === 'customer') {
+                  if (window.confirm("고객 모드로 전환하시겠습니까?")) {
+                    setUserRole?.('CUSTOMER');
+                  }
+                } else {
+                  setActiveTab(item.id);
+                }
+              }}
+              style={{
+                padding: '14px 18px',
+                borderRadius: '12px',
+                backgroundColor: activeTab === item.id ? '#334155' : 'transparent',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                fontSize: '15px',
+                fontWeight: activeTab === item.id ? '700' : '500',
+                color: activeTab === item.id ? '#38bdf8' : '#94a3b8',
+                transition: 'all 0.2s'
+              }}>
+              <span>{item.icon}</span> {item.label}
+            </div>
+          );
+        })}
 
         <div style={{ marginTop: 'auto', padding: '20px', backgroundColor: '#0f172a', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>고객센터 안내</div>
@@ -1144,9 +1388,18 @@ const StoreDashboard = ({ userInfo = { userId: 2 } }) => {
               </h1>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-              {/* Toggle Switch */}
+              {/* Toggle Switch - 배달 가능 on/off (서버 반영) */}
               <div
-                onClick={() => setIsStoreOpen(!isStoreOpen)}
+                onClick={async () => {
+                  const next = !isStoreOpen;
+                  try {
+                    await updateDeliveryAvailable(next);
+                    setIsStoreOpen(next);
+                  } catch (e) {
+                    const msg = e?.response?.data?.error?.message ?? e?.message ?? '배달 가능 여부 변경에 실패했습니다.';
+                    alert(msg);
+                  }
+                }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
                   padding: '4px 6px', borderRadius: '30px', backgroundColor: isStoreOpen ? '#dcfce7' : '#fee2e2',

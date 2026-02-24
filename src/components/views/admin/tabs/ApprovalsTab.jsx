@@ -1,8 +1,24 @@
-﻿import React from 'react';
+import React from 'react';
 import Pagination from '../../../ui/Pagination';
 
 const ApprovalsTab = (props) => {
   const { approvalItems, approvalFilter, approvalStatusFilter, setApprovalFilter, setApprovalStatusFilter, handleOpenApproval, currentPage, itemsPerPage, setCurrentPage } = props;
+  const getStatusLabel = (status) => {
+    if (status === 'PENDING') return '심사대기';
+    if (status === 'HELD') return '보류';
+    if (status === 'REJECTED') return '거절';
+    if (status === 'APPROVED') return '승인';
+    return status || '-';
+  };
+
+  const getStatusStyle = (status) => {
+    if (status === 'PENDING') return { bg: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa' };
+    if (status === 'HELD') return { bg: 'rgba(245, 158, 11, 0.2)', color: '#f59e0b' };
+    if (status === 'REJECTED') return { bg: 'rgba(239, 68, 68, 0.2)', color: '#f87171' };
+    if (status === 'APPROVED') return { bg: 'rgba(16, 185, 129, 0.2)', color: '#34d399' };
+    return { bg: 'rgba(148, 163, 184, 0.2)', color: '#cbd5e1' };
+  };
+
   const filteredApprovals = approvalItems.filter(item => {
     const matchesCategory = approvalFilter === 'ALL' || item.category === approvalFilter;
     const matchesStatus = approvalStatusFilter === 'ALL' || (approvalStatusFilter === 'PENDING' && item.rawStatus === 'PENDING') || (approvalStatusFilter === 'HOLD' && item.rawStatus === 'HELD') || (approvalStatusFilter === 'REJECTED' && item.rawStatus === 'REJECTED');
@@ -30,6 +46,8 @@ const ApprovalsTab = (props) => {
             <tr style={{ textAlign: 'left', borderBottom: '2px solid #334155', color: '#94a3b8', fontSize: '14px' }}>
               <th style={{ padding: '16px' }}>유형</th>
               <th style={{ padding: '16px' }}>이름/상호명</th>
+              <th style={{ padding: '16px' }}>연락처</th>
+              <th style={{ padding: '16px' }}>상태</th>
               <th style={{ padding: '16px' }}>신청일</th>
               <th style={{ padding: '16px' }}>관리</th>
             </tr>
@@ -39,11 +57,25 @@ const ApprovalsTab = (props) => {
               <tr key={i} style={{ borderBottom: '1px solid #334155' }}>
                 <td style={{ padding: '16px' }}><span style={{ backgroundColor: item.color, padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>{item.type}</span></td>
                 <td style={{ padding: '16px' }}><button onClick={() => handleOpenApproval(item, 'documents')} style={{ background: 'none', border: 'none', padding: 0, color: '#38bdf8', fontWeight: '700', cursor: 'pointer', textDecoration: 'underline' }}>{item.name}</button></td>
+                <td style={{ padding: '16px' }}>{item.phone || item.email || '-'}</td>
+                <td style={{ padding: '16px' }}>
+                  <span style={{
+                    display: 'inline-block',
+                    padding: '4px 10px',
+                    borderRadius: '999px',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    backgroundColor: getStatusStyle(item.rawStatus).bg,
+                    color: getStatusStyle(item.rawStatus).color
+                  }}>
+                    {getStatusLabel(item.rawStatus)}
+                  </span>
+                </td>
                 <td style={{ padding: '16px' }}>{item.date}</td>
                 <td style={{ padding: '16px' }}><button onClick={() => handleOpenApproval(item)} style={{ padding: '6px 12px', borderRadius: '6px', backgroundColor: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', border: 'none', fontWeight: '700', cursor: 'pointer' }}>상세보기</button></td>
               </tr>
             ))}
-            {filteredApprovals.length === 0 && <tr><td colSpan="5" style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>대기 중인 신청 건이 없습니다.</td></tr>}
+            {filteredApprovals.length === 0 && <tr><td colSpan="7" style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>대기 중인 신청 건이 없습니다.</td></tr>}
           </tbody>
         </table>
       </div>

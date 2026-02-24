@@ -1,4 +1,5 @@
 import React from 'react';
+import { PLACEHOLDER_PRODUCT_IMAGE } from '../../../constants/placeholderImage';
 
 const OrderDetailModal = ({ isOpen, onClose, order, onTracking, onReview, onOpenDetail, onOpenReceipt, onOpenInquiry, onOpenReport }) => {
   if (!isOpen || !order) return null;
@@ -12,19 +13,22 @@ const OrderDetailModal = ({ isOpen, onClose, order, onTracking, onReview, onOpen
         background: 'white', width: '300px', borderRadius: '16px', overflow: 'hidden',
         boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)', animation: 'scaleUp 0.2s ease-out', position: 'relative'
       }} onClick={e => e.stopPropagation()}>
-        
+
         <div style={{ padding: '20px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
-          <div style={{ width: '60px', height: '60px', margin: '0 auto 12px', borderRadius: '8px', overflow: 'hidden' }}>
-             <img src={order.img} alt={order.product} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <div style={{ width: '60px', height: '60px', margin: '0 auto 12px', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#e2e8f0' }}>
+            <img
+              src={order.img || PLACEHOLDER_PRODUCT_IMAGE}
+              alt={order.product}
+              onError={(e) => { e.target.onerror = null; e.target.src = PLACEHOLDER_PRODUCT_IMAGE; }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
           </div>
           <h3 style={{ fontSize: '15px', fontWeight: '700', margin: 0, lineHeight: '1.4', wordBreak: 'keep-all' }}>{order.product}</h3>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <button style={{ padding: '16px', border: 'none', background: 'white', borderBottom: '1px solid #f1f5f9', fontSize: '15px', color: '#1e293b', cursor: 'pointer', textAlign: 'center' }} onClick={() => { onClose(); onOpenDetail(order); }}>
-            주문상세
-          </button>
-          
+
+
           <button style={{ padding: '16px', border: 'none', background: 'white', borderBottom: '1px solid #f1f5f9', fontSize: '15px', color: '#1e293b', cursor: 'pointer', textAlign: 'center' }} onClick={() => { onClose(); onTracking(order); }}>
             배송조회
           </button>
@@ -32,17 +36,17 @@ const OrderDetailModal = ({ isOpen, onClose, order, onTracking, onReview, onOpen
           <button style={{ padding: '16px', border: 'none', background: 'white', borderBottom: '1px solid #f1f5f9', fontSize: '15px', color: '#1e293b', cursor: 'pointer', textAlign: 'center' }} onClick={() => { onClose(); onOpenReceipt(order); }}>
             영수증조회
           </button>
-          
+
           <div style={{ borderTop: '4px solid #f8fafc' }}></div>
 
           <div style={{ display: 'flex' }}>
-             <button style={{ flex: 1, padding: '16px', border: 'none', background: 'white', fontSize: '14px', color: '#1e293b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={() => { onClose(); onOpenInquiry(order); }}>
-               <span style={{ color: '#22c55e' }}>💬</span> 1:1 문의하기
-             </button>
-             <div style={{ width: '1px', background: '#f1f5f9' }}></div>
-             <button style={{ flex: 1, padding: '16px', border: 'none', background: 'white', fontSize: '14px', color: '#1e293b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={() => { onClose(); onOpenReport(order); }}>
-               <span style={{ color: '#ef4444' }}>🚨</span> 신고하기
-             </button>
+            <button style={{ flex: 1, padding: '16px', border: 'none', background: 'white', fontSize: '14px', color: '#1e293b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={() => { onClose(); onOpenInquiry(order); }}>
+              <span style={{ color: '#22c55e' }}>💬</span> 1:1 문의하기
+            </button>
+            <div style={{ width: '1px', background: '#f1f5f9' }}></div>
+            <button style={{ flex: 1, padding: '16px', border: 'none', background: 'white', fontSize: '14px', color: '#1e293b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }} onClick={() => { onClose(); onOpenReport(order); }}>
+              <span style={{ color: '#ef4444' }}>🚨</span> 신고하기
+            </button>
           </div>
         </div>
 

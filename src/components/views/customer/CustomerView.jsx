@@ -18,9 +18,7 @@ import {
   paymentMethods,
   faqs,
   categories,
-  coupons,
   inquiries,
-  loyaltyPoints,
 } from "../../../data/mockData";
 import CartModal from "../../features/cart/CartModal";
 import StoreDetailView from "./StoreDetailView";
@@ -36,6 +34,13 @@ import {
   deletePaymentMethod,
 } from "../../../api/billingApi";
 import * as storeApi from "../../../api/storeApi";
+import { getOrderList, cancelStoreOrder, requestRefund, getStoreOrderDetail } from "../../../api/orderApi";
+import {
+  createReview,
+  getReviewDetail,
+  updateReview,
+  deleteReview
+} from "../../../api/reviewApi";
 
 // Import Swiper React components
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -49,6 +54,7 @@ import { EffectCoverflow, Pagination, Navigation } from "swiper/modules";
 import TrackingModal from "../../features/order/TrackingModal";
 import PaymentSuccessModal from "../../features/order/PaymentSuccessModal";
 import OrderCancelModal from "../../features/order/OrderCancelModal";
+import OrderRefundModal from "../../features/order/OrderRefundModal";
 import ReviewModal from "./modals/ReviewModal";
 import Toast from "../../ui/Toast";
 import LoginRequiredPrompt from "./tabs/LoginRequiredPrompt";
@@ -71,8 +77,12 @@ const CustomerView = ({
   setStoreRegistrationStatus,
   storeRegistrationStoreName,
   setStoreRegistrationStoreName,
+  storeRegistrationReason,
+  storeRegistrationHeldUntil,
   riderRegistrationStatus,
   riderRegistrationApprovalId,
+  riderRegistrationReason,
+  riderRegistrationHeldUntil,
   refreshRiderRegistration,
   riderInfo,
   setRiderInfo,
@@ -101,8 +111,22 @@ const CustomerView = ({
     useState("서울특별시 중구 세종대로 110 (서울특별시청)");
   const [coords, setCoords] = useState({ lat: 37.5665, lon: 126.9780 });
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  // 환불 요청 모달 상태
+  const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
+  const [refundingOrderId, setRefundingOrderId] = useState(null);
+  const [refundReason, setRefundReason] = useState("simple_change");
+  const [refundDetail, setRefundDetail] = useState("");
+  const [isRefunding, setIsRefunding] = useState(false);
+
   const [isSubscriptionOrder, setIsSubscriptionOrder] = useState(false);
-  const [orderList, setOrderList] = useState(orders);
+  const [orderList, setOrderList] = useState([]);
+  const [orderListLoading, setOrderListLoading] = useState(false);
+  const [orderCurrentPage, setOrderCurrentPage] = useState(0);
+  const [orderTotalPages, setOrderTotalPages] = useState(0);
+  const [orderDateFilter, setOrderDateFilter] = useState(null);
+  const [orderSearchTerm, setOrderSearchTerm] = useState("");
   const [subscriptionList, setSubscriptionList] = useState([]);
   const [subscriptionListLoading, setSubscriptionListLoading] = useState(false);
   const [subscriptionListError, setSubscriptionListError] = useState(null);
@@ -114,10 +138,10 @@ const CustomerView = ({
     isLoggedIn &&
     userInfo?.roles &&
     Array.isArray(userInfo.roles) &&
-    (userInfo.roles.includes("STORE_OWNER") ||
-      userInfo.roles.includes("ROLE_STORE_OWNER") ||
+    (userInfo.roles.includes("STORE") ||
+      userInfo.roles.includes("ROLE_STORE") ||
       userInfo.roles.some((r) =>
-        String(r).toUpperCase().endsWith("STORE_OWNER"),
+        String(r).toUpperCase().endsWith("STORE"),
       ));
 
   // 토스 페이먼츠 결제/카드 등록 완료 후 돌아왔을 때 적절한 탭으로 이동
@@ -294,6 +318,295 @@ const CustomerView = ({
   useEffect(() => {
     fetchAddresses();
   }, [fetchAddresses]);
+
+  const convertOrderStatus = (orderStatus, storeOrderStatus) => {
+    // StoreOrder 상태가 취소/거절/환불인 경우 최우선으로 반환
+    if (storeOrderStatus === "CANCELLED" || storeOrderStatus === "REJECTED") {
+      return "주문 취소됨";
+    } else if (storeOrderStatus === "REFUND_REQUESTED") {
+      return "환불 요청";
+    } else if (storeOrderStatus === "REFUNDED") {
+      return "환불됨";
+    }
+
+    // 전체 주문이 취소된 경우 (단, 위에서 개별 환불건 등은 이미 걸러짐)
+    if (orderStatus === "CANCELLED") {
+      return "주문 취소됨";
+    }
+
+    // 그 외 StoreOrder 정상 진행 상태에 따라 변환
+    if (storeOrderStatus === "PENDING") {
+      return "주문 접수 중";
+    } else if (
+      storeOrderStatus === "ACCEPTED" ||
+      storeOrderStatus === "READY"
+    ) {
+      return "준비 중";
+    } else if (
+      storeOrderStatus === "PICKED_UP" ||
+      storeOrderStatus === "DELIVERING"
+    ) {
+      return "배송 중";
+    } else if (storeOrderStatus === "DELIVERED") {
+      return "배송 완료";
+    }
+
+    return "주문 접수 중";
+  };
+
+  // 백엔드 StoreOrder 데이터를 프론트엔드 형식으로 변환
+  const transformStoreOrderData = (storeOrderData) => {
+    console.log("transformStoreOrderData 입력:", storeOrderData);
+
+    if (!storeOrderData) {
+      console.log("storeOrderData가 null입니다");
+      return null;
+    }
+
+    if (!storeOrderData.order) {
+      console.log("storeOrderData.order가 없습니다:", storeOrderData);
+      return null;
+    }
+
+    const products = storeOrderData.products || [];
+    console.log("products:", products);
+
+    // 상품이 없어도 StoreOrder는 표시 (상품 정보는 기본값 사용)
+    const mainProduct = products[0];
+    const productName = mainProduct?.productNameSnapshot || "상품 정보 없음";
+    const productCount = products.length;
+    const itemsText =
+      productCount > 1
+        ? `${productName} 외 ${productCount - 1}건`
+        : productCount === 1
+          ? productName
+          : "상품 정보 없음";
+
+    // 날짜 포맷 변환 (2024-01-23T10:30:00 -> 2024.01.23)
+    const orderedDate = new Date(storeOrderData.order.orderedAt);
+    const dateStr = `${orderedDate.getFullYear()}.${String(orderedDate.getMonth() + 1).padStart(2, "0")}.${String(orderedDate.getDate()).padStart(2, "0")}`;
+
+    // 주문번호에서 날짜 부분 추출 (ORD-20240123-001 -> 20240123-001)
+    const orderNumber = storeOrderData.order.orderNumber || "";
+    const orderId =
+      orderNumber.replace("ORD-", "") ||
+      storeOrderData.order.orderId?.toString() ||
+      "";
+
+    // 가격 포맷 (12500 -> '12,500원')
+    const priceStr = `${storeOrderData.finalPrice?.toLocaleString() || 0}원`;
+
+    // 이미지 URL (상품 이미지 우선, 없으면 매장 이미지)
+    const imgUrl =
+      mainProduct?.productImageUrl ||
+      storeOrderData.storeImageUrl ||
+      "https://images.unsplash.com/photo-1550583724-125581f77833?w=120&q=80";
+
+    // 상태 변환
+    const status = convertOrderStatus(
+      storeOrderData.order.orderStatus,
+      storeOrderData.status,
+    );
+
+    return {
+      id: `${orderId}-${storeOrderData.storeOrderId}`, // StoreOrder ID 포함
+      orderId: storeOrderData.order.orderId, // 실제 주문 ID 저장
+      orderNumber: orderNumber, // 실제 주문번호 저장
+      storeOrderId: storeOrderData.storeOrderId, // StoreOrder ID 저장
+      date: dateStr,
+      store: storeOrderData.storeName,
+      items: itemsText,
+      product: productName,
+      price: priceStr,
+      status: status,
+      img: imgUrl,
+      reviewWritten: storeOrderData.reviewWritten || false,
+      reviewId: storeOrderData.reviewId || null,
+      storeOrder: storeOrderData, // 전체 StoreOrder 정보 저장
+    };
+  };
+
+  // 기간 필터에 따른 날짜 계산
+  const getDateRange = (period) => {
+    const now = new Date();
+    const endDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      23,
+      59,
+      59,
+    );
+    let startDate = new Date();
+
+    switch (period) {
+      case "today":
+        startDate = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          0,
+          0,
+          0,
+        );
+        break;
+      case "week":
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case "month":
+        startDate = new Date(
+          now.getFullYear(),
+          now.getMonth() - 1,
+          now.getDate(),
+        );
+        break;
+      case "6months":
+        startDate = new Date(
+          now.getFullYear(),
+          now.getMonth() - 6,
+          now.getDate(),
+        );
+        break;
+      case "year":
+        startDate = new Date(
+          now.getFullYear() - 1,
+          now.getMonth(),
+          now.getDate(),
+        );
+        break;
+      case "2years":
+        startDate = new Date(
+          now.getFullYear() - 2,
+          now.getMonth(),
+          now.getDate(),
+        );
+        break;
+      case "3years":
+        startDate = new Date(
+          now.getFullYear() - 3,
+          now.getMonth(),
+          now.getDate(),
+        );
+        break;
+      default:
+        return { startDate: null, endDate: null };
+    }
+
+    // 로컬 시간대 유지 (UTC 변환 방지)
+    const toLocalISOString = (date) => {
+      const offset = date.getTimezoneOffset() * 60000;
+      return new Date(date.getTime() - offset).toISOString().slice(0, 19);
+    };
+
+    return {
+      startDate: toLocalISOString(startDate),
+      endDate: toLocalISOString(endDate),
+    };
+  };
+
+  // 주문 목록 조회
+  const fetchOrders = useCallback(
+    async (page = 0, period = null, searchTerm = "") => {
+      if (!isLoggedIn) {
+        setOrderList([]);
+        return;
+      }
+
+      setOrderListLoading(true);
+      try {
+        const dateRange = period
+          ? getDateRange(period)
+          : { startDate: null, endDate: null };
+
+        // 검색어를 백엔드에 전달 (서버 사이드 검색)
+        // 검색어가 비어있거나 공백만 있으면 null로 전달
+        const trimmedSearchTerm =
+          searchTerm && searchTerm.trim() ? searchTerm.trim() : null;
+        const result = await getOrderList(
+          page,
+          10,
+          dateRange.startDate,
+          dateRange.endDate,
+          trimmedSearchTerm,
+        );
+
+        console.log("=== 주문 목록 조회 결과 ===");
+        console.log("전체 응답:", JSON.stringify(result, null, 2));
+
+        // StoreOrder 단위로 변환
+        const storeOrders =
+          result?.storeOrders || result?.data?.storeOrders || [];
+        console.log("추출된 storeOrders:", storeOrders);
+        console.log("storeOrders 개수:", storeOrders.length);
+
+        if (storeOrders.length === 0) {
+          console.warn("⚠️ 주문 내역이 없습니다.");
+          console.warn("result 구조:", Object.keys(result || {}));
+          console.warn(
+            "result.data 구조:",
+            result?.data ? Object.keys(result.data) : "없음",
+          );
+        }
+
+        const transformedOrders = storeOrders
+          .map((storeOrder, index) => {
+            try {
+              const transformed = transformStoreOrderData(storeOrder);
+              if (!transformed) {
+                console.warn(`변환 실패 [${index}]:`, storeOrder);
+              }
+              return transformed;
+            } catch (error) {
+              console.error(`변환 중 에러 [${index}]:`, error, storeOrder);
+              return null;
+            }
+          })
+          .filter((order) => order !== null);
+
+        console.log("최종 변환된 주문:", transformedOrders);
+        console.log("변환된 주문 개수:", transformedOrders.length);
+
+        setOrderList(transformedOrders);
+        setOrderTotalPages(result?.totalPages || 0);
+        setOrderCurrentPage(result?.currentPage || 0);
+      } catch (error) {
+        console.error("주문 목록 조회 실패:", error);
+        setOrderList([]);
+        setOrderTotalPages(0);
+        setOrderCurrentPage(0);
+      } finally {
+        setOrderListLoading(false);
+      }
+    },
+    [isLoggedIn],
+  );
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchOrders(orderCurrentPage, orderDateFilter, orderSearchTerm);
+    }
+  }, [isLoggedIn, orderCurrentPage, orderDateFilter]);
+
+  // 기간 필터 변경 핸들러
+  const handleOrderDateFilterChange = (period) => {
+    setOrderDateFilter(period);
+    setOrderCurrentPage(0); // 필터 변경 시 첫 페이지로
+    setOrderSearchTerm(""); // 기간 필터 변경 시 검색어 초기화
+  };
+
+  // 페이지 변경 핸들러
+  const handleOrderPageChange = (page) => {
+    setOrderCurrentPage(page);
+  };
+
+  // 검색 핸들러 (검색 버튼 클릭 시에만 실행)
+  const handleOrderSearch = (searchTerm) => {
+    const trimmedSearchTerm = searchTerm ? searchTerm.trim() : "";
+    setOrderSearchTerm(trimmedSearchTerm);
+    setOrderCurrentPage(0); // 검색 시 첫 페이지로
+    // 검색어가 변경되면 즉시 조회
+    fetchOrders(0, orderDateFilter, trimmedSearchTerm);
+  };
 
   // 카드사별 색상 매핑
   const getCardColor = useCallback((cardCompany) => {
@@ -506,7 +819,7 @@ const CustomerView = ({
     setToast(message);
     setTimeout(() => setToast(null), 2000);
   };
-  const [trackingOrderId] = useState("202601210001"); // trackingOrderId is read, setTrackingOrderId is not.
+  const [trackingTarget, setTrackingTarget] = useState(null);
 
   // sessionStorage에서 마이페이지 탭 정보 복원 (새로고침 시 현재 탭 유지)
   const [myPageTab, setMyPageTab] = useState(() => {
@@ -523,7 +836,7 @@ const CustomerView = ({
   }, [activeTab, myPageTab, isLoggedIn, fetchPaymentMethods]);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [selectedOrderForReview, setSelectedOrderForReview] = useState(null);
-  const [reviewForm, setReviewForm] = useState({ rate: 5, content: "" });
+  const [reviewForm, setReviewForm] = useState({ rating: 1, content: "" });
   const [verifyStep, setVerifyStep] = useState(0); // 0: intro, 1: location, 2: id, 3: success
 
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -564,6 +877,12 @@ const CustomerView = ({
   });
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [viewingReview, setViewingReview] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+
+  const openTrackingModal = (order = null) => {
+    setTrackingTarget(order || null);
+    setIsTrackingOpen(true);
+  };
 
   const fetchStoreCategories = useCallback(async () => {
     try {
@@ -706,34 +1025,82 @@ const CustomerView = ({
     }
   };
 
-  const handleOpenReviewModal = (order) => {
+  const handleOpenReviewModal = async (order) => {
     setSelectedOrderForReview(order);
-    setReviewForm({ rate: 5, content: "" });
+    if (order.reviewWritten) {
+      try {
+        const reviewData = await getReviewDetail(order.reviewId);
+        setViewingReview(reviewData);
+        setIsEditing(false); // 보기 모드로 열기
+      } catch (error) {
+        console.error("리뷰 조회 실패:", error);
+        alert("리뷰 정보를 불러오는데 실패했습니다.");
+        return;
+      }
+    } else {
+      setViewingReview(null);
+      setReviewForm({ rating: 1, content: "" });
+      setIsEditing(false); // 작성 모드는 isEditing과 무관하지만 초기화
+    }
     setIsReviewModalOpen(true);
   };
-  const handleSaveReview = (e) => {
+
+  const handleSaveReview = async (e) => {
     e.preventDefault();
-    if (viewingReview) {
-      alert("리뷰가 수정되었습니다.");
-    } else {
-      alert("리뷰가 등록되었습니다! 소중한 의견 감사합니다.");
+
+    try {
+      if (viewingReview) {
+        // 수정 모드
+        await updateReview(
+          viewingReview.reviewId,
+          reviewForm.content,
+          reviewForm.rating,
+        );
+        showToast("리뷰가 수정되었습니다.");
+        setViewingReview({
+          ...viewingReview,
+          content: reviewForm.content,
+          rating: reviewForm.rating,
+        });
+        setIsEditing(false);
+      } else {
+        // 생성 모드
+        await createReview(selectedOrderForReview.storeOrderId, {
+          rating: reviewForm.rating,
+          content: reviewForm.content,
+        });
+        showToast("리뷰가 등록되었습니다!");
+      }
+      setIsReviewModalOpen(false);
+      // 목록 갱신
+      fetchOrders(orderCurrentPage, orderDateFilter, orderSearchTerm);
+    } catch (error) {
+      console.error("리뷰 저장 실패:", error);
+      alert("리뷰 저장에 실패했습니다.");
     }
-    setIsReviewModalOpen(false);
-    setViewingReview(null);
+  };
+
+  const handleDeleteReview = async () => {
+    if (!window.confirm("정말 리뷰를 삭제하시겠습니까?")) return;
+    try {
+      await deleteReview(viewingReview.reviewId);
+      showToast("리뷰가 삭제되었습니다.");
+      setIsReviewModalOpen(false);
+      setViewingReview(null);
+      // 목록 갱신 - await를 사용하여 완료될 때까지 대기
+      await fetchOrders(orderCurrentPage, orderDateFilter, orderSearchTerm);
+    } catch (error) {
+      console.error("리뷰 삭제 실패:", error);
+      alert("리뷰 삭제에 실패했습니다.");
+    }
   };
 
   const handleEditReview = () => {
-    setReviewForm({ rate: viewingReview.rate, content: viewingReview.content });
+    setReviewForm({ rating: viewingReview.rating, content: viewingReview.content });
     setViewingReview(null); // Switch to edit mode in the same modal
   };
 
-  const handleDeleteReview = () => {
-    if (window.confirm("작성하신 리뷰를 삭제하시겠습니까?")) {
-      alert("리뷰가 삭제되었습니다.");
-      setIsReviewModalOpen(false);
-      setViewingReview(null);
-    }
-  };
+
 
   const handleCancelOrder = (orderId) => {
     setCancellingOrderId(orderId);
@@ -742,21 +1109,109 @@ const CustomerView = ({
     setIsCancelModalOpen(true);
   };
 
-  const submitCancelOrder = () => {
+  const submitCancelOrder = async () => {
     if (!cancelReason) {
       alert("취소 사유를 선택해주세요.");
       return;
     }
-    setOrderList((prev) =>
-      prev.map((order) =>
-        order.id === cancellingOrderId
-          ? { ...order, status: "주문 취소됨" }
-          : order,
-      ),
-    );
-    setIsCancelModalOpen(false);
-    alert("취소가 완료되었습니다.");
-    showToast("주문이 성공적으로 취소되었습니다.");
+
+    let finalReason =
+      cancelReason === "other" && cancelDetail ? cancelDetail : cancelReason;
+
+    // 한글로 변환하여 백엔드에 저장되게 처리
+    const reasonMap = {
+      'simple_change': '단순 변심',
+      'delivery_delay': '배송 지연',
+      'product_out_of_stock': '상품 품절',
+      'wrong_order': '주문 실수'
+    };
+    finalReason = reasonMap[finalReason] || finalReason;
+
+    setIsCancelling(true);
+    try {
+      await cancelStoreOrder(cancellingOrderId, finalReason);
+
+      // 로컬 상태 업데이트
+      setOrderList((prev) =>
+        prev.map((order) =>
+          order.storeOrderId === cancellingOrderId
+            ? { ...order, status: "주문 취소됨" }
+            : order,
+        ),
+      );
+
+      setIsCancelModalOpen(false);
+      showToast("주문이 성공적으로 취소되었습니다.");
+
+      // 주문 목록 다시 가져오기
+      await fetchOrders(orderCurrentPage, orderDateFilter, orderSearchTerm);
+    } catch (error) {
+      console.error("주문 취소 실패:", error);
+      alert(error.response?.data?.message || "주문 취소에 실패했습니다.");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleRefundOrder = (orderId) => {
+    setRefundingOrderId(orderId);
+    setRefundReason("simple_change");
+    setRefundDetail("");
+    setIsRefundModalOpen(true);
+  };
+
+  const submitRefundOrder = async () => {
+    if (!refundReason) {
+      alert("환불 사유를 선택해주세요.");
+      return;
+    }
+
+    let finalReason =
+      refundReason === "other" && refundDetail ? refundDetail : refundReason;
+
+    // 한글로 변환하여 백엔드에 저장되게 처리
+    const reasonMap = {
+      'simple_change': '단순 변심',
+      'damaged_product': '상품 파손',
+      'missing_product': '누락된 상품',
+      'wrong_product': '오배송'
+    };
+    finalReason = reasonMap[finalReason] || finalReason;
+
+    setIsRefunding(true);
+    try {
+      await requestRefund(refundingOrderId, finalReason);
+      setIsRefundModalOpen(false);
+      showToast("환불 요청이 성공적으로 접수되었습니다.");
+      await fetchOrders(orderCurrentPage, orderDateFilter, orderSearchTerm);
+    } catch (error) {
+      console.error("환불 요청 실패:", error);
+      const errorMsg = error.response?.data?.message || "";
+      if (errorMsg.includes("이미 처리된 결제입니다") || errorMsg.includes("환불 신청이 불가")) {
+        alert("이미 환불 요청되었거나 거절된 주문 처리건이므로 다시 환불 신청이 불가합니다.");
+      } else {
+        alert(errorMsg || "환불 요청에 실패했습니다.");
+      }
+    } finally {
+      setIsRefunding(false);
+    }
+  };
+
+  const handleAddToCartFromOrder = async (storeOrderId) => {
+    try {
+      showToast("장바구니 담는 중...");
+      const detail = await getStoreOrderDetail(storeOrderId);
+      if (detail && detail.products) {
+        for (const item of detail.products) {
+          await cartAPI.addToCart(item.productId, item.quantity);
+        }
+        showToast("장바구니에 다시 담았습니다.");
+        fetchCart();
+      }
+    } catch (error) {
+      console.error("장바구니 담기 실패:", error);
+      alert("장바구니 담기에 실패했습니다.");
+    }
   };
 
   const handleCancelSubscription = async (subId) => {
@@ -875,7 +1330,7 @@ const CustomerView = ({
     window.scrollTo(0, 0);
   };
 
-  const onAddToCart = async (product, store) => {
+  const onAddToCart = async (product, store, quantity = 1) => {
     if (!isLoggedIn) {
       showToast("로그인이 필요합니다.");
       onOpenAuth();
@@ -887,7 +1342,8 @@ const CustomerView = ({
       const existingItem = cartItems.find(
         (item) => item.productId === product.id,
       );
-      const newQuantity = existingItem ? existingItem.quantity + 1 : 1;
+      const addQty = Math.max(1, Number(quantity) || 1);
+      const newQuantity = existingItem ? existingItem.quantity + addQty : addQty;
 
       const result = await cartAPI.addToCart(product.id, newQuantity);
       setCartItems(result.items);
@@ -1214,7 +1670,7 @@ const CustomerView = ({
         // Redirect to modal if tracking tab is somehow active
         setTimeout(() => {
           setActiveTab("home");
-          setIsTrackingOpen(true);
+          openTrackingModal();
         }, 0);
         return null;
 
@@ -1223,6 +1679,8 @@ const CustomerView = ({
           <StoreRegistrationView
             onBack={() => setActiveTab("partner")}
             status={storeRegistrationStatus}
+            reason={storeRegistrationReason}
+            heldUntil={storeRegistrationHeldUntil}
             setStatus={setStoreRegistrationStatus}
             setStoreRegistrationStoreName={setStoreRegistrationStoreName}
             userId={userInfo?.userId}
@@ -1290,8 +1748,6 @@ const CustomerView = ({
         return (
           <MypageTabContent
             isLoggedIn={isLoggedIn}
-            loyaltyPoints={loyaltyPoints}
-            coupons={coupons}
             myPageTab={myPageTab}
             setMyPageTab={setMyPageTab}
             isResidentRider={isResidentRider}
@@ -1300,6 +1756,11 @@ const CustomerView = ({
             setActiveTab={setActiveTab}
             onLogout={onLogout}
             orderList={orderList}
+            orderCurrentPage={orderCurrentPage}
+            orderTotalPages={orderTotalPages}
+            onOrderDateFilterChange={handleOrderDateFilterChange}
+            onOrderPageChange={handleOrderPageChange}
+            onOrderSearch={handleOrderSearch}
             reviews={reviews}
             userInfo={userInfo}
             subscriptionList={subscriptionList}
@@ -1314,19 +1775,25 @@ const CustomerView = ({
             paymentMethodList={paymentMethodList}
             storeRegistrationStatus={storeRegistrationStatus}
             storeRegistrationStoreName={storeRegistrationStoreName}
+            storeRegistrationReason={storeRegistrationReason}
+            storeRegistrationHeldUntil={storeRegistrationHeldUntil}
             setStoreRegistrationStatus={setStoreRegistrationStatus}
             setStoreRegistrationStoreName={setStoreRegistrationStoreName}
             riderRegistrationStatus={riderRegistrationStatus}
             riderRegistrationApprovalId={riderRegistrationApprovalId}
+            riderRegistrationReason={riderRegistrationReason}
+            riderRegistrationHeldUntil={riderRegistrationHeldUntil}
             refreshRiderRegistration={refreshRiderRegistration}
             setIsResidentRider={setIsResidentRider}
             inquiries={inquiries}
             userRole={userRole}
             setUserRole={setUserRole}
             onOpenAuth={onOpenAuth}
-            setIsTrackingOpen={setIsTrackingOpen}
+            openTrackingModal={openTrackingModal}
             handleOpenReviewModal={handleOpenReviewModal}
             handleCancelOrder={handleCancelOrder}
+            handleRefundOrder={handleRefundOrder}
+            handleAddToCartFromOrder={handleAddToCartFromOrder}
             setViewingReview={setViewingReview}
             setSelectedOrderForReview={setSelectedOrderForReview}
             setIsReviewModalOpen={setIsReviewModalOpen}
@@ -1382,9 +1849,11 @@ const CustomerView = ({
                   marginBottom: "32px",
                 }}
               >
-                <h2 style={{ fontSize: "28px", fontWeight: "800", margin: 0 }}>
-                  오늘의 추천 상점
-                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <h2 style={{ fontSize: "28px", fontWeight: "800", margin: 0 }}>
+                    오늘의 추천 상점
+                  </h2>
+                </div>
                 <div
                   style={{ display: "flex", gap: "12px", alignItems: "center" }}
                 >
@@ -1467,8 +1936,12 @@ const CustomerView = ({
                           cursor: "pointer",
                           transition: "all 0.2s",
                         }}
-                        onMouseEnter={(e) => (e.target.style.background = "#e2e8f0")}
-                        onMouseLeave={(e) => (e.target.style.background = "#f1f5f9")}
+                        onMouseEnter={(e) =>
+                          (e.target.style.background = "#e2e8f0")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.target.style.background = "#f1f5f9")
+                        }
                         title="검색어 초기화"
                       >
                         ✕
@@ -1547,6 +2020,10 @@ const CustomerView = ({
                   coords={coords}
                   onAddToCart={onAddToCart}
                   onStoreClick={(store) => {
+                    if (store.isOpen === false) {
+                      showToast("현재 배달이 불가능한 매장입니다.");
+                      return;
+                    }
                     setSelectedStore(store);
                     window.scrollTo(0, 0);
                   }}
@@ -1566,12 +2043,23 @@ const CustomerView = ({
       <Toast message={toast} />
       <OrderCancelModal
         isOpen={isCancelModalOpen}
-        onClose={() => setIsCancelModalOpen(false)}
-        cancelReason={cancelReason}
-        setCancelReason={setCancelReason}
-        cancelDetail={cancelDetail}
-        setCancelDetail={setCancelDetail}
-        onSubmit={submitCancelOrder}
+        onClose={() => !isCancelling && setIsCancelModalOpen(false)}
+        reason={cancelReason}
+        setReason={setCancelReason}
+        detail={cancelDetail}
+        setDetail={setCancelDetail}
+        onConfirm={submitCancelOrder}
+        isProcessing={isCancelling}
+      />
+      <OrderRefundModal
+        isOpen={isRefundModalOpen}
+        onClose={() => !isRefunding && setIsRefundModalOpen(false)}
+        reason={refundReason}
+        setReason={setRefundReason}
+        detail={refundDetail}
+        setDetail={setRefundDetail}
+        onConfirm={submitRefundOrder}
+        isProcessing={isRefunding}
       />
       <Header
         activeTab={activeTab}
@@ -1598,61 +2086,96 @@ const CustomerView = ({
       />
       <div style={{ minHeight: "calc(100vh - 200px)" }}>
         {selectedStore ? (
-          <div
-            style={{
-              animation: "fadeInLayer 0.3s ease-out",
-            }}
-          >
-            <StoreDetailView
-              store={selectedStore}
-              onBack={() => {
-                setSelectedStore(null);
-                window.scrollTo(0, 0);
+          selectedStore.isOpen === false ? (
+            <div
+              style={{
+                padding: "40px 24px",
+                textAlign: "center",
+                backgroundColor: "var(--bg-card)",
+                borderRadius: "var(--radius)",
+                margin: "24px",
+                boxShadow: "var(--shadow)",
               }}
-              onAddToCart={onAddToCart}
-              onSubscribeCheckout={async (subProduct) => {
-                const deliveryTimeSlot =
-                  subProduct.deliveryTimeSlot ?? subProduct.deliveryTime;
-                const subscriptionProductId =
-                  subProduct.id != null ? Number(subProduct.id) : null;
-                const isNumericId =
-                  subscriptionProductId != null &&
-                  !Number.isNaN(subscriptionProductId);
+            >
+              <p style={{ fontSize: "18px", fontWeight: "700", color: "#64748b", marginBottom: "24px" }}>
+                현재 배달이 불가능한 매장입니다.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedStore(null);
+                  window.scrollTo(0, 0);
+                }}
+                style={{
+                  padding: "12px 24px",
+                  borderRadius: "12px",
+                  border: "none",
+                  background: "var(--primary)",
+                  color: "white",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                }}
+              >
+                목록으로 돌아가기
+              </button>
+            </div>
+          ) : (
+            <div
+              style={{
+                animation: "fadeInLayer 0.3s ease-out",
+              }}
+            >
+              <StoreDetailView
+                store={selectedStore}
+                onBack={() => {
+                  setSelectedStore(null);
+                  window.scrollTo(0, 0);
+                }}
+                onAddToCart={onAddToCart}
+                onSubscribeCheckout={async (subProduct) => {
+                  const deliveryTimeSlot =
+                    subProduct.deliveryTimeSlot ?? subProduct.deliveryTime;
+                  const subscriptionProductId =
+                    subProduct.id != null ? Number(subProduct.id) : null;
+                  const isNumericId =
+                    subscriptionProductId != null &&
+                    !Number.isNaN(subscriptionProductId);
 
-                if (!deliveryTimeSlot || !isNumericId) {
-                  showToast(
-                    "배송 시간대를 선택해 주세요. (실제 구독 상품이 있는 마트에서만 구독 신청이 가능합니다.)",
+                  if (!deliveryTimeSlot || !isNumericId) {
+                    showToast(
+                      "배송 시간대를 선택해 주세요. (실제 구독 상품이 있는 마트에서만 구독 신청이 가능합니다.)",
+                    );
+                    return;
+                  }
+                  if (addressList.length === 0) {
+                    showToast("배송지를 먼저 등록해 주세요.");
+                    return;
+                  }
+
+                  // 구독 상품 정보를 sessionStorage에 저장하고 결제창으로 이동
+                  const subscriptionData = {
+                    subscriptionProductId,
+                    deliveryTimeSlot,
+                    daysOfWeek: subProduct.daysOfWeek || [],
+                    price: subProduct.price,
+                    name: subProduct.name,
+                    desc: subProduct.desc,
+                    img: subProduct.img,
+                    totalDeliveryCount: subProduct.totalDeliveryCount,
+                  };
+                  sessionStorage.setItem(
+                    "pendingSubscriptionCheckout",
+                    JSON.stringify(subscriptionData),
                   );
-                  return;
-                }
-                if (addressList.length === 0) {
-                  showToast("배송지를 먼저 등록해 주세요.");
-                  return;
-                }
 
-                // 구독 상품 정보를 sessionStorage에 저장하고 결제창으로 이동
-                const subscriptionData = {
-                  subscriptionProductId,
-                  deliveryTimeSlot,
-                  daysOfWeek: subProduct.daysOfWeek || [],
-                  price: subProduct.price,
-                  name: subProduct.name,
-                  desc: subProduct.desc,
-                  img: subProduct.img,
-                  totalDeliveryCount: subProduct.totalDeliveryCount,
-                };
-                sessionStorage.setItem(
-                  "pendingSubscriptionCheckout",
-                  JSON.stringify(subscriptionData),
-                );
-
-                // 결제창으로 이동
-                setSelectedStore(null);
-                setActiveTab("checkout");
-                window.scrollTo(0, 0);
-              }}
-            />
-          </div>
+                  // 결제창으로 이동
+                  setSelectedStore(null);
+                  setActiveTab("checkout");
+                  window.scrollTo(0, 0);
+                }}
+              />
+            </div>
+          )
         ) : (
           renderActiveView()
         )}
@@ -1668,20 +2191,22 @@ const CustomerView = ({
           }
         `}</style>
       </div>
-      <Footer onTabChange={handleTabChange} />
+      <Footer onTabChange={handleTabChange} userInfo={userInfo} setUserRole={setUserRole} />
       {isReviewModalOpen && (
         <ReviewModal
-          viewingReview={viewingReview}
-          selectedOrderForReview={selectedOrderForReview}
-          reviewForm={reviewForm}
-          setReviewForm={setReviewForm}
-          onSave={handleSaveReview}
-          onEdit={handleEditReview}
-          onDelete={handleDeleteReview}
+          isOpen={isReviewModalOpen}
           onClose={() => {
             setIsReviewModalOpen(false);
             setViewingReview(null);
           }}
+          viewingReview={viewingReview}
+          isEditing={isEditing}
+          setIsEditing={setIsEditing}
+          selectedOrderForReview={selectedOrderForReview}
+          reviewForm={reviewForm}
+          setReviewForm={setReviewForm}
+          onSave={handleSaveReview}
+          onDelete={handleDeleteReview}
         />
       )}
       <style>{`
@@ -1705,7 +2230,7 @@ const CustomerView = ({
         }}
       >
         <button
-          onClick={() => setIsTrackingOpen(true)}
+          onClick={() => openTrackingModal()}
           style={{
             width: "60px",
             height: "60px",
@@ -1781,8 +2306,13 @@ const CustomerView = ({
         onCheckout={(itemsToCheckout) => {
           sessionStorage.removeItem("pendingSubscriptionCheckout");
           setIsCartOpen(false);
+          setSelectedStore(null);
           // 선택한 상품만 결제창으로 전달 (없으면 전체 장바구니)
-          setCheckoutCartItems(Array.isArray(itemsToCheckout) && itemsToCheckout.length > 0 ? itemsToCheckout : null);
+          setCheckoutCartItems(
+            Array.isArray(itemsToCheckout) && itemsToCheckout.length > 0
+              ? itemsToCheckout
+              : null,
+          );
           setActiveTab("checkout");
         }}
         isLoggedIn={isLoggedIn}
@@ -1791,7 +2321,7 @@ const CustomerView = ({
       <TrackingModal
         isOpen={isTrackingOpen}
         onClose={() => setIsTrackingOpen(false)}
-        orderId={trackingOrderId}
+        trackingTarget={trackingTarget}
       />
       <LocationModal
         isOpen={isLocationModalOpen}
@@ -1806,17 +2336,21 @@ const CustomerView = ({
       />
       <PaymentSuccessModal
         isOpen={isSuccessModalOpen}
-        onClose={() => {
+        onClose={async () => {
           setIsSuccessModalOpen(false);
           setIsSubscriptionOrder(false);
           clearCart();
           setActiveTab("home");
+          // 주문 목록 갱신
+          await fetchOrders();
         }}
-        onViewOrder={() => {
+        onViewOrder={async () => {
           setIsSuccessModalOpen(false);
           clearCart();
           setActiveTab("mypage");
           sessionStorage.setItem("activeTab", "mypage");
+          // 주문 목록 갱신
+          await fetchOrders();
           if (isSubscriptionOrder) {
             setMyPageTab("subscription");
             sessionStorage.setItem("myPageTab", "subscription");
@@ -1824,10 +2358,10 @@ const CustomerView = ({
             fetchSubscriptions();
             // 탭 전환 후 스크롤을 맨 위로 이동 (약간의 지연 필요)
             setTimeout(() => {
-              window.scrollTo({ top: 0, behavior: 'smooth' });
+              window.scrollTo({ top: 0, behavior: "smooth" });
             }, 100);
             setTimeout(() => {
-              window.scrollTo({ top: 0, behavior: 'auto' });
+              window.scrollTo({ top: 0, behavior: "auto" });
             }, 500);
           } else {
             setMyPageTab("profile");

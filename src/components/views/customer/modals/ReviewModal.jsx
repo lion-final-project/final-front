@@ -10,11 +10,12 @@ const RATE_LABELS = [
 
 const ReviewModal = ({
   viewingReview,
+  isEditing,
+  setIsEditing,
   selectedOrderForReview,
   reviewForm,
   setReviewForm,
   onSave,
-  onEdit,
   onDelete,
   onClose,
 }) => {
@@ -41,7 +42,7 @@ const ReviewModal = ({
           boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
         }}
       >
-        {viewingReview ? (
+        {viewingReview && !isEditing ? (
           <>
             <h2
               style={{
@@ -69,8 +70,8 @@ const ReviewModal = ({
                   marginBottom: "8px",
                 }}
               >
-                {"★".repeat(viewingReview.rate)}
-                {"☆".repeat(5 - viewingReview.rate)}
+                {"★".repeat(viewingReview.rating)}
+                {"☆".repeat(5 - viewingReview.rating)}
               </div>
               <div
                 style={{
@@ -79,7 +80,7 @@ const ReviewModal = ({
                   color: "#f59e0b",
                 }}
               >
-                {RATE_LABELS[viewingReview.rate - 1]}
+                {RATE_LABELS[viewingReview.rating - 1]}
               </div>
             </div>
             <div
@@ -91,13 +92,20 @@ const ReviewModal = ({
                 color: "#334155",
                 lineHeight: "1.6",
                 marginBottom: "32px",
+                whiteSpace: "pre-wrap",
               }}
             >
               {viewingReview.content}
             </div>
             <div style={{ display: "flex", gap: "12px" }}>
               <button
-                onClick={onEdit}
+                onClick={() => {
+                  setReviewForm({
+                    rating: viewingReview.rating,
+                    content: viewingReview.content,
+                  });
+                  setIsEditing(true);
+                }}
                 style={{
                   flex: 1,
                   padding: "14px",
@@ -153,7 +161,7 @@ const ReviewModal = ({
                 marginBottom: "8px",
               }}
             >
-              리뷰 작성하기
+              {isEditing ? "리뷰 수정하기" : "리뷰 작성하기"}
             </h2>
             <p
               style={{
@@ -187,12 +195,12 @@ const ReviewModal = ({
                     <span
                       key={star}
                       onClick={() =>
-                        setReviewForm({ ...reviewForm, rate: star })
+                        setReviewForm({ ...reviewForm, rating: star })
                       }
                       style={{
                         cursor: "pointer",
                         color:
-                          star <= reviewForm.rate ? "#f59e0b" : "#e2e8f0",
+                          star <= reviewForm.rating ? "#f59e0b" : "#e2e8f0",
                       }}
                     >
                       ★
@@ -206,7 +214,7 @@ const ReviewModal = ({
                     color: "#f59e0b",
                   }}
                 >
-                  {RATE_LABELS[reviewForm.rate - 1]}
+                  {RATE_LABELS[reviewForm.rating - 1]}
                 </div>
               </div>
 
@@ -231,7 +239,7 @@ const ReviewModal = ({
                       content: e.target.value,
                     })
                   }
-                  placeholder="다른 고객들에게 도움이 될 수 있도록 솔직한 리뷰를 남겨주세요. (비속어, 타인 비방 등 부적절한 언어 사용 시 서비스 이용에 제재를 받을 수 있습니다.)"
+                  placeholder="다른 고객들에게 도움이 될 수 있도록 솔직한 리뷰를 남겨주세요."
                   style={{
                     width: "100%",
                     height: "120px",
@@ -247,7 +255,7 @@ const ReviewModal = ({
               <div style={{ display: "flex", gap: "12px" }}>
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={isEditing ? () => setIsEditing(false) : onClose}
                   style={{
                     flex: 1,
                     padding: "14px",
@@ -273,7 +281,7 @@ const ReviewModal = ({
                     cursor: "pointer",
                   }}
                 >
-                  리뷰 등록
+                  {isEditing ? "수정 완료" : "리뷰 등록"}
                 </button>
               </div>
             </form>

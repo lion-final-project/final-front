@@ -4,7 +4,7 @@ const isImageFile = (url) => {
   if (!url) return false;
   if (url.startsWith('data:image/')) return true;
   const clean = url.split('?')[0].toLowerCase();
-  return clean.endsWith('.png') || clean.endsWith('.jpg') || clean.endsWith('.jpeg') || clean.endsWith('.gif') || clean.endsWith('.webp');
+  return clean.endsWith('.png') || clean.endsWith('.jpg') || clean.endsWith('.jpeg') || clean.endsWith('.gif') || clean.endsWith('.webp') || clean.endsWith('.svg');
 };
 
 const isPdfFile = (url) => {
