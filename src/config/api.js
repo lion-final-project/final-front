@@ -3,13 +3,11 @@
  * 카카오 로그인 시 8080으로 이동 (리다이렉트 URI와 동일 호스트 필요).
  */
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
-
+  (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
 /** 카카오 콘솔 등록 리다이렉트 URI: http://localhost:8080/login/oauth2/code/kakao
  *  이 주소로 이동해야 백엔드가 카카오 소셜 로그인창으로 리다이렉트함 (회원가입 폼이 아님) */
 export const KAKAO_OAUTH_AUTHORIZE_URL =
-  import.meta.env.VITE_KAKAO_OAUTH_AUTHORIZE_URL || 'http://localhost:8080/oauth2/authorization/kakao';
-
+  (import.meta.env.VITE_KAKAO_OAUTH_AUTHORIZE_URL || 'http://localhost:8080/oauth2/authorization/kakao').replace(/\/+$/, '');
 export const authApi = {
   checkEmail: (email) =>
     `${API_BASE_URL}/api/auth/check-email?email=${encodeURIComponent(email)}`,
