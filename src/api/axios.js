@@ -117,18 +117,14 @@ api.interceptors.response.use(
 
                 isRefreshing = true;
                 try {
-                    await api.post('/api/auth/refresh');
+                    if (!loginJustSucceeded) {
+                        // 로그인 직후가 아닌 경우만 refresh 요청 전송
+                        await api.post('/api/auth/refresh');
+                    }
                     processQueue(null);
                     config._retryByAuth = true;
                     return api.request(config);
                 } catch (refreshErr) {
-                    if (loginJustSucceeded) {
-                        // pre-login 요청의 뒤늦은 refresh 실패:
-                        // 이미 로그인 완료 상태이므로 큐와 원래 요청을 모두 재시도
-                        processQueue(null);
-                        config._retryByAuth = true;
-                        return api.request(config);
-                    }
                     processQueue(refreshErr);
                     dispatchSessionExpired();
                 } finally {
